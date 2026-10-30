@@ -13,7 +13,8 @@
     "source:parquet": "python tools/make-source-parquet.py",
     "probe:browser": "node tools/browser-probe/run.mjs",
     "playground": "node tools/browser-probe/serve.mjs",
-    "probe:playground": "node tools/browser-probe/run-playground.mjs"
+    "probe:playground": "node tools/browser-probe/run-playground.mjs",
+    "probe:parity": "node tools/browser-probe/parity.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

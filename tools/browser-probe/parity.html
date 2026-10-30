@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>WeiSQL parity probe</title>
+  </head>
+  <body>
+    <pre id="log"></pre>
+    <script type="module">
+      import { open, validateManifest } from "/sdk/database.js";
+      import { HttpResourceReader } from "/sdk/http-resource-reader.js";
+      import { INVALID_MANIFESTS, QUERIES, summarizeError, summarizeHits } from "/parity/queries.js";
+
+      const log = (message) => {
+        document.getElementById("log").textContent += `${message}\n`;
+        console.log(message);
+      };
+
+      async function main() {
+        const base = new URL("/fixture/", location.href).href;
+        const manifest = await (await fetch(new URL("manifest.json", base))).json();
+        const reader = new HttpResourceReader({ baseUrl: base });
+        const db = await open({ manifest, resourceReader: reader, verifyChecksums: "all" });
+
+        const queries = [];
+        for (const query of QUERIES) {
+          try {
+            const hits = await db.vector.search("document_embeddings", new Float32Array(query.vector), { topK: query.topK });
+            queries.push({ name: query.name, ok: true, ...summarizeHits(hits) });
+          } catch (error) {
+            queries.push({ name: query.name, ok: false, error: summarizeError(error) });
+          }
+        }
+
+        const invalid = INVALID_MANIFESTS.map(({ name, mutate }) => {
+          const copy = structuredClone(manifest);
+          mutate(copy);
+          try {
+            validateManifest(copy);
+            return { name, accepted: true };
+          } catch (error) {
+            return { name, accepted: false, code: error?.code ?? "NO_CODE" };
+          }
+        });
+
+        window.__PARITY_RESULT = { environment: "browser", queries, invalid };
+        log(JSON.stringify(window.__PARITY_RESULT));
+        await db.close();
+      }
+
+      main().catch(error => {
+        window.__PARITY_RESULT = { environment: "browser", fatal: String(error?.stack ?? error) };
+        log(`FAILED: ${error}`);
+      });
+    </script>
+  </body>
+</html>

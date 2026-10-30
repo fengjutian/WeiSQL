@@ -35,6 +35,8 @@ export function createProbeServer(fixtureDirectory = DEFAULT_FIXTURE) {
   const resolveTarget = (urlPath) => {
     if (urlPath === "/" || urlPath === "/index.html" || urlPath === "/sdk.html") return path.join(HERE, "sdk.html");
     if (urlPath === "/playground" || urlPath === "/playground/") return path.join(PLAYGROUND, "index.html");
+    if (urlPath === "/parity" || urlPath === "/parity/") return path.join(HERE, "parity.html");
+    if (urlPath.startsWith("/parity/")) return path.join(HERE, urlPath.slice("/parity/".length));
     if (urlPath.startsWith("/playground/")) return path.join(PLAYGROUND, urlPath.slice("/playground/".length));
     if (urlPath.startsWith("/sdk/")) return path.join(SDK_DIST, urlPath.slice("/sdk/".length));
     if (urlPath.startsWith("/fixture/")) return path.join(fixtureDirectory, urlPath.slice("/fixture/".length));

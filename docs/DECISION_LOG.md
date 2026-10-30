@@ -72,6 +72,7 @@
 - 原因：避免 Adapter 直接依赖 URL 或文件系统，集中处理路径、Range、取消、资源限制和流式完整性校验。
 - 规范：`RESOURCE_READER_CONTRACT.md`。
 - 实现门槛：至少完成 Node 文件与 HTTP 两个实现的契约测试；HTTP 必须严格验证 `206`、`Content-Range` 和实际长度。
+- 当前进度：`HttpResourceReader` 首版及注入 Fetch 的契约测试已完成；Node 文件实现与真实 CDN 验收待完成。
 
 ## 明确禁止的未经验证声明
 

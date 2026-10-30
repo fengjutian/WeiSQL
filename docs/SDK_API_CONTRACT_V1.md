@@ -78,9 +78,12 @@ interface WeiSQLCapabilities {
 | `MANIFEST_INVALID` | Manifest JSON/schema invalid | Show validation detail; do not open resources |
 | `FORMAT_VERSION_UNSUPPORTED` | Unsupported major format version | Ask user to upgrade SDK or regenerate dataset |
 | `PATH_INVALID` | Unsafe or invalid resource path | Reject before fetching |
+| `INVALID_ARGUMENT` | API argument is invalid | Correct the caller input before retrying |
 | `RESOURCE_NOT_FOUND` | A referenced file cannot be loaded | Check deployment output and case-sensitive path |
+| `RESOURCE_READ_FAILED` | Resource transport or HTTP request failed | Inspect network/server diagnostics and retry policy |
 | `RESOURCE_INTEGRITY_FAILED` | Size or checksum mismatch | Stop query; never silently continue |
 | `CORS_OR_RANGE_UNSUPPORTED` | Remote access mode is incompatible with requested loading strategy | Explain server header requirement or use multi-file mode |
+| `INVALID_RANGE_RESPONSE` | Range response is malformed, unsatisfiable or differs from the request | Reject bytes and inspect CDN/proxy behavior |
 | `SQL_UNSUPPORTED` | Query/function unavailable in current adapter | Report runtime and engine capability |
 | `VECTOR_DIMENSION_MISMATCH` | Query dimension differs from index | Return expected and actual dimensions |
 | `VECTOR_INVALID_VALUE` | Vector contains NaN/Infinity or forbidden zero vector | Reject input and identify position where possible |

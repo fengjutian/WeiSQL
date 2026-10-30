@@ -69,4 +69,14 @@ Reader 只提供字节。独立 Integrity 层负责比较声明大小、流式�
 
 每个 Reader 至少测试完整读取、Range、零长度读取、非法参数、路径逃逸、404、超时、取消、错误 `Content-Range`、服务端忽略 Range、大小不匹配、流式 SHA-256，以及浏览器/Node 对固定资源返回相同字节。
 
-当前 SDK 已定义接口和 ByteRange 校验，但尚未实现 `HttpResourceReader` 或 `NodeFileResourceReader`。
+## 8. 当前实现状态
+
+SDK 已实现 `HttpResourceReader` 首版，包括完整读取、严格 Range 校验、HEAD 元数据、路径根限制、重定向根限制、取消和幂等关闭。自动化测试使用注入 Fetch，不依赖真实网络。
+
+仍待完成：
+
+- `NodeFileResourceReader`；
+- `HEAD` 不可用时的受控回退策略；
+- 流式 SHA-256 Integrity 层；
+- 超时、响应大小上限和显式重定向策略；
+- 真实 Netlify/CDN 的 CORS、缓存与 Range 验收。

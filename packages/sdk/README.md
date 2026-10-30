@@ -6,9 +6,12 @@ WeiSQL AI 的只读 TypeScript SDK 骨架。当前版本提供：
 - `open()`：获取并校验远程 Manifest，返回生命周期受控的数据库对象。
 - 稳定的 `WeiSQLError` 错误码。
 - SQL 与向量查询的公开类型和输入边界。
+- `HttpResourceReader`：浏览器兼容的完整读取、严格 HTTP Range、元数据和取消支持。
 
 SQL、Parquet 和向量索引适配器尚未接入。调用查询接口会返回明确的
 `SQL_UNSUPPORTED` 或 `INDEX_NOT_FOUND`，不会模拟查询结果。
+
+HTTP Reader 已通过注入 Fetch 的自动化测试，但尚未完成真实 Netlify/CDN 的 CORS、Range 和缓存验收，也尚未实现流式 SHA-256 校验。
 
 ## 开发
 

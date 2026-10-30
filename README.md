@@ -4,7 +4,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 
 项目采用 TypeScript + Rust：TypeScript 提供公开 SDK、Manifest 校验、资源读取、Runtime 编排和精确向量检索；Rust 提供用于对照的精确 Cosine 基线。DuckDB、DuckDB-Wasm 和 USearch 被设计为可替换 Adapter，当前只有 SQL 注入契约，仓库内没有任何引擎实现。
 
-> 当前状态：工程原型。Manifest V1 基础结构已冻结；L1/L2 校验、HTTP 与 Node 文件 Reader、Runtime 生命周期和 TypeScript 精确向量检索已实现并有自动化测试。SQL 引擎、Builder 与真实数据包、L3 完整性校验、ANN、WASM 和真实 CDN 部署仍在开发计划中。项目尚未发布 npm 包，也没有未经实测的性能承诺。
+> 当前状态：工程原型。Manifest V1 基础结构已冻结；L1/L2 校验、L3 资源完整性（尺寸 + SHA-256）、HTTP 与 Node 文件 Reader、Runtime 生命周期、TypeScript 精确向量检索，以及生成真实数据包的 Builder 首版均已实现并有自动化测试。SQL 引擎、ANN、WASM 和真实 CDN 部署仍在开发计划中。项目尚未发布 npm 包，也没有未经实测的性能承诺。
 
 ## 已实现
 
@@ -17,6 +17,9 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - 严格 HTTP Range、`Content-Range`、响应长度、取消和生命周期处理
 - `open()` 双 Manifest 来源、`capabilities()`、只读 `state` 和幂等 `close()`
 - 引擎无关的 `SqlAdapter` 注入边界（`open({ sqlAdapter })`）
+- L3 资源完整性：`verifyChecksums` 的 `manifest`（尺寸）与 `all`（增量 SHA-256 + ID Map 内容）两种模式
+- 零依赖增量 SHA-256，浏览器与 Node.js 同一实现
+- `buildPackage()` Builder：接收已有 Parquet，生成 Float32、ID Map、真实摘要与 Manifest，暂存区自检后原子发布
 - 已接入公开 `vector.search()` 的端到端精确搜索
 - Float32 little-endian 向量分块读取
 - Cosine、L2、IP 统一距离语义
@@ -29,8 +32,8 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 
 - DuckDB / DuckDB-Wasm SQL Adapter 实现（当前只有注入契约，没有引擎）
 - USearch 或其他 ANN Adapter
-- WeiSQL Builder 和真实 Parquet 数据包生成
-- 实际资源 SHA-256、完整文件长度和 Parquet 内容验证（`verifyChecksums` 已声明但尚未生效）
+- Builder 的 CSV/JSON → Parquet 生成与类型推断
+- Parquet 内容级校验（L4，需要 SQL 引擎）
 - WASM 构建与 TypeScript/Rust 自动黄金数据对照
 - Netlify/CDN 的真实 CORS、Range 和缓存验收
 - `.wsql` 单文件容器
@@ -52,6 +55,14 @@ npm test
 npm run typecheck
 npm run build
 ```
+
+重新生成示例数据包（`examples/fixture`）：
+
+```bash
+npm run fixture
+```
+
+该命令调用 Builder，从 `examples/source/documents.parquet` 生成完整数据包并在发布前自检。源 Parquet 由 `python tools/make-source-parquet.py`（依赖 pyarrow）生成，属于不可变输入。
 
 测试监听模式：
 
@@ -144,6 +155,53 @@ ResourceReader
 
 详情见 [TypeScript 精确搜索基线](docs/EXACT_VECTOR_BASELINE.md)。
 
+## 构建数据包
+
+V1 Builder 接收**已存在的 Parquet 文件**（不负责 CSV/JSON 推断），生成 Float32 向量、ID Map、真实字节数与 SHA-256，并在发布前重新读取整个暂存区做 L1/L2/L3 自检：
+
+```ts
+import { buildPackage } from "@weisql/sdk";
+
+const report = await buildPackage({
+  outputDirectory: "fixture",
+  datasetId: "demo-documents",
+  tables: [{
+    name: "documents",
+    parquetPath: "source/documents.parquet",
+    columns: [
+      { name: "id", type: "string", nullable: false },
+      { name: "title", type: "string", nullable: false },
+    ],
+    primaryKey: ["id"],
+    rowIds: ["doc-001", "doc-002", "doc-003"],
+  }],
+  vectorCollections: [{
+    name: "document_embeddings",
+    tableName: "documents",
+    idColumn: "id",
+    metric: "cosine",
+    vectors: [[1, 0], [0.9, 0.1], [0, 1]],
+    ids: ["doc-001", "doc-002", "doc-003"],
+  }],
+});
+```
+
+构建阶段为 `CREATED → VALIDATING → BUILDING → VERIFYING → PUBLISHING → PUBLISHED`，任一阶段失败进入 `FAILED` 并清理暂存区。默认拒绝覆盖已有目录；`overwrite: true` 时先把旧目录移走，成功后才删除，失败则回滚。
+
+未提供 `rowIds` 时，Builder 不会假装完成主键交叉校验，而是在 `report.warnings` 中报告 `id-membership-unverified`。
+
+## 资源完整性校验
+
+`open()` 的 `verifyChecksums` 有三种策略，语义与 `RESOURCE_INTEGRITY_SPEC.md` 一致：
+
+| 策略 | 行为 |
+| --- | --- |
+| `none`（默认） | 只做 L1/L2，不访问任何资源 |
+| `manifest` | 用 `stat` 校验每个资源实际长度，不做完整读取 |
+| `all` | 分块增量计算 SHA-256，并校验 ID Map 偏移与 JSONL 内容 |
+
+`all` 模式会验证字节内容一致性；`manifest` 只保证长度，**不使用 `all` 就无法发现同长度的内容篡改**。完整性校验在任何 Adapter 接触资源之前执行，需要同时提供 `resourceReader`。
+
 ## Runtime API
 
 ```ts
@@ -171,7 +229,10 @@ await db.close();
 crates/vector-benchmark/   Rust 精确 Cosine 基线
 docs/                      格式、Adapter、安全、基准和路线文档
 examples/manifest/         Manifest 正例与安全负例
-packages/sdk/              TypeScript SDK、资源层和向量基线
+examples/source/           Builder 的不可变 Parquet 输入
+examples/fixture/          Builder 生成的真实数据包示例
+packages/sdk/              TypeScript SDK、资源层、Builder 和向量基线
+tools/                     源 Parquet 生成脚本
 ```
 
 ## 主要文档
@@ -208,11 +269,13 @@ packages/sdk/              TypeScript SDK、资源层和向量基线
 
 当前建议顺序：
 
-1. 实现 Builder 和真实三记录 fixture
-2. 实现 L3 文件长度与 SHA-256 校验
+1. ~~实现 Builder 和真实三记录 fixture~~（首版已完成，`examples/fixture`）
+2. ~~实现 L3 文件长度与 SHA-256 校验~~（已完成，`verifyChecksums`）
 3. 接入 Node.js DuckDB Adapter
 4. 完成 SQL + 精确向量搜索端到端测试
 5. 验证 DuckDB-Wasm 和静态 CDN
 6. 在正确性基线稳定后接入 ANN 并运行性能协议
+
+第 3 步是当前瓶颈：没有真实 SQL 引擎，`documents.parquet` 只能由测试用独立 Parquet reader 读取，SQL ↔ 向量业务 ID 关联尚未在真实引擎上验证。
 
 在真实测试报告完成前，不对百万级向量延迟、浏览器内存、ANN 召回率或 CDN 随机访问效率作产品承诺。

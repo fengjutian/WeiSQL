@@ -116,6 +116,15 @@
 - 兼容性：两种字节布局无法可靠自动区分，属于数据格式破坏性变更，不能在 V1 中静默替换。
 - 接受条件：启用新的格式版本，并原子更新 Schema、类型、Builder、Reader、fixtures、迁移说明和跨运行时测试。接受前不得生成或宣称支持哨兵布局。
 
+## ADR-016：Builder 只消费已有 Parquet，L3 分成三种可验证等级
+
+- 状态：Accepted and implemented（V1 首版）
+- 决策一：Builder 输入是已存在的 Parquet 文件、原始向量与业务 ID；不在 TypeScript 内生成 Parquet，也不做 CSV/JSON 类型推断。理由：Parquet 编码器（Thrift compact metadata、页编码、定义/重复层级）出错成本高且难以自证，而 V1 的真正缺口是摘要、ID Map 与 L3 校验，不是文件编码。
+- 决策二：`verifyChecksums` 分为 `none` / `manifest` / `all`，与 `RESOURCE_INTEGRITY_SPEC.md` 一致。`manifest` 只比较 `stat` 长度，不读取完整内容；`all` 才做增量 SHA-256 与 ID Map 内容校验。报告用 `sizeVerified` 与 `hashesVerified` 区分，不得把长度校验描述成内容校验。
+- 决策三：SHA-256 自行实现为增量 `Sha256` 类，不依赖 `node:crypto` 或 WebCrypto。理由：浏览器 WebCrypto 无流式 API，加载 `node:crypto` 会破坏浏览器主包；纯函数实现可用 `node:crypto` 对照测试证明正确性。
+- 决策四：Builder 在暂存目录完成写入、重新读取、L1/L2/L3 复验后才原子重命名发布；`overwrite` 先把旧目录改名保留，成功后才删除，失败则回滚。未提供 `rowIds` 时主键交叉校验只产生 `id-membership-unverified` 警告，不伪造通过。
+- 后果：`data/*.parquet` 的内容正确性仍属 L4，需 SQL 引擎或独立 Parquet reader 验证；当前测试用 `hyparquet`（devDependency）读取三条记录作为独立证据。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | L1 | 类型、必填字段、未知字段、版本 | 已实现 |
 | L2 | 唯一性、引用、路径、计数与字节公式 | 已实现 |
-| L3 | 实际长度、SHA-256、ID Map 内容与偏移 | 部分实现，统一入口待完成 |
+| L3 | 实际长度、SHA-256、ID Map 内容与偏移 | 已实现：`verifyManifestResources()`，接入 `open({ verifyChecksums })` |
 | L4 | Parquet 可读性、索引与引擎兼容性 | 待 Adapter 实现 |
 
 结构校验器继续采用当前零运行时依赖的 TypeScript 实现，并以 `MANIFEST_SCHEMA_V1.json` 作为机器可读契约。若未来采用 Ajv 或预编译 Schema，必须运行同一套正反例和语义测试，且不得改变公开错误码。

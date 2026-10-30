@@ -113,7 +113,7 @@ Adaptive 策略、BM25 与 RRF 不属于 V1 基础闭环。
 | 只读 SQL | 必须 | Adapter 接口已接线，DuckDB 实现待完成 |
 | 基础 Hybrid 两策略 | 必须 | 语义已定义，执行器待完成 |
 | Range/LRU 缓存 | 基础实现 | Range 已完成，LRU 待完成 |
-| Builder 与真实 fixture | 必须 | 待完成 |
+| Builder 与真实 fixture | 必须 | 首版已完成：`buildPackage()` + `examples/fixture`；CSV/JSON 推断未实现 |
 | Playground/静态部署 | 必须 | 待完成 |
 | USearch ANN | 实验或后置 | 未实现 |
 | Rust/WASM 全面迁移 | 后置 | 不计划全面迁移 |
@@ -124,7 +124,7 @@ Adaptive 策略、BM25 与 RRF 不属于 V1 基础闭环。
 
 最短关键路径为：
 
-1. Builder 生成三记录真实 Parquet、Float32、JSONL、偏移和正式摘要；
+1. ~~Builder 生成三记录真实 Parquet、Float32、JSONL、偏移和正式摘要~~（首版已完成，见 `examples/fixture`）；
 2. 实现 Node DuckDB 只读 Adapter 及契约测试；
 3. 完成 Manifest → SQL → Exact Vector → ID 关联的 Node 端到端测试；
 4. 实现结构化等值过滤与 `vector-first`；

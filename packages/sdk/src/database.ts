@@ -25,7 +25,7 @@ class Database implements WeiSQLDatabase {
     this.ensureOpen(); aborted(options?.signal);
     const topK = options?.topK ?? 10;
     if (!Number.isSafeInteger(topK) || topK <= 0) throw new WeiSQLError("VECTOR_INVALID_VALUE", "topK must be a positive integer", { topK });
-    const vector = this.manifest.vectors?.find(item => item.name === vectorName);
+    const vector = this.manifest.vectorCollections.find(item => item.name === vectorName);
     if (!vector) throw new WeiSQLError("INDEX_NOT_FOUND", `Unknown vector '${vectorName}'`);
     if (queryVector.length !== vector.dimension) throw new WeiSQLError("VECTOR_DIMENSION_MISMATCH", "Query vector dimension does not match manifest", { expected: vector.dimension, actual: queryVector.length });
     for (let i = 0; i < queryVector.length; i++) if (!Number.isFinite(queryVector[i])) throw new WeiSQLError("VECTOR_INVALID_VALUE", "Query vector contains a non-finite value", { position: i });

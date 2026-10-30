@@ -1,32 +1,32 @@
 {
-  "format": "weisql-ai",
+  "format": "weisql",
   "formatVersion": "1.0.0",
   "datasetId": "demo-docs",
-  "createdAt": "2026-10-30T00:00:00Z",
-  "tables": [
-    {
-      "name": "records",
-      "schema": [
-        { "name": "id", "type": "utf8", "nullable": false },
-        { "name": "title", "type": "utf8", "nullable": false },
-        { "name": "category", "type": "utf8", "nullable": true }
-      ],
-      "primaryKey": ["id"],
-      "files": [
-        {
-          "path": "records/part-00000.parquet",
-          "format": "parquet",
-          "rows": 3,
-          "bytes": 1234,
-          "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-        }
-      ]
+  "tables": [{
+    "name": "documents",
+    "format": "parquet",
+    "file": { "path": "data/documents.parquet", "bytes": 1024, "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+    "columns": [
+      { "name": "id", "type": "string", "nullable": false },
+      { "name": "content", "type": "string", "nullable": true }
+    ],
+    "primaryKey": ["id"]
+  }],
+  "vectorCollections": [{
+    "name": "document_embeddings",
+    "tableName": "documents",
+    "idColumn": "id",
+    "count": 3,
+    "dimension": 2,
+    "metric": "cosine",
+    "encoding": "f32-le-row-major",
+    "data": { "path": "vectors/embeddings.f32", "bytes": 24, "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
+    "idMap": {
+      "count": 3,
+      "uniqueIds": true,
+      "data": { "path": "vectors/id-map.jsonl", "format": "jsonl", "bytes": 75, "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" },
+      "offsets": { "path": "vectors/id-map.offsets", "format": "uint64-le", "bytes": 24, "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd" }
     }
-  ],
-  "features": {
-    "sql": true,
-    "vectorSearch": false,
-    "fullTextSearch": false,
-    "hybridSearch": false
-  }
+  }],
+  "metadata": { "title": "Example dataset", "createdAt": "2026-10-30T00:00:00Z" }
 }

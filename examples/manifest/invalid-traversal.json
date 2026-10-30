@@ -1,19 +1,13 @@
 {
-  "format": "weisql-ai",
+  "format": "weisql",
   "formatVersion": "1.0.0",
   "datasetId": "bad-demo",
-  "tables": [
-    {
-      "name": "records",
-      "schema": [{ "name": "id", "type": "utf8", "nullable": false }],
-      "files": [
-        {
-          "path": "../secrets/private.parquet",
-          "format": "parquet",
-          "bytes": 10,
-          "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-        }
-      ]
-    }
-  ]
+  "tables": [{
+    "name": "documents",
+    "format": "parquet",
+    "file": { "path": "../secrets/private.parquet", "bytes": 10, "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+    "columns": [{ "name": "id", "type": "string", "nullable": false }],
+    "primaryKey": ["id"]
+  }],
+  "vectorCollections": []
 }

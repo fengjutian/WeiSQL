@@ -7,7 +7,7 @@ import { WeiSQLError } from "./errors.js";
  * APIs, so browser and Node.js runtimes enforce identical rules.
  */
 export function validateResourcePath(path: string): void {
-  if (path.length === 0 || path.trim() !== path) {
+  if (path.length === 0 || path.length > 1024 || path.trim() !== path) {
     invalid(path, "Resource path must be non-empty and have no surrounding whitespace");
   }
   if (
@@ -17,8 +17,8 @@ export function validateResourcePath(path: string): void {
   ) {
     invalid(path, "Resource path must be relative and use forward slashes");
   }
-  if (/%2e|%2f|%5c/i.test(path)) {
-    invalid(path, "Encoded separators and dot segments are not allowed");
+  if (path.includes("%")) {
+    invalid(path, "Percent-encoded resource paths are not allowed");
   }
   const segments = path.split("/");
   if (segments.some(segment => segment === "" || segment === "." || segment === "..")) {

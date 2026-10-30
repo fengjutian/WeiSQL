@@ -15,7 +15,7 @@ test("rejects path traversal", async () => {
   const value = await readJson("invalid-traversal.json");
   assert.throws(() => validateManifest(value), error => {
     assert.equal(error.code, "MANIFEST_INVALID");
-    assert.match(JSON.stringify(error.details), /safe relative resource path/);
+    assert.match(JSON.stringify(error.details), /safe package-relative path/);
     return true;
   });
 });
@@ -28,14 +28,14 @@ test("rejects unsupported major versions", async () => {
 
 test("rejects duplicate resource paths", async () => {
   const value = await readJson("valid-minimal.json");
-  value.tables[0].files.push({ ...value.tables[0].files[0] });
-  assert.throws(() => validateManifest(value), error => JSON.stringify(error.details).includes("duplicates canonical resource path"));
+  value.vectorCollections[0].data.path = value.tables[0].file.path;
+  assert.throws(() => validateManifest(value), error => JSON.stringify(error.details).includes("duplicates resource"));
 });
 
 test("open loads and validates a manifest before returning a database", async () => {
   const value = await readJson("valid-minimal.json");
   const db = await open({ manifestUrl: "https://example.test/manifest.json", fetch: async () => new Response(JSON.stringify(value)) });
-  assert.equal(db.manifest.format, "weisql-ai");
+  assert.equal(db.manifest.format, "weisql");
   await db.close();
   await db.close();
   await assert.rejects(db.sql("select 1"), { code: "DATABASE_CLOSED" });
@@ -47,14 +47,35 @@ test("open rejects invalid JSON", async () => {
 
 test("vector input validation returns stable errors before adapter lookup", async () => {
   const value = await readJson("valid-minimal.json");
-  value.vectors = [{
-    name: "embedding", sourceTable: "records", idColumn: "id", dimension: 2,
-    elementType: "float32", metric: "cosine",
-    files: [{ path: "vectors/data.f32", format: "f32-row-major", bytes: 8, sha256: "0".repeat(64) }]
-  }];
   const db = await open({ manifestUrl: "x", fetch: async () => new Response(JSON.stringify(value)) });
-  await assert.rejects(db.vector.search("embedding", [1, 0], { topK: 0 }), { code: "VECTOR_INVALID_VALUE" });
-  await assert.rejects(db.vector.search("embedding", [1]), { code: "VECTOR_DIMENSION_MISMATCH" });
-  await assert.rejects(db.vector.search("embedding", [1, Number.NaN]), { code: "VECTOR_INVALID_VALUE" });
-  await assert.rejects(db.vector.search("embedding", [1, 0]), { code: "INDEX_NOT_FOUND" });
+  await assert.rejects(db.vector.search("document_embeddings", [1, 0], { topK: 0 }), { code: "VECTOR_INVALID_VALUE" });
+  await assert.rejects(db.vector.search("document_embeddings", [1]), { code: "VECTOR_DIMENSION_MISMATCH" });
+  await assert.rejects(db.vector.search("document_embeddings", [1, Number.NaN]), { code: "VECTOR_INVALID_VALUE" });
+  await assert.rejects(db.vector.search("document_embeddings", [1, 0]), { code: "INDEX_NOT_FOUND" });
+});
+
+test("validates frozen V1 cross-field constraints", async () => {
+  const base = await readJson("valid-minimal.json");
+  const cases = [
+    value => { value.tables[0].columns.push({ ...value.tables[0].columns[0] }); },
+    value => { value.tables[0].primaryKey = ["missing"]; },
+    value => { value.vectorCollections[0].tableName = "missing"; },
+    value => { value.vectorCollections[0].idColumn = "content"; },
+    value => { value.vectorCollections[0].data.bytes = 23; },
+    value => { value.vectorCollections[0].idMap.count = 2; },
+    value => { value.vectorCollections[0].idMap.offsets.bytes = 16; },
+    value => { value.extra = true; },
+  ];
+  for (const mutate of cases) {
+    const value = structuredClone(base); mutate(value);
+    assert.throws(() => validateManifest(value), { code: "MANIFEST_INVALID" });
+  }
+});
+
+test("accepts an empty vector collection with zero-byte data and offsets", async () => {
+  const value = await readJson("valid-minimal.json");
+  const collection = value.vectorCollections[0];
+  collection.count = 0; collection.data.bytes = 0; collection.idMap.count = 0;
+  collection.idMap.data.bytes = 0; collection.idMap.offsets.bytes = 0;
+  assert.equal(validateManifest(value).vectorCollections[0].count, 0);
 });

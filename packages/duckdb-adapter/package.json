@@ -1,0 +1,30 @@
+{
+  "name": "@weisql/duckdb-adapter",
+  "version": "0.1.0",
+  "description": "Read-only DuckDB SqlAdapter for WeiSQL AI (Node.js)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test test/*.test.js",
+    "test:watch": "npm run build && node --test --watch test/*.test.js"
+  },
+  "dependencies": {
+    "@duckdb/node-api": "^2.0.0-r.1",
+    "@weisql/sdk": "*"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

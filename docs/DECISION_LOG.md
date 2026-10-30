@@ -50,6 +50,14 @@
 - 迁移影响：当前 JSON Schema、TypeScript 类型、校验器和样例仍使用 `vectors.files[]`，在迁移完成前不得把本决策描述为已实现。
 - 规范：`MANIFEST_SPEC_V1.md`。
 
+## ADR-008：Manifest V1 候选字段形状评审
+
+- 状态：Proposed
+- 候选：`MANIFEST_SCHEMA_V1_CANDIDATE.json` 提出 `format = weisql`、单文件表、`f32-le-row-major` 向量数据和显式 `index: null`。
+- 与当前基线的冲突：当前实现使用 `format = weisql-ai`、表 `schema + files[]`、向量 `sourceTable + files[]`。
+- 冻结前必须决定：稳定格式标识、表分片能力、引擎无关列类型、向量源表引用、空索引表示方式和空数据集语义。
+- 约束：候选 Schema 不用于当前 Runtime，也不表示迁移已经完成；决定后必须原子更新 Schema、类型、校验器、样例和兼容性测试。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

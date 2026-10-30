@@ -1,4 +1,5 @@
 import { WeiSQLError } from "./errors.js";
+import { canonicalResourcePath, validateResourcePath } from "./resource-path.js";
 import type { ManifestFile, ManifestTable, ManifestVector, WeiSQLManifest } from "./types.js";
 
 const columns = new Set(["utf8", "int32", "int64", "float32", "float64", "boolean", "binary", "timestamp"]);
@@ -7,7 +8,6 @@ const normalizations = new Set(["unit", "not-required-by-format", "unknown"]);
 const sha256 = /^[a-fA-F0-9]{64}$/;
 const identifier = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const semver = /^(\d+)\.\d+\.\d+$/;
-const safePathChars = /^[A-Za-z0-9._/-]+$/;
 
 interface Issue { path: string; message: string }
 
@@ -123,10 +123,14 @@ function featuresValue(value: unknown, path: string, issues: Issue[]): void {
 }
 
 function safePath(value: unknown, path: string, issues: Issue[]): void {
-  if (typeof value !== "string" || value.length === 0 || !safePathChars.test(value) || value.startsWith("/") || value.includes("\\") || value.split("/").some(part => part === ".." || part === "" || part === ".") || /^[A-Za-z]:/.test(value) || value.includes(":"))
-    issue(issues, path, "must be a safe relative resource path");
+  if (typeof value !== "string") { issue(issues, path, "must be a safe relative resource path"); return; }
+  try { validateResourcePath(value); }
+  catch { issue(issues, path, "must be a safe relative resource path"); }
 }
-function canonicalPath(path: string): string { return path.split("/").filter(Boolean).join("/"); }
+function canonicalPath(path: string): string {
+  try { return canonicalResourcePath(path); }
+  catch { return path; }
+}
 function *resources(tables: ManifestTable[], vectors: ManifestVector[]): Generator<[string, string]> {
   for (let i = 0; i < tables.length; i++) for (let j = 0; j < tables[i]!.files.length; j++) yield [tables[i]!.files[j]!.path, `$.tables[${i}].files[${j}].path`];
   for (let i = 0; i < vectors.length; i++) {

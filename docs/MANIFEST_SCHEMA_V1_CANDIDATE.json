@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://weisql.dev/schemas/manifest-v1-candidate.schema.json",
+  "title": "WeiSQL Manifest V1 Candidate",
+  "description": "Candidate only. Field-shape and format identifier decisions must be resolved before replacing the active schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "formatVersion", "datasetId", "tables", "vectors"],
+  "properties": {
+    "format": { "const": "weisql" },
+    "formatVersion": { "type": "string", "pattern": "^1\\.[0-9]+\\.[0-9]+$" },
+    "datasetId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "tables": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/table" }
+    },
+    "vectors": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/vector" }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "not": { "pattern": "(^/|^[A-Za-z]:|\\\\|(^|/)\\.\\.(/|$))" }
+    },
+    "table": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "format", "path", "bytes", "sha256", "columns"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+        "format": { "const": "parquet" },
+        "path": { "$ref": "#/$defs/relativePath" },
+        "bytes": { "type": "integer", "minimum": 0 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "columns": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "type", "nullable"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "type": { "type": "string", "minLength": 1 },
+              "nullable": { "type": "boolean" }
+            }
+          }
+        },
+        "primaryKey": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        }
+      }
+    },
+    "vector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "idColumn", "data", "metric", "index"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "idColumn": { "type": "string", "minLength": 1 },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "format", "count", "dimension", "bytes", "sha256"],
+          "properties": {
+            "path": { "$ref": "#/$defs/relativePath" },
+            "format": { "const": "f32-le-row-major" },
+            "count": { "type": "integer", "minimum": 1 },
+            "dimension": { "type": "integer", "minimum": 1 },
+            "bytes": { "type": "integer", "minimum": 4 },
+            "sha256": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "metric": { "enum": ["cosine", "l2", "ip"] },
+        "index": { "type": ["object", "null"] }
+      }
+    }
+  }
+}

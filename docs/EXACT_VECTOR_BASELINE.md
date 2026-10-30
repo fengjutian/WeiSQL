@@ -31,8 +31,8 @@ ResourceReader.readRange
 
 ## 3. 当前限制
 
-- Top-K 使用有序数组和二分插入，尚未替换为最大堆；
-- `IdMapReader` 只有接口，尚无生产 JSONL/偏移索引实现；
+- Top-K 已使用固定容量最大堆，候选维护复杂度为 `O(N log K)`；
+- 已实现 JSONL + little-endian UInt64 偏移索引的批量随机访问 Reader；Builder 端索引生成和全量 ID 唯一性检查尚未实现；
 - 尚无 TypeScript 调用 Rust 的自动跨语言黄金测试；
 - 尚未对真实大文件、浏览器内存或 HTTP Range 吞吐量进行基准测试；
 - 精确扫描百万条 768 维向量仍需处理约 2.86 GiB 原始数据，分块不消除该成本；
@@ -42,5 +42,5 @@ ResourceReader.readRange
 
 自动化测试覆盖小端 Float32 解码、块边界、短响应、NaN、Cosine/L2/IP、维度错误、零向量、Top-K、稳定排序、ID 映射数量和取消。
 
-下一步应实现带偏移索引的 ID Map Reader，再建立同一固定 fixture 在 TypeScript 与 Rust 中的结果对照及浮点容差。
+下一步应实现 Builder 端 ID Map/偏移文件生成器，并建立同一固定 fixture 在 TypeScript 与 Rust 中的结果对照及浮点容差。
 

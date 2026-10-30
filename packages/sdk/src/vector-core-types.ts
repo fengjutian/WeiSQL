@@ -29,5 +29,6 @@ export interface ExactSearchOptions {
 
 export interface IdMapReader {
   getIds(startRow: number, count: number, options?: { signal?: AbortSignal }): Promise<readonly (string | number)[]>;
+  getIdsByRows(rows: readonly number[], options?: { signal?: AbortSignal }): Promise<readonly (string | number)[]>;
   close(): Promise<void>;
 }

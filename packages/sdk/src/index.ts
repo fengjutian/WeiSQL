@@ -18,5 +18,5 @@ export type { ExactSearchOptions, ExactVectorHit, IdMapReader, VectorBlock, Vect
 export { compareCandidate, TopKMaxHeap } from "./top-k-max-heap.js";
 export type { RankedCandidate } from "./top-k-max-heap.js";
 export { decodeUint64LE, IndexedIdMapReader, parseIdMapLine } from "./indexed-id-map-reader.js";
-export type { IndexedIdMapDescriptor } from "./indexed-id-map-reader.js";
+export type { IndexedIdMapDescriptor, IndexedIdMapReaderOptions } from "./indexed-id-map-reader.js";
 export type * from "./types.js";

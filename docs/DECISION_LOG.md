@@ -64,6 +64,7 @@
 - 决策：向量声明增加 `tableName`；独立 `idMap` 文件按行映射业务 ID，编码为每行一个 `{row,id}` 对象的 JSONL。
 - 原因：纯 Float32 文件不包含业务 ID，仅靠隐含行号无法可靠映射 SQL 记录；`tableName` 消除多表数据包中的 `idColumn` 歧义。
 - 约束：行号连续且与向量顺序一致，计数相等，业务 ID 默认唯一；Builder 验证 ID 在目标表中存在。百万级替代编码需由实测驱动。
+- 随机访问：V1 使用独立 `u64-le` 起始偏移文件；Runtime 批量读取偏移和连续 JSONL 区间。当前 Reader 已实现，Builder 生成器待完成。
 
 ## ADR-010：统一资源读取抽象
 

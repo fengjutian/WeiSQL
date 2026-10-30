@@ -4,7 +4,8 @@ import type { IdMapReader } from "./vector-core-types.js";
 
 const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
 
-export interface IndexedIdMapDescriptor { dataPath: string; offsetsPath: string; count: number; dataBytes: number }
+export interface IndexedIdMapDescriptor { dataPath: string; offsetsPath: string; count: number; dataBytes: number; offsetsBytes: number }
+export interface IndexedIdMapReaderOptions { maxBatchRows?: number }
 
 export function decodeUint64LE(bytes: Uint8Array, offset: number): bigint {
   if (!Number.isSafeInteger(offset) || offset < 0 || offset + 8 > bytes.byteLength) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Offset index is truncated", { offset, byteLength: bytes.byteLength });
@@ -25,14 +26,19 @@ export function parseIdMapLine(bytes: Uint8Array): { row: number; id: string | n
 export class IndexedIdMapReader implements IdMapReader {
   private closed = false;
   readonly descriptor: Readonly<IndexedIdMapDescriptor>;
-  constructor(private readonly reader: ResourceReader, descriptor: Readonly<IndexedIdMapDescriptor>) {
-    if (!Number.isSafeInteger(descriptor.count) || descriptor.count <= 0 || !Number.isSafeInteger(descriptor.dataBytes) || descriptor.dataBytes <= 0 || BigInt(descriptor.count) * 8n > MAX_SAFE_BIGINT) throw new WeiSQLError("INVALID_ARGUMENT", "Invalid indexed ID map descriptor", { descriptor });
+  private readonly maxBatchRows: number;
+  constructor(private readonly reader: ResourceReader, descriptor: Readonly<IndexedIdMapDescriptor>, options: IndexedIdMapReaderOptions = {}) {
+    if (!Number.isSafeInteger(descriptor.count) || descriptor.count <= 0 || !Number.isSafeInteger(descriptor.dataBytes) || descriptor.dataBytes <= 0 || BigInt(descriptor.count) * 8n > MAX_SAFE_BIGINT || descriptor.offsetsBytes !== descriptor.count * 8) throw new WeiSQLError("INVALID_ARGUMENT", "Invalid indexed ID map descriptor", { descriptor });
+    this.maxBatchRows = options.maxBatchRows ?? 256;
+    if (!Number.isSafeInteger(this.maxBatchRows) || this.maxBatchRows <= 0) throw new WeiSQLError("INVALID_ARGUMENT", "maxBatchRows must be a positive safe integer", { maxBatchRows: this.maxBatchRows });
     this.descriptor = { ...descriptor };
   }
   async getIds(startRow: number, requestedCount: number, options?: { signal?: AbortSignal }): Promise<readonly (string | number)[]> {
     this.ensureOpen();
     const { count, dataBytes, dataPath, offsetsPath } = this.descriptor;
-    if (!Number.isSafeInteger(startRow) || !Number.isSafeInteger(requestedCount) || startRow < 0 || requestedCount <= 0 || startRow >= count) throw new WeiSQLError("INVALID_ARGUMENT", "Invalid ID map range", { startRow, requestedCount, count });
+    if (!Number.isSafeInteger(startRow) || !Number.isSafeInteger(requestedCount) || startRow < 0 || requestedCount < 0 || startRow > count || requestedCount > count - startRow) throw new WeiSQLError("INVALID_ARGUMENT", "Invalid ID map range", { startRow, requestedCount, count });
+    if (requestedCount === 0) return [];
+    if (requestedCount > this.maxBatchRows) throw new WeiSQLError("INVALID_ARGUMENT", "ID map batch exceeds maxBatchRows", { requestedCount, maxBatchRows: this.maxBatchRows });
     if (options?.signal?.aborted) throw new WeiSQLError("QUERY_CANCELLED", "ID map read was cancelled");
     const actualCount = Math.min(requestedCount, count - startRow);
     const endRow = startRow + actualCount;
@@ -61,6 +67,24 @@ export class IndexedIdMapReader implements IdMapReader {
       ids.push(record.id);
     }
     return ids;
+  }
+  async getIdsByRows(rows: readonly number[], options?: { signal?: AbortSignal }): Promise<readonly (string | number)[]> {
+    this.ensureOpen();
+    if (rows.length === 0) return [];
+    for (const row of rows) if (!Number.isSafeInteger(row) || row < 0 || row >= this.descriptor.count) throw new WeiSQLError("INVALID_ARGUMENT", "ID row is out of bounds", { row, count: this.descriptor.count });
+    const unique = [...new Set(rows)].sort((a, b) => a - b);
+    const byRow = new Map<number, string | number>();
+    let index = 0;
+    while (index < unique.length) {
+      if (options?.signal?.aborted) throw new WeiSQLError("QUERY_CANCELLED", "ID map read was cancelled");
+      const start = unique[index]!;
+      let end = index + 1;
+      while (end < unique.length && unique[end] === unique[end - 1]! + 1 && end - index < this.maxBatchRows) end++;
+      const ids = await this.getIds(start, end - index, options);
+      for (let i = index; i < end; i++) byRow.set(unique[i]!, ids[i - index]!);
+      index = end;
+    }
+    return rows.map(row => byRow.get(row)!);
   }
   async close(): Promise<void> { this.closed = true; }
   private ensureOpen(): void { if (this.closed) throw new WeiSQLError("DATABASE_CLOSED", "ID map reader has been closed"); }

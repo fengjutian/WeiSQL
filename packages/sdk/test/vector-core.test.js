@@ -26,6 +26,7 @@ class MemoryResourceReader {
 class MemoryIdMap {
   constructor(ids, onRead) { this.ids = ids; this.onRead = onRead; }
   async getIds(startRow, count) { this.onRead?.(startRow, count); return this.ids.slice(startRow, startRow + count); }
+  async getIdsByRows(rows) { this.onRead?.(rows[0], rows.length); return rows.map(row => this.ids[row]); }
   async close() {}
 }
 
@@ -87,5 +88,5 @@ test("exact search rejects ID count mismatch and stops after cancellation", asyn
   const controller = new AbortController();
   const cancellingIds = new MemoryIdMap(["a", "b"], () => controller.abort());
   await assert.rejects(exactVectorSearch({ reader, idMap: cancellingIds, query: new Float32Array([1, 0]), collectionCount: 2, dimension: 2, search: { topK: 1, metric: "cosine", blockSize: 1, signal: controller.signal } }), { code: "QUERY_CANCELLED" });
-  assert.equal(resource.calls.length, 2); // one previous test call and one cancelled search call
+  assert.equal(resource.calls.length, 3); // one previous call plus both vector blocks before final ID resolution
 });

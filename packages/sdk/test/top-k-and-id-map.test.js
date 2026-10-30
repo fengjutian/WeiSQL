@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compareCandidate, decodeUint64LE, IndexedIdMapReader, parseIdMapLine, TopKMaxHeap } from "../dist/index.js";
+import { compareCandidate, decodeUint64LE, exactVectorSearch, IndexedIdMapReader, parseIdMapLine, TopKMaxHeap, VectorBlockReader } from "../dist/index.js";
 
 class MultiResourceReader {
   calls = [];
@@ -27,6 +27,11 @@ function idMapFixture(records) {
   position = 0;
   for (const line of lines) { data.set(line, position); position += line.byteLength; }
   return { data, offsets };
+}
+
+function floatBytes(values) {
+  const bytes = new Uint8Array(values.length * 4); const view = new DataView(bytes.buffer);
+  values.forEach((value, index) => view.setFloat32(index * 4, value, true)); return bytes;
 }
 
 test("TopKMaxHeap retains the nearest candidates in stable order", () => {
@@ -74,6 +79,17 @@ test("IndexedIdMapReader batch-reads middle and final records", async () => {
   assert.deepEqual(resource.calls[0], { path: "ids.offsets", range: { start: 8, end: 32 } });
   await reader.close(); await reader.close();
   await assert.rejects(reader.getIds(0, 1), { code: "DATABASE_CLOSED" });
+});
+
+test("exact search integrates vector ranges, indexed IDs and heap Top-K", async () => {
+  const fixture = idMapFixture([{ row: 0, id: "doc-001" }, { row: 1, id: "doc-002" }, { row: 2, id: "doc-003" }]);
+  const vectors = floatBytes([1, 0, 0.9, 0.1, 0, 1]);
+  const resource = new MultiResourceReader({ vectors, ids: fixture.data, offsets: fixture.offsets });
+  const vectorReader = new VectorBlockReader(resource, { path: "vectors", count: 3, dimension: 2, bytes: vectors.byteLength });
+  const idMap = new IndexedIdMapReader(resource, { dataPath: "ids", offsetsPath: "offsets", count: 3, dataBytes: fixture.data.byteLength });
+  const hits = await exactVectorSearch({ reader: vectorReader, idMap, query: new Float32Array([1, 0]), collectionCount: 3, dimension: 2, search: { topK: 2, metric: "cosine", blockSize: 2 } });
+  assert.deepEqual(hits.map(hit => hit.id), ["doc-001", "doc-002"]);
+  assert.deepEqual(hits.map(hit => hit.row), [0, 1]);
 });
 
 test("IndexedIdMapReader rejects corrupt indexes and records", async t => {

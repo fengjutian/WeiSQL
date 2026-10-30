@@ -83,13 +83,24 @@
         "idMap": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["path", "format", "count", "bytes", "sha256"],
+          "required": ["path", "format", "count", "bytes", "sha256", "offsets"],
           "properties": {
             "path": { "$ref": "#/$defs/relativePath" },
             "format": { "const": "jsonl" },
             "count": { "type": "integer", "minimum": 1 },
             "bytes": { "type": "integer", "minimum": 1 },
-            "sha256": { "$ref": "#/$defs/sha256" }
+            "sha256": { "$ref": "#/$defs/sha256" },
+            "offsets": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["path", "format", "bytes", "sha256"],
+              "properties": {
+                "path": { "$ref": "#/$defs/relativePath" },
+                "format": { "const": "u64-le" },
+                "bytes": { "type": "integer", "minimum": 8 },
+                "sha256": { "$ref": "#/$defs/sha256" }
+              }
+            }
           }
         },
         "metric": { "enum": ["cosine", "l2", "ip"] },

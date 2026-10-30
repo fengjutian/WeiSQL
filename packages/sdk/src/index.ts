@@ -15,4 +15,8 @@ export { vectorDistance } from "./vector-distance.js";
 export { exactVectorSearch } from "./exact-vector-search.js";
 export type { ExactVectorSearchInput } from "./exact-vector-search.js";
 export type { ExactSearchOptions, ExactVectorHit, IdMapReader, VectorBlock, VectorCollection, VectorMetric } from "./vector-core-types.js";
+export { compareCandidate, TopKMaxHeap } from "./top-k-max-heap.js";
+export type { RankedCandidate } from "./top-k-max-heap.js";
+export { decodeUint64LE, IndexedIdMapReader, parseIdMapLine } from "./indexed-id-map-reader.js";
+export type { IndexedIdMapDescriptor } from "./indexed-id-map-reader.js";
 export type * from "./types.js";

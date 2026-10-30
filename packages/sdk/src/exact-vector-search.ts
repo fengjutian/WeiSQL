@@ -2,6 +2,7 @@ import { WeiSQLError } from "./errors.js";
 import type { VectorBlockReader } from "./vector-block-reader.js";
 import { vectorDistance } from "./vector-distance.js";
 import type { ExactSearchOptions, ExactVectorHit, IdMapReader } from "./vector-core-types.js";
+import { TopKMaxHeap } from "./top-k-max-heap.js";
 
 export interface ExactVectorSearchInput {
   reader: VectorBlockReader;
@@ -29,7 +30,7 @@ export async function exactVectorSearch(input: ExactVectorSearchInput): Promise<
     throw new WeiSQLError("VECTOR_INVALID_VALUE", "Query vector contains a non-finite value", { dimension: i });
   }
   checkCancelled(search.signal);
-  const best: ExactVectorHit[] = [];
+  const best = new TopKMaxHeap<ExactVectorHit>(search.topK);
   for (let startRow = 0; startRow < collectionCount; startRow += blockSize) {
     checkCancelled(search.signal);
     const block = await reader.readBlock(startRow, blockSize, signalOptions(search.signal));
@@ -46,23 +47,10 @@ export async function exactVectorSearch(input: ExactVectorSearchInput): Promise<
       }
       const offset = localRow * dimension;
       const distance = vectorDistance(query, block.values.subarray(offset, offset + dimension), search.metric);
-      insertTopK(best, { row: block.startRow + localRow, id, distance }, search.topK);
+      best.offer({ row: block.startRow + localRow, id, distance });
     }
   }
-  return best;
-}
-
-function insertTopK(best: ExactVectorHit[], hit: ExactVectorHit, topK: number): void {
-  let low = 0;
-  let high = best.length;
-  while (low < high) {
-    const mid = (low + high) >>> 1;
-    const current = best[mid]!;
-    if (current.distance < hit.distance || (current.distance === hit.distance && current.row < hit.row)) low = mid + 1;
-    else high = mid;
-  }
-  if (low < topK) best.splice(low, 0, hit);
-  if (best.length > topK) best.pop();
+  return best.toSortedArray();
 }
 
 function checkCancelled(signal: AbortSignal | undefined): void {

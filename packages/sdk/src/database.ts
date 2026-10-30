@@ -1,5 +1,6 @@
 import { WeiSQLError } from "./errors.js";
 import { exactVectorSearch } from "./exact-vector-search.js";
+import { verifyManifestResources } from "./integrity.js";
 import { IndexedIdMapReader } from "./indexed-id-map-reader.js";
 import { validateManifest } from "./manifest.js";
 import type { ResourceReader } from "./resource-reader.js";
@@ -105,7 +106,7 @@ export async function open(options: OpenOptions): Promise<WeiSQLDatabase> {
   if (options.mode !== undefined && options.mode !== "readonly") throw new WeiSQLError("INVALID_ARGUMENT", "V1 only supports readonly mode");
   aborted(options.signal);
   if ((options.manifestUrl === undefined) === (options.manifest === undefined)) throw new WeiSQLError("INVALID_ARGUMENT", "Provide exactly one of manifestUrl or manifest");
-  if (options.manifest !== undefined) return Database.create(validateManifest(options.manifest), options.resourceReader, options.sqlAdapter, options.signal);
+  if (options.manifest !== undefined) return prepare(validateManifest(options.manifest), options);
   const fetcher = options.fetch ?? globalThis.fetch;
   if (!fetcher) throw new WeiSQLError("INTERNAL_ERROR", "No fetch implementation is available");
   let response: Response;
@@ -115,7 +116,24 @@ export async function open(options: OpenOptions): Promise<WeiSQLDatabase> {
   if (!response.ok) throw new WeiSQLError("RESOURCE_NOT_FOUND", `Manifest request failed with HTTP ${response.status}`, { status: response.status });
   let json: unknown;
   try { json = await response.json(); } catch { throw new WeiSQLError("MANIFEST_INVALID", "Manifest is not valid JSON"); }
-  return Database.create(validateManifest(json), options.resourceReader, options.sqlAdapter, options.signal);
+  return prepare(validateManifest(json), options);
+}
+
+/** Runs L3 verification (when requested) before any adapter sees resource bytes. */
+async function prepare(manifest: WeiSQLManifest, options: OpenOptions): Promise<WeiSQLDatabase> {
+  const mode = options.verifyChecksums ?? "none";
+  if (mode !== "none" && mode !== "manifest" && mode !== "all") {
+    throw new WeiSQLError("INVALID_ARGUMENT", "verifyChecksums must be 'none', 'manifest' or 'all'", { mode });
+  }
+  if (mode !== "none") {
+    if (!options.resourceReader) throw new WeiSQLError("INVALID_ARGUMENT", "verifyChecksums requires a resourceReader", { mode });
+    await verifyManifestResources({
+      manifest,
+      reader: options.resourceReader,
+      options: { mode, ...(options.signal === undefined ? {} : { signal: options.signal }) },
+    });
+  }
+  return Database.create(manifest, options.resourceReader, options.sqlAdapter, options.signal);
 }
 
 function aborted(signal?: AbortSignal): void { if (signal?.aborted) throw new WeiSQLError("QUERY_CANCELLED", "Operation was cancelled"); }

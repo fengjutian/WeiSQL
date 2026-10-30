@@ -50,7 +50,7 @@ USearch 的原始距离与公共契约不一致，Adapter 在边界处转换：
 | 索引构建 | 优先加载 Manifest 声明的索引；未声明时**首次检索现场构建**（100k × 128 合成数据约 10 秒） |
 | 持久化 | 已实现：`index.params` 提供 connectivity / expansion，缺失时拒绝加载而不是回退默认值 |
 | 过滤 | 不支持。Runtime 在调用近似 Adapter 前就拒绝带 `filter` 的查询（`SQL_UNSUPPORTED`），Adapter 侧也会拒绝 `allowedRows` |
-| 召回 | **不保证**。`expansionSearch` 默认 512 只是折中：合成数据上 512 ≈ 0.73、2048 ≈ 1.0、64 ≈ 0.17。必须按真实数据集测 Recall@K |
+| 召回 | **不保证**。`expansionSearch` 默认 512：100k × 128 合成数据上 Recall@10 均值 0.735、最低 0.400（`npm run bench -- --ann` 实测）；2048 可达 1.0 但更慢。必须按真实数据集测 |
 | 取消 | `unsupported`。构建阶段只在批次之间检查 `AbortSignal`；检索本身无法中断 |
 | 内存 | 索引常驻内存（100k × 128 约 66 MB，比原始向量 51 MB 更大） |
 

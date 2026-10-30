@@ -257,6 +257,15 @@
 - 决策五：索引文件纳入 L3 校验（`declaredResources` 已包含 `index.file`），`weisql validate` 会对它做尺寸与 SHA-256 校验。索引损坏在发布前就会被发现，而不是等到检索时。
 - 后果：`tools/build-ann-index.mjs` 负责生成索引并回写 Manifest（写盘前重新 `validateManifest`）。`capabilities().persistedIndex` 对 USearch 适配器改为 `true`；未声明索引的包仍在首次检索时现场构建。
 
+## ADR-030：ANN 召回必须逐查询报告，均值单独出现即为误导
+
+- 状态：Accepted and implemented（`npm run bench -- --ann`）
+- 决策一：ANN 基线测量放在同一进程、同一数据包、同一组查询上完成：先精确扫描得到 ground truth，再用同一批查询跑 ANN，逐查询计算 Recall@K。跨进程或跨数据集比较没有意义。
+- 决策二：输出同时保留 `mean`、`min` 与 `perQuery`。100k × 128 实测均值 0.735，但逐查询从 0.400 到 1.000 都有——只报均值会让人误判稳定性。
+- 决策三：首次查询单独计时（含完整索引构建，实测 15.2 s），不计入 p50/p95，避免把构建成本混进查询延迟。
+- 决策四：装置输出的 caveats 里写明「合成均匀向量是 HNSW 最不利场景，不能预测真实 embedding」。任何引用这些数字的材料必须连同该限制一起引用。
+- 后果：ANN 的收益首次有了可复现的数字（约 9.5 倍加速 / 均值 0.735 召回），同时明确小数据量下 ANN 反而更慢（5k 时 11.8 ms vs 精确 10 ms）。性能与召回承诺仍不成立。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

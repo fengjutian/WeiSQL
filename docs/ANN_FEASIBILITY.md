@@ -51,6 +51,7 @@ COUNT=100000 DIMS=128 QUERIES=10 EXPANSION_SEARCH=512 node tools/ann-probe.mjs
 
 ## 5. 结论
 
-- 记录为「可行但未接入」，`capabilities().vectorAnnSearch` 继续保持 `false`。
-- 精确扫描仍是默认与唯一保证正确的路径。
-- 若要继续，建议顺序：先设计 `VectorAdapter` 注入契约（含能力声明与 `exact: false` 语义）→ 再在 Builder 里生成索引 → 最后用真实数据集测 Recall@K 和内存。
+- 记录为「可行且已接入」（`@weisql/usearch-adapter`），但默认仍走精确扫描：必须显式注入 Adapter 才会使用 ANN。
+- 精确扫描仍是唯一保证正确的路径；ANN 结果的 `diagnostics.exact` 恒为 `false`。
+- 召回与延迟的对照已可通过 `npm run bench -- --ann` 复现（见 `BENCHMARK_HARNESS.md` §2）：100k × 128 上 ANN 比精确快约 9.5 倍，但 Recall@10 均值 0.735、最低 0.400。
+- 若要对外承诺性能或召回，前提是：真实 embedding 数据集、多机复现、冷缓存对照，以及按数据集报告 Recall@K。当前一条都不满足。

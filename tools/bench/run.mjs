@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 
 import { validatePackage } from "@weisql/cli";
 import { NodeFileResourceReader, open } from "@weisql/sdk";
+import { createUSearchAdapter } from "@weisql/usearch-adapter";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..");
@@ -28,6 +29,8 @@ function readArguments(argv) {
     topK: 10,
     packageDirectory: undefined,
     skipGenerate: false,
+    ann: false,
+    expansionSearch: 512,
   };
   for (let index = 0; index < argv.length; index++) {
     const flag = argv[index];
@@ -39,6 +42,8 @@ function readArguments(argv) {
       case "--topk": options.topK = Number(value); index++; break;
       case "--package": options.packageDirectory = value; index++; break;
       case "--no-generate": options.skipGenerate = true; break;
+      case "--ann": options.ann = true; break;
+      case "--expansion-search": options.expansionSearch = Number(value); index++; break;
       default: throw new Error(`unknown option ${flag}`);
     }
   }
@@ -141,14 +146,66 @@ const db = await open({ manifest, resourceReader: reader });
 const openMs = performance.now() - openStarted;
 
 const latencies = [];
+const exactIds = [];
 let hits = 0;
 for (const query of queries) {
   const started = performance.now();
   const results = await db.vector.search(collection.name, query, { topK: options.topK });
   latencies.push(performance.now() - started);
   hits += results.length;
+  exactIds.push(results.map(hit => hit.id));
 }
 await db.close();
+
+// Optional ANN phase: same queries, same package, measured against the exact
+// results above so Recall@K is a real number instead of a parameter claim.
+let ann;
+if (options.ann) {
+  const annReader = new NodeFileResourceReader({ rootDirectory: options.packageDirectory });
+  const annDb = await open({
+    manifest,
+    resourceReader: annReader,
+    vectorAdapter: createUSearchAdapter({ expansionSearch: options.expansionSearch }),
+  });
+  const annLatencies = [];
+  const annIds = [];
+  const buildStarted = performance.now();
+  const first = await annDb.vector.search(collection.name, queries[0], { topK: options.topK });
+  const buildAndFirstMs = performance.now() - buildStarted;
+  annIds.push(first.map(hit => hit.id));
+  for (const query of queries.slice(1)) {
+    const started = performance.now();
+    const results = await annDb.vector.search(collection.name, query, { topK: options.topK });
+    annLatencies.push(performance.now() - started);
+    annIds.push(results.map(hit => hit.id));
+  }
+  await annDb.close();
+
+  const recalls = annIds.map((ids, index) => {
+    const truth = new Set(exactIds[index]);
+    const denominator = Math.max(1, truth.size);
+    return ids.filter(id => truth.has(id)).length / denominator;
+  });
+  const warm = [...annLatencies].sort((left, right) => left - right);
+  ann = {
+    expansionSearch: options.expansionSearch,
+    buildAndFirstQueryMs: Number(buildAndFirstMs.toFixed(1)),
+    note: "the first ANN query pays the full index build; the timings below exclude it",
+    search: {
+      minMs: Number(warm[0].toFixed(3)),
+      p50Ms: Number(percentile(warm, 0.5).toFixed(3)),
+      p95Ms: Number(percentile(warm, 0.95).toFixed(3)),
+      maxMs: Number(warm[warm.length - 1].toFixed(3)),
+      samples: warm.length,
+    },
+    recall: {
+      mean: Number((recalls.reduce((sum, value) => sum + value, 0) / recalls.length).toFixed(4)),
+      min: Number(Math.min(...recalls).toFixed(4)),
+      perQuery: recalls.map(value => Number(value.toFixed(3))),
+      topK: options.topK,
+    },
+  };
+}
 clearInterval(sampler);
 
 const sorted = [...latencies].sort((left, right) => left - right);
@@ -193,7 +250,10 @@ const result = {
     "single machine, warm page cache; not a product performance claim",
     "validation ran first, so the OS cache was already populated",
     "latency includes Range reads, distance scan, Top-K and final ID lookup",
+    ...(options.ann ? ["ANN recall is measured on synthetic uniform vectors, the worst case for HNSW; it does not predict real embeddings"] : []),
   ],
 };
+
+if (ann !== undefined) result.ann = ann;
 
 console.log(JSON.stringify(result, null, 2));

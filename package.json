@@ -1,0 +1,13 @@
+{
+  "name": "weisql-ai-workspace",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "build": "npm run build --workspace @weisql/sdk",
+    "test": "npm run test --workspace @weisql/sdk",
+    "typecheck": "npm run typecheck --workspace @weisql/sdk"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

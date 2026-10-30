@@ -42,6 +42,9 @@ export interface WeiSQLDatabase {
   hybrid: {
     search(options: HybridSearchOptions): Promise<readonly HybridFusionHit[]>;
   };
+  rag: {
+    search(options: RagSearchOptions): Promise<RagResult>;
+  };
   capabilities(): Readonly<WeiSQLCapabilities>;
   close(): Promise<void>;
 }
@@ -73,6 +76,31 @@ export interface HybridFusionHit {
   vector?: { row: number; distance: number };
   text?: { row: number; score: number };
   diagnostics?: { backend: "rrf"; k: number; elapsedMs?: number };
+}
+export interface RagSearchOptions {
+  topK?: number;
+  k?: number;
+  /** Character budget for assembled evidence; defaults to 4000. */
+  maxCharacters?: number;
+  vector?: { name: string; query: Float32Array | readonly number[]; topK?: number };
+  /** Required: RAG needs document text, carried by the text index. */
+  text?: { name: string; query: string; topK?: number };
+  signal?: AbortSignal;
+}
+export interface RagEvidence {
+  id: string | number;
+  text: string;
+  rank: number;
+  characters: number;
+  truncated: boolean;
+  ranks: Readonly<Record<string, number>>;
+}
+export interface RagResult {
+  evidences: readonly RagEvidence[];
+  usedCharacters: number;
+  truncated: boolean;
+  droppedHits: number;
+  diagnostics: { backend: "rrf"; k: number; maxCharacters: number; elapsedMs?: number };
 }
 export interface VectorSearchOptions {
   topK?: number;
@@ -117,6 +145,7 @@ interface WeiSQLCapabilities {
   hybridSearch: boolean;
   textSearch: boolean;
   fusionSearch: boolean;
+  ragSearch: boolean;
   resourceRange: boolean;
 }
 ```

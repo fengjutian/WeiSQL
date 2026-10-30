@@ -28,6 +28,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   the opposite of vector distance).
 - Hybrid fusion: `db.hybrid.search()` combining vector and text rankings with
   Reciprocal Rank Fusion, reporting per-source ranks and raw values.
+- RAG retrieval: `db.rag.search()` assembling budgeted evidence with provenance;
+  the SDK never calls a model.
 
 ### `@weisql/cli` 0.1.0
 

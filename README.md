@@ -32,6 +32,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - 发布前静态检查（`npm run release:check`）：版本形状、workspace 依赖范围、`files` 清单、dist 产物与 README 齐备性
 - 全文检索：Manifest `textIndexes`、倒排索引读取器（二分定位 + BM25）、生成工具，以及公开 `db.text.search()`；Unicode 分词（CJK 按字），详见 [全文检索设计](docs/FULL_TEXT_SEARCH.md)
 - RRF 融合检索：`db.hybrid.search()` 按排名融合向量与全文结果，返回两路名次与原始分数
+- RAG 证据组装：`db.rag.search()` 在字符预算内返回带来源与名次的证据片段（不调用模型、不拼 prompt）
 - 已接入公开 `vector.search()` 的端到端精确搜索
 - Float32 little-endian 向量分块读取
 - Cosine、L2、IP 统一距离语义
@@ -49,7 +50,6 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - WASM 构建与 TypeScript/Rust 自动黄金数据对照
 - Netlify/CDN 的真实 CORS、Range 和缓存验收
 - `.wsql` 单文件容器
-- RAG 集成层（上下文组装与来源引用）
 
 ## 快速开始
 

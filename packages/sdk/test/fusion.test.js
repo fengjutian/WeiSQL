@@ -186,5 +186,52 @@ test("fusion capability and cancellation follow the instance state", async () =>
   plain.vectorCollections = [];
   const bare = await open({ manifest: plain, resourceReader: new MemoryReader(new Map()) });
   assert.equal(bare.capabilities().fusionSearch, false);
+  assert.equal(bare.capabilities().ragSearch, false);
   await bare.close();
+});
+
+test("rag assembles evidence with provenance and a character budget", async () => {
+  const { manifest, reader } = await hybridPackage();
+  const db = await open({ manifest, resourceReader: reader });
+  assert.equal(db.capabilities().ragSearch, true);
+
+  const result = await db.rag.search({ text: { name: "documents_text", query: "dna" }, topK: 3, maxCharacters: 100 });
+  assert.deepEqual(result.evidences.map(evidence => evidence.id), ["doc-001", "doc-003"]);
+  assert.equal(result.evidences[0].text, "DNA 结构");
+  assert.equal(result.evidences[0].rank, 1);
+  assert.deepEqual(result.evidences[0].ranks, { text: 1 });
+  assert.equal(result.usedCharacters, "DNA 结构".length + "细胞代谢".length);
+  assert.equal(result.truncated, false);
+  assert.equal(result.droppedHits, 0);
+
+  const tight = await db.rag.search({ text: { name: "documents_text", query: "dna" }, topK: 3, maxCharacters: 3 });
+  assert.equal(tight.evidences[0].text, "DNA");
+  assert.equal(tight.evidences[0].truncated, true);
+  assert.equal(tight.truncated, true);
+  assert.equal(tight.evidences.length, 1);
+
+  const fused = await db.rag.search({
+    text: { name: "documents_text", query: "dna" },
+    vector: { name: "document_embeddings", query: [1, 0] },
+    topK: 2,
+  });
+  assert.deepEqual(fused.evidences[0].ranks, { text: 1, vector: 1 });
+  await db.close();
+});
+
+test("rag rejects invalid options and indexes without documents", async () => {
+  const { manifest, reader } = await hybridPackage();
+  const db = await open({ manifest, resourceReader: reader });
+  await assert.rejects(db.rag.search({ vector: { name: "document_embeddings", query: [1, 0] } }), { code: "INVALID_ARGUMENT" });
+  await assert.rejects(db.rag.search({ text: { name: "documents_text", query: "dna" }, topK: 0 }), { code: "INVALID_ARGUMENT" });
+  await assert.rejects(db.rag.search({ text: { name: "documents_text", query: "dna" }, maxCharacters: 0 }), { code: "INVALID_ARGUMENT" });
+  await assert.rejects(db.rag.search({ text: { name: "missing", query: "dna" } }), { code: "INDEX_NOT_FOUND" });
+  await db.close();
+
+  const withoutDocuments = await hybridPackage();
+  delete withoutDocuments.manifest.textIndexes[0].documents;
+  const noDocs = await open({ manifest: withoutDocuments.manifest, resourceReader: withoutDocuments.reader });
+  assert.equal(noDocs.capabilities().ragSearch, false);
+  await assert.rejects(noDocs.rag.search({ text: { name: "documents_text", query: "dna" } }), { code: "INVALID_ARGUMENT" });
+  await noDocs.close();
 });

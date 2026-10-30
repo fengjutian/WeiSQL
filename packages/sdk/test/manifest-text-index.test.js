@@ -124,8 +124,36 @@ test("text index files participate in L3 resource enumeration", async () => {
   assert.ok(kinds.includes("text-id-offsets:text-index/documents.ids.offsets"));
 });
 
-test("text id map must agree with the document count", async () => {
-  const badCount = await manifestWith(textIndex({
+test("accepts optional document text and checks its offsets", async () => {
+  const withDocuments = await manifestWith(textIndex({
+    documents: {
+      data: { path: "text-index/documents.documents.jsonl", format: "jsonl", bytes: 120, sha256: SHA },
+      offsets: { path: "text-index/documents.documents.offsets", format: "uint64-le", bytes: 24, sha256: SHA },
+    },
+  }));
+  const parsed = validateManifest(withDocuments);
+  assert.equal(parsed.textIndexes?.[0].documents?.data.path, "text-index/documents.documents.jsonl");
+  const kinds = declaredResources(parsed).map(resource => resource.kind);
+  assert.ok(kinds.includes("text-documents") && kinds.includes("text-document-offsets"));
+
+  const badOffsets = await manifestWith(textIndex({
+    documents: {
+      data: { path: "text-index/documents.documents.jsonl", format: "jsonl", bytes: 120, sha256: SHA },
+      offsets: { path: "text-index/documents.documents.offsets", format: "uint64-le", bytes: 40, sha256: SHA },
+    },
+  }));
+  assert.throws(() => validateManifest(badOffsets), { code: "MANIFEST_INVALID" });
+
+  const badFormat = await manifestWith(textIndex({
+    documents: {
+      data: { path: "text-index/documents.documents.jsonl", format: "uint64-le", bytes: 120, sha256: SHA },
+      offsets: { path: "text-index/documents.documents.offsets", format: "uint64-le", bytes: 24, sha256: SHA },
+    },
+  }));
+  assert.throws(() => validateManifest(badFormat), { code: "MANIFEST_INVALID" });
+});
+
+test("text id map must agree with the document count", async () => {  const badCount = await manifestWith(textIndex({
     idMap: {
       data: { path: "text-index/documents.ids.jsonl", format: "jsonl", bytes: 75, sha256: SHA },
       offsets: { path: "text-index/documents.ids.offsets", format: "uint64-le", bytes: 16, sha256: SHA },

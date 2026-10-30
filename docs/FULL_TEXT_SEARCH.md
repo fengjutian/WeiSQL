@@ -21,10 +21,12 @@ text-index/
 ├── <name>.terms.offsets    # UInt64 LE，词项起始偏移，数量 = 词项数
 ├── <name>.doclengths.bin   # UInt32 LE，每行 = 该文档的词项总数
 ├── <name>.ids.jsonl        # 行 → 业务 ID，形状与向量 ID Map 相同
-└── <name>.ids.offsets      # UInt64 LE，ID 行起始偏移
+├── <name>.ids.offsets      # UInt64 LE，ID 行起始偏移
+├── <name>.documents.jsonl  # 可选：行 → 原始文本，供 RAG 组装证据
+└── <name>.documents.offsets # UInt64 LE，文档行起始偏移
 ```
 
-ID Map 是必需的：全文索引只按行号打分，没有它就无法把结果回表成业务 ID。
+ID Map 是必需的：全文索引只按行号打分，没有它就无法把结果回表成业务 ID。`documents` 是可选的：只有需要 RAG 组装上下文时才生成，它让运行时不必再读 Parquet。
 
 一行 `terms.jsonl` 的形状：
 

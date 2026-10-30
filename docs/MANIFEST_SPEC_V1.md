@@ -125,6 +125,10 @@ interface TextIndexDescriptor {
   termOffsets: FileDescriptor; // u64-le，数量 = termCount
   docLengths: FileDescriptor;  // u32-le，数量 = documentCount
   idMap: IdMapDescriptor;      // 行 → 业务 ID，count 必须等于 documentCount
+  documents?: {                // 可选：行 → 原始文本，供 RAG 使用
+    data: FileDescriptor & { format: "jsonl" };
+    offsets: FileDescriptor & { format: "uint64-le" }; // 数量 = documentCount
+  };
   k1?: number; // 默认 1.2
   b?: number;  // 默认 0.75，范围 [0, 1]
 }

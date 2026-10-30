@@ -164,6 +164,7 @@ packages/sdk/              TypeScript SDK、资源层和向量基线
 - [资源完整性校验规范](docs/RESOURCE_INTEGRITY_SPEC.md)
 - [V0.6 Runtime 基础设计](docs/V0_6_RUNTIME_FOUNDATION.md)
 - [V0.7 Runtime API 与混合查询设计](docs/V0_7_RUNTIME_AND_HYBRID.md)
+- [V0.8 工程分层与 V1 交付范围](docs/V0_8_ENGINEERING_AND_DELIVERY.md)
 - [浏览器与 Node.js Runtime 兼容性](docs/RUNTIME_COMPATIBILITY.md)
 - [端到端验收计划](docs/E2E_ACCEPTANCE_PLAN.md)
 - [V0.5 验收清单](docs/V0_5_ACCEPTANCE.md)

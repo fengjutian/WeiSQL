@@ -1,3 +1,6 @@
+import type { ResourceReader } from "./resource-reader.js";
+import type { SqlAdapter } from "./sql-adapter.js";
+
 export type WeiSQLScalarType = "string" | "int32" | "int64" | "float32" | "float64" | "boolean" | "timestamp" | "date" | "json";
 export interface FileDescriptor { path: string; bytes: number; sha256: string }
 export interface ColumnDescriptor { name: string; type: WeiSQLScalarType; nullable: boolean }
@@ -31,9 +34,9 @@ export interface WeiSQLCapabilities {
   hybridSearch: boolean;
   resourceRange: boolean;
 }
+export type RuntimeState = "OPENING" | "READY" | "CLOSING" | "CLOSED" | "FAILED";
 export interface OpenOptions {
   manifestUrl?: string; manifest?: unknown; mode?: "readonly"; verifyChecksums?: "none" | "manifest" | "all";
-  fetch?: typeof globalThis.fetch; resourceReader?: ResourceReader; signal?: AbortSignal;
+  fetch?: typeof globalThis.fetch; resourceReader?: ResourceReader; sqlAdapter?: SqlAdapter; signal?: AbortSignal;
 }
-import type { ResourceReader } from "./resource-reader.js";
 

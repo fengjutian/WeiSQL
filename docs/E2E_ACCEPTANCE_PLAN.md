@@ -44,7 +44,8 @@ fixture/
 ├── data/documents.parquet
 └── vectors/
     ├── embeddings.f32
-    └── id-map.jsonl
+    ├── id-map.jsonl
+    └── id-map.offsets
 ```
 
 Builder 必须写入实际字节数与 SHA-256，不得保留占位值，并验证：
@@ -84,11 +85,11 @@ Builder 必须写入实际字节数与 SHA-256，不得保留占位值，并验�
 
 1. 将已接受的 `tableName`、`idMap` 决策原子迁移到正式 Schema、类型、校验器、样例和测试；
 2. 完成 ID Map 语义校验；
-3. 实现 `NodeFileResourceReader`；
-4. 实现 `HttpResourceReader` 与 Range 契约测试；
+3. ~~实现 `NodeFileResourceReader`；~~（首版已完成）
+4. ~~实现 `HttpResourceReader` 与 Range 契约测试；~~（首版已完成）
 5. 生成三条记录的真实 Parquet fixture；
-6. 将已完成的 TypeScript 分块精确搜索基线接入真实 ID Map fixture，并与 Rust 精确搜索对照；
-7. 完成 Node.js 端到端测试；
+6. ~~将 TypeScript 分块精确搜索基线接入 Indexed ID Map 与公开 Runtime；~~（已完成内存 fixture；真实 Builder fixture 待完成）
+7. 完成包含真实 SQL Adapter 的 Node.js 端到端测试；
 8. 接入 DuckDB-Wasm 并执行 Netlify/CDN 验收；
 9. 从 100k 开始性能测试，再逐步扩大规模。
 

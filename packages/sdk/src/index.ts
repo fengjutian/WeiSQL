@@ -7,6 +7,7 @@ export { canonicalResourcePath, normalizeResourcePath, validateResourcePath } fr
 export { expectedVectorBytes, validateVectorBytes } from "./vector-size.js";
 export { validateByteRange } from "./resource-reader.js";
 export type { AdapterOpenOptions, ByteRange, ResourceMetadata, ResourceReader, ResourceReadOptions } from "./resource-reader.js";
+export type { SqlAdapter, SqlAdapterCapabilities, SqlAdapterOpenContext } from "./sql-adapter.js";
 export { HttpResourceReader } from "./http-resource-reader.js";
 export type { HttpResourceReaderOptions } from "./http-resource-reader.js";
 export { NodeFileResourceReader } from "./node-file-resource-reader.js";

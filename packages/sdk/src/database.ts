@@ -3,11 +3,13 @@ import { exactVectorSearch } from "./exact-vector-search.js";
 import { IndexedIdMapReader } from "./indexed-id-map-reader.js";
 import { validateManifest } from "./manifest.js";
 import type { ResourceReader } from "./resource-reader.js";
-import type { OpenOptions, QueryOptions, SQLValue, VectorHit, VectorSearchOptions, WeiSQLCapabilities, WeiSQLManifest } from "./types.js";
+import type { SqlAdapter } from "./sql-adapter.js";
+import type { OpenOptions, QueryOptions, RuntimeState, SQLValue, VectorHit, VectorSearchOptions, WeiSQLCapabilities, WeiSQLManifest } from "./types.js";
 import { VectorBlockReader } from "./vector-block-reader.js";
 
 export interface WeiSQLDatabase {
   readonly manifest: Readonly<WeiSQLManifest>;
+  readonly state: RuntimeState;
   sql<T extends Record<string, unknown> = Record<string, unknown>>(query: string, params?: readonly SQLValue[], options?: QueryOptions): Promise<readonly T[]>;
   readonly vector: { search(vectorName: string, queryVector: Float32Array | readonly number[], options?: VectorSearchOptions): Promise<readonly VectorHit[]> };
   capabilities(): Readonly<WeiSQLCapabilities>;
@@ -15,16 +17,32 @@ export interface WeiSQLDatabase {
 }
 
 class Database implements WeiSQLDatabase {
-  private closed = false;
+  private runtimeState: RuntimeState = "OPENING";
   readonly manifest: Readonly<WeiSQLManifest>;
   readonly vector;
-  constructor(manifest: WeiSQLManifest, private readonly reader?: ResourceReader) {
+  private constructor(manifest: WeiSQLManifest, private readonly reader?: ResourceReader, private readonly sqlAdapter?: SqlAdapter) {
     this.manifest = manifest;
     this.vector = { search: this.search.bind(this) };
   }
-  async sql<T extends Record<string, unknown>>(_query: string, _params: readonly SQLValue[] = [], options?: QueryOptions): Promise<readonly T[]> {
+  static async create(manifest: WeiSQLManifest, reader: ResourceReader | undefined, sqlAdapter: SqlAdapter | undefined, signal?: AbortSignal): Promise<Database> {
+    if (sqlAdapter && !reader) throw new WeiSQLError("INVALID_ARGUMENT", "A SQL adapter requires a resourceReader");
+    const database = new Database(manifest, reader, sqlAdapter);
+    try {
+      if (sqlAdapter && reader) await sqlAdapter.open({ manifest, reader, ...(signal ? { signal } : {}) });
+      aborted(signal);
+      database.runtimeState = "READY";
+      return database;
+    } catch (cause) {
+      database.runtimeState = "FAILED";
+      await database.releaseResources();
+      throw cause;
+    }
+  }
+  get state(): RuntimeState { return this.runtimeState; }
+  async sql<T extends Record<string, unknown>>(query: string, params: readonly SQLValue[] = [], options?: QueryOptions): Promise<readonly T[]> {
     this.ensureOpen(); aborted(options?.signal);
-    throw new WeiSQLError("SQL_UNSUPPORTED", "No SQL adapter is configured in this SDK skeleton");
+    if (!this.sqlAdapter) throw new WeiSQLError("SQL_UNSUPPORTED", "No SQL adapter is configured");
+    return this.sqlAdapter.query<T>(query, params, options);
   }
   private async search(vectorName: string, queryVector: Float32Array | readonly number[], options?: VectorSearchOptions): Promise<readonly VectorHit[]> {
     this.ensureOpen(); aborted(options?.signal);
@@ -61,17 +79,30 @@ class Database implements WeiSQLDatabase {
     }
   }
   capabilities(): Readonly<WeiSQLCapabilities> {
-    return Object.freeze({ sql: false, vectorExactSearch: this.reader !== undefined, vectorAnnSearch: false, hybridSearch: false, resourceRange: this.reader !== undefined });
+    return Object.freeze({ sql: this.sqlAdapter !== undefined, vectorExactSearch: this.reader !== undefined, vectorAnnSearch: false, hybridSearch: false, resourceRange: this.reader !== undefined });
   }
-  async close(): Promise<void> { if (this.closed) return; this.closed = true; await this.reader?.close(); }
-  private ensureOpen(): void { if (this.closed) throw new WeiSQLError("DATABASE_CLOSED", "Database is closed"); }
+  async close(): Promise<void> {
+    if (this.runtimeState === "CLOSED" || this.runtimeState === "CLOSING") return;
+    this.runtimeState = "CLOSING";
+    try { await this.releaseResources(); }
+    finally { this.runtimeState = "CLOSED"; }
+  }
+  private async releaseResources(): Promise<void> {
+    const pending: Promise<void>[] = [];
+    if (this.sqlAdapter) pending.push(this.sqlAdapter.close());
+    if (this.reader) pending.push(this.reader.close());
+    const results = await Promise.allSettled(pending);
+    const rejected = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (rejected) throw new WeiSQLError("INTERNAL_ERROR", "Runtime resource cleanup failed", { cause: String(rejected.reason) });
+  }
+  private ensureOpen(): void { if (this.runtimeState !== "READY") throw new WeiSQLError("DATABASE_CLOSED", "Database is not ready", { state: this.runtimeState }); }
 }
 
 export async function open(options: OpenOptions): Promise<WeiSQLDatabase> {
-  if (options.mode !== undefined && options.mode !== "readonly") throw new WeiSQLError("MANIFEST_INVALID", "V1 only supports readonly mode");
+  if (options.mode !== undefined && options.mode !== "readonly") throw new WeiSQLError("INVALID_ARGUMENT", "V1 only supports readonly mode");
   aborted(options.signal);
   if ((options.manifestUrl === undefined) === (options.manifest === undefined)) throw new WeiSQLError("INVALID_ARGUMENT", "Provide exactly one of manifestUrl or manifest");
-  if (options.manifest !== undefined) return new Database(validateManifest(options.manifest), options.resourceReader);
+  if (options.manifest !== undefined) return Database.create(validateManifest(options.manifest), options.resourceReader, options.sqlAdapter, options.signal);
   const fetcher = options.fetch ?? globalThis.fetch;
   if (!fetcher) throw new WeiSQLError("INTERNAL_ERROR", "No fetch implementation is available");
   let response: Response;
@@ -81,7 +112,7 @@ export async function open(options: OpenOptions): Promise<WeiSQLDatabase> {
   if (!response.ok) throw new WeiSQLError("RESOURCE_NOT_FOUND", `Manifest request failed with HTTP ${response.status}`, { status: response.status });
   let json: unknown;
   try { json = await response.json(); } catch { throw new WeiSQLError("MANIFEST_INVALID", "Manifest is not valid JSON"); }
-  return new Database(validateManifest(json), options.resourceReader);
+  return Database.create(validateManifest(json), options.resourceReader, options.sqlAdapter, options.signal);
 }
 
 function aborted(signal?: AbortSignal): void { if (signal?.aborted) throw new WeiSQLError("QUERY_CANCELLED", "Operation was cancelled"); }

@@ -52,3 +52,42 @@ test("Runtime requires exactly one Manifest source", async () => {
   await assert.rejects(open({}), { code: "INVALID_ARGUMENT" });
   await assert.rejects(open({ manifest: {}, manifestUrl: "x" }), { code: "INVALID_ARGUMENT" });
 });
+
+test("Runtime initializes, delegates to and closes a SQL adapter", async () => {
+  const manifest = JSON.parse(await readFile(new URL("../../../examples/manifest/valid-minimal.json", import.meta.url), "utf8"));
+  const reader = new MemoryReader(new Map());
+  const calls = [];
+  const adapter = {
+    capabilities: { engine: "test-sql", parameterBinding: true, parquet: true, supportedFeatures: ["select"], cancellation: "native" },
+    async open(context) { calls.push(["open", context.manifest.datasetId]); },
+    async query(statement, parameters) { calls.push(["query", statement, parameters]); return [{ id: parameters[0] }]; },
+    async close() { calls.push(["close"]); },
+  };
+  const db = await open({ manifest, resourceReader: reader, sqlAdapter: adapter });
+  assert.equal(db.state, "READY");
+  assert.equal(db.capabilities().sql, true);
+  assert.deepEqual(await db.sql("select id from documents where id = ?", ["doc-001"]), [{ id: "doc-001" }]);
+  await db.close();
+  assert.equal(db.state, "CLOSED");
+  assert.equal(reader.closed, true);
+  assert.deepEqual(calls, [
+    ["open", "demo-docs"],
+    ["query", "select id from documents where id = ?", ["doc-001"]],
+    ["close"],
+  ]);
+});
+
+test("Runtime releases initialized resources when SQL adapter open fails", async () => {
+  const manifest = JSON.parse(await readFile(new URL("../../../examples/manifest/valid-minimal.json", import.meta.url), "utf8"));
+  const reader = new MemoryReader(new Map());
+  let adapterClosed = false;
+  const adapter = {
+    capabilities: { engine: "broken", parameterBinding: true, parquet: true, supportedFeatures: [], cancellation: "unsupported" },
+    async open() { throw new Error("initialization failed"); },
+    async query() { return []; },
+    async close() { adapterClosed = true; },
+  };
+  await assert.rejects(open({ manifest, resourceReader: reader, sqlAdapter: adapter }), /initialization failed/);
+  assert.equal(adapterClosed, true);
+  assert.equal(reader.closed, true);
+});

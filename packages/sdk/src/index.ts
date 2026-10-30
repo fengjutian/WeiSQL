@@ -8,6 +8,8 @@ export { expectedVectorBytes, validateVectorBytes } from "./vector-size.js";
 export { validateByteRange } from "./resource-reader.js";
 export type { AdapterOpenOptions, ByteRange, ResourceMetadata, ResourceReader, ResourceReadOptions } from "./resource-reader.js";
 export type { SqlAdapter, SqlAdapterCapabilities, SqlAdapterOpenContext } from "./sql-adapter.js";
+export { createExactVectorAdapter } from "./vector-adapter.js";
+export type { ExactVectorAdapterOptions, VectorAdapter, VectorAdapterCapabilities, VectorAdapterOpenContext, VectorAdapterSearchRequest } from "./vector-adapter.js";
 export { HttpResourceReader } from "./http-resource-reader.js";
 export type { HttpResourceReaderOptions } from "./http-resource-reader.js";
 export { CachedResourceReader } from "./cached-resource-reader.js";

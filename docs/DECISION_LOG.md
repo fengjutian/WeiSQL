@@ -227,6 +227,16 @@
 - 决策四：暂不接入，因为缺少三件前提：Vector Adapter 注入契约、Manifest 能描述索引构建参数、按真实数据集测量 Recall@K 的能力。`capabilities().vectorAnnSearch` 保持 `false`。
 - 后果：`tools/ann-probe.mjs` 与 `ANN_FEASIBILITY.md` 保留为可复现证据；`usearch` 不进入依赖（`npm i --no-save` 即可复现），避免为未接入的能力增加 24 MB 原生依赖。
 
+## ADR-027：Vector Adapter 由 Runtime 解析过滤，Adapter 只做扫描
+
+- 状态：Accepted and implemented（契约 + 精确参考实现 + 注入点）
+- 决策一：请求里传**已解析**的集合描述符与 `allowedRows`，不传 `vectorName` 与 `filter`。过滤语义涉及 Manifest 白名单、类型校验与 SQL 绑定，属于 Runtime；Adapter 拿到行集合后只做「在这些行里找最近邻」，无法自行解释或放宽过滤。
+- 决策二：业务 ID 由 Adapter 返回。精确参考实现内部完成行号 → ID 映射；ANN 若无法保证映射必须如实标记 `exactSearch: false`，能力声明决定 `capabilities().vectorAnnSearch`。
+- 决策三：注入 `exactSearch: false` 的 Adapter 时，带 `filter` 的检索直接返回 `SQL_UNSUPPORTED`。近似候选的后过滤不能声称为过滤子集的严格最近 K，宁可不支持也不要给出看似正确的结果。
+- 决策四：`vector-first` 策略仍只在内置精确管线上可用；把它推广到任意 Adapter 需要候选窗口与行集合的联合语义，留待 ANN 真正接入时再设计。
+- 决策五：内置精确管线暂时保留，参考 Adapter 与它并存，测试断言两者结果完全一致。等注入路径在真实使用中稳定后，再把内置管线替换为默认 Adapter，避免一次重构同时改行为和契约。
+- 后果：`vectorAdapter` 未注入时行为与之前完全一致（现有 111 个测试全绿）。ANN 仍需索引构建、Manifest 索引参数与召回测量三件前提，本决策只解除了「注入点」这一项。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

@@ -9,24 +9,10 @@ Vector Adapter 屏蔽 USearch、DuckDB VSS 或未来向量引擎的内部差异�
 
 `WeiSQLManifest`、`ResourceReader`、错误码和公共向量类型由公共类型层定义。
 
-## 2. 接口基线
+## 2. 接口基线（已实现）
 
 ```ts
 export type VectorMetric = "cosine" | "l2" | "ip";
-
-export interface VectorSearchRequest {
-  vectorName: string;
-  queryVector: Float32Array;
-  topK: number;
-  filter?: Readonly<Record<string, string | number | boolean | null>>;
-  signal?: AbortSignal;
-}
-
-export interface VectorHit {
-  id: string | number;
-  distance: number;
-  metadata?: Readonly<Record<string, unknown>>;
-}
 
 export interface VectorAdapterCapabilities {
   engine: string;
@@ -44,14 +30,28 @@ export interface VectorAdapterOpenContext {
   signal?: AbortSignal;
 }
 
+export interface VectorAdapterSearchRequest {
+  /** Resolved collection descriptor; adapters never re-resolve names. */
+  vector: VectorCollectionDescriptor;
+  query: Float32Array;
+  topK: number;
+  /** Restrict the scan to these vector rows; already resolved by the Runtime. */
+  allowedRows?: ReadonlySet<number>;
+  signal?: AbortSignal;
+}
+
 export interface VectorAdapter {
   readonly capabilities: Readonly<VectorAdapterCapabilities>;
-
   open(context: VectorAdapterOpenContext): Promise<void>;
-  search(request: VectorSearchRequest): Promise<readonly VectorHit[]>;
+  search(request: VectorAdapterSearchRequest): Promise<readonly VectorHit[]>;
   close(): Promise<void>;
 }
 ```
+
+与早期草案的两处关键差异：
+
+1. **请求里不再有 `vectorName` 和 `filter`。** 集合由 Runtime 解析后以 `vector` 描述符传入；过滤条件由 Runtime 通过 SQL 解析成 `allowedRows` 行集合再传入。Adapter 因此不需要接触 SQL 或 Manifest 白名单，也就无法「自行解释」过滤语义。
+2. **`VectorHit` 仍由 Adapter 返回业务 ID。** 精确参考实现内部完成行号 → 业务 ID 映射；ANN 实现若无法保证 ID 映射，必须自行维护并如实标记 `exactSearch: false`。
 
 ## 3. 统一距离语义
 
@@ -144,5 +144,11 @@ TypeScript SDK 和 Rust Core 共用错误语义、距离公式、维度规则、
 7. `close()` 幂等，关闭后返回 `DATABASE_CLOSED`；
 8. 精确实现结果一致；ANN 实现额外报告 Recall@K，不要求逐项完全相同。
 
-当前 Rust crate 已实现精确 Cosine 数值 ID 基线；TypeScript SDK 已实现分块 Float32 解码、Cosine/L2/IP、精确 Top-K、Indexed ID Map，并已接入公开 `vector.search()` 最小 Runtime。尚未实现独立 Vector Adapter 生命周期、过滤和持久化索引。
+## 11. 当前实现状态
+
+- 契约已定稿并实现注入：`open({ vectorAdapter })`，类型见 `packages/sdk/src/vector-adapter.ts`。
+- 参考实现 `createExactVectorAdapter()` 已提供：内部复用 `VectorBlockReader` + `exactVectorSearch` + `IndexedIdMapReader`，测试证明它与内置精确管线结果一致（含 ID、行号与距离）。
+- Runtime 职责：参数校验、Top-K、过滤解析为 `allowedRows`、能力汇总。Adapter 只负责「查询 → 排序后的行与距离」。
+- 限制（已验证）：注入 `exactSearch: false` 的 Adapter 时，`capabilities().vectorAnnSearch = true`、`vectorExactSearch = false`、`hybridSearch = false`；带 `filter` 的检索返回 `SQL_UNSUPPORTED`，因为近似候选的后过滤不能声称为「过滤子集的最近 K」。`vector-first` 目前也只在内置精确管线上可用。
+- 尚未实现：USearch 或其他 ANN Adapter 本身、持久化索引加载、Transformer 侧的能力探测。
 

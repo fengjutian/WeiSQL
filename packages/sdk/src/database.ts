@@ -6,7 +6,8 @@ import { IndexedIdMapReader } from "./indexed-id-map-reader.js";
 import { validateManifest } from "./manifest.js";
 import type { ResourceReader } from "./resource-reader.js";
 import type { SqlAdapter } from "./sql-adapter.js";
-import type { OpenOptions, QueryOptions, RuntimeState, SQLValue, VectorHit, VectorSearchOptions, WeiSQLCapabilities, WeiSQLManifest } from "./types.js";
+import type { HybridStrategy, OpenOptions, QueryOptions, RuntimeState, SQLValue, VectorHit, VectorSearchOptions, WeiSQLCapabilities, WeiSQLManifest } from "./types.js";
+import type { VectorAdapter } from "./vector-adapter.js";
 import { VectorBlockReader } from "./vector-block-reader.js";
 import { candidateCapFor, exactFilterFirst, vectorFirst } from "./hybrid-executor.js";
 
@@ -24,15 +25,28 @@ class Database implements WeiSQLDatabase {
   private closePromise: Promise<void> | undefined;
   readonly manifest: Readonly<WeiSQLManifest>;
   readonly vector;
-  private constructor(manifest: WeiSQLManifest, private readonly reader?: ResourceReader, private readonly sqlAdapter?: SqlAdapter) {
+  private constructor(
+    manifest: WeiSQLManifest,
+    private readonly reader?: ResourceReader,
+    private readonly sqlAdapter?: SqlAdapter,
+    private readonly vectorAdapter?: VectorAdapter,
+  ) {
     this.manifest = manifest;
     this.vector = { search: this.search.bind(this) };
   }
-  static async create(manifest: WeiSQLManifest, reader: ResourceReader | undefined, sqlAdapter: SqlAdapter | undefined, signal?: AbortSignal): Promise<Database> {
+  static async create(
+    manifest: WeiSQLManifest,
+    reader: ResourceReader | undefined,
+    sqlAdapter: SqlAdapter | undefined,
+    vectorAdapter: VectorAdapter | undefined,
+    signal?: AbortSignal,
+  ): Promise<Database> {
     if (sqlAdapter && !reader) throw new WeiSQLError("INVALID_ARGUMENT", "A SQL adapter requires a resourceReader");
-    const database = new Database(manifest, reader, sqlAdapter);
+    if (vectorAdapter && !reader) throw new WeiSQLError("INVALID_ARGUMENT", "A vector adapter requires a resourceReader");
+    const database = new Database(manifest, reader, sqlAdapter, vectorAdapter);
     try {
       if (sqlAdapter && reader) await sqlAdapter.open({ manifest, reader, ...(signal ? { signal } : {}) });
+      if (vectorAdapter && reader) await vectorAdapter.open({ manifest, reader, ...(signal ? { signal } : {}) });
       aborted(signal);
       database.runtimeState = "READY";
       return database;
@@ -64,6 +78,7 @@ class Database implements WeiSQLDatabase {
     }
     if (filter !== undefined && !this.sqlAdapter) throw new WeiSQLError("SQL_UNSUPPORTED", "Vector filtering requires a SQL or metadata-filtering adapter", { strategy });
     if (!this.reader) throw new WeiSQLError("INDEX_NOT_FOUND", "No vector resource reader is configured");
+    if (this.vectorAdapter !== undefined) return this.searchWithAdapter(vector, queryVector, topK, filter, strategy, options);
     const started = performance.now();
     const idMap = new IndexedIdMapReader(this.reader, {
       dataPath: vector.idMap.data.path,
@@ -167,12 +182,78 @@ class Database implements WeiSQLDatabase {
     });
   }
 
+  /**
+   * Delegates to an injected `VectorAdapter`.
+   *
+   * The Runtime keeps validation and the filter→row-set resolution, so an ANN
+   * adapter never needs SQL access and can never silently widen a filter. Filters
+   * require `exactSearch: true`, because post-filtering an approximate candidate
+   * list cannot be presented as the filtered nearest K.
+   */
+  private async searchWithAdapter(
+    vector: WeiSQLManifest["vectorCollections"][number],
+    queryVector: Float32Array | readonly number[],
+    topK: number,
+    filter: VectorSearchOptions["filter"],
+    strategy: HybridStrategy,
+    options: VectorSearchOptions | undefined,
+  ): Promise<readonly VectorHit[]> {
+    const adapter = this.vectorAdapter!;
+    if (filter !== undefined) {
+      if (!adapter.capabilities.exactSearch) {
+        throw new WeiSQLError("SQL_UNSUPPORTED", "Filtering requires an exact vector adapter", { engine: adapter.capabilities.engine });
+      }
+      if (strategy === "vector-first") {
+        throw new WeiSQLError("SQL_UNSUPPORTED", "vector-first is only available on the built-in exact pipeline", { engine: adapter.capabilities.engine });
+      }
+    }
+    const query = queryVector instanceof Float32Array ? queryVector : Float32Array.from(queryVector);
+    const allowedRows = filter === undefined ? undefined : await this.resolveAllowedRows(vector, filter, options?.signal);
+    return adapter.search({
+      vector,
+      query,
+      topK,
+      ...(allowedRows === undefined ? {} : { allowedRows }),
+      ...(options?.signal === undefined ? {} : { signal: options.signal }),
+    });
+  }
+
+  /** Resolves the V1 equality filter into a row set for adapters to honour. */
+  private async resolveAllowedRows(
+    vector: WeiSQLManifest["vectorCollections"][number],
+    filter: NonNullable<VectorSearchOptions["filter"]>,
+    signal: AbortSignal | undefined,
+  ): Promise<ReadonlySet<number>> {
+    const idMap = new IndexedIdMapReader(this.reader!, {
+      dataPath: vector.idMap.data.path,
+      offsetsPath: vector.idMap.offsets.path,
+      count: vector.idMap.count,
+      dataBytes: vector.idMap.data.bytes,
+      offsetsBytes: vector.idMap.offsets.bytes,
+    });
+    try {
+      const result = await exactFilterFirst({
+        manifest: this.manifest,
+        sqlAdapter: this.sqlAdapter!,
+        idMap,
+        vector,
+        filter,
+        ...(signal === undefined ? {} : { signal }),
+      });
+      return result.allowedRows;
+    } finally {
+      await idMap.close();
+    }
+  }
+
   capabilities(): Readonly<WeiSQLCapabilities> {
+    const adapter = this.vectorAdapter;
+    const exact = adapter === undefined ? this.reader !== undefined : adapter.capabilities.exactSearch;
     return Object.freeze({
       sql: this.sqlAdapter !== undefined,
-      vectorExactSearch: this.reader !== undefined,
-      vectorAnnSearch: false,
-      hybridSearch: this.reader !== undefined && this.sqlAdapter !== undefined,
+      vectorExactSearch: exact,
+      vectorAnnSearch: adapter !== undefined && !adapter.capabilities.exactSearch,
+      hybridSearch: this.reader !== undefined && this.sqlAdapter !== undefined && (adapter === undefined || adapter.capabilities.exactSearch),
       resourceRange: this.reader !== undefined,
     });
   }
@@ -186,6 +267,7 @@ class Database implements WeiSQLDatabase {
   private async finishClose(): Promise<void> { try { await this.releaseResources(); } finally { this.runtimeState = "CLOSED"; } }
   private async releaseResources(): Promise<void> {
     const pending: Promise<void>[] = [];
+    if (this.vectorAdapter) pending.push(this.vectorAdapter.close());
     if (this.sqlAdapter) pending.push(this.sqlAdapter.close());
     if (this.reader) pending.push(this.reader.close());
     const results = await Promise.allSettled(pending);
@@ -236,7 +318,7 @@ async function prepare(manifest: WeiSQLManifest, options: OpenOptions): Promise<
       });
     }
     handedOff = true;
-    return await Database.create(manifest, reader, options.sqlAdapter, options.signal);
+    return await Database.create(manifest, reader, options.sqlAdapter, options.vectorAdapter, options.signal);
   } catch (cause) {
     // The Runtime owns the reader; a failed open must not leak it. Once
     // Database.create is reached it performs its own cleanup.

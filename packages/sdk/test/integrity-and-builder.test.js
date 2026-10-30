@@ -138,7 +138,7 @@ test("Builder output is readable by an independent Parquet reader", async t => {
   const bytes = new Uint8Array(await readFile(path.join(target, "data", "documents.parquet")));
   const rows = await parquetReadObjects({ file: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) });
   assert.deepEqual(rows.map(row => row.id), IDS);
-  assert.deepEqual(rows.map(row => row.title), ["DNA 缁撴瀯", "RNA 杞綍", "缁嗚優浠ｈ阿"]);
+  assert.deepEqual(rows.map(row => row.title), ["DNA 结构", "RNA 转录", "细胞代谢"]);
   assert.deepEqual(rows.map(row => row.category), ["genetics", "genetics", "metabolism"]);
 });
 

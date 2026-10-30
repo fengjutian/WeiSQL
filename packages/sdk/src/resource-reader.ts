@@ -1,4 +1,5 @@
 import type { WeiSQLManifest } from "./types.js";
+import { WeiSQLError } from "./errors.js";
 
 export interface ResourceMetadata {
   size?: number;
@@ -31,6 +32,6 @@ export interface AdapterOpenOptions {
 
 export function validateByteRange(range: ByteRange): void {
   if (!Number.isSafeInteger(range.start) || !Number.isSafeInteger(range.end) || range.start < 0 || range.end < range.start) {
-    throw new RangeError("Byte range must use non-negative safe integers with end >= start");
+    throw new WeiSQLError("INVALID_ARGUMENT", "Byte range must use non-negative safe integers with end >= start", { range });
   }
 }

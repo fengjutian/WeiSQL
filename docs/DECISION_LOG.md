@@ -60,18 +60,18 @@
 
 ## ADR-009：向量源表与业务 ID 映射
 
-- 状态：Proposed
-- 决策候选：向量声明增加 `tableName`；独立 `ids` 文件按行映射业务 ID，候选编码为每行一个 JSON 标量的 `jsonl-scalar`。
+- 状态：Accepted for V1，待实现迁移
+- 决策：向量声明增加 `tableName`；独立 `idMap` 文件按行映射业务 ID，编码为每行一个 `{row,id}` 对象的 JSONL。
 - 原因：纯 Float32 文件不包含业务 ID，仅靠隐含行号无法可靠映射 SQL 记录；`tableName` 消除多表数据包中的 `idColumn` 歧义。
-- 冻结条件：验证字符串转义、安全整数、重复 ID、计数一致性、流式解析性能和 Builder/Runtime 往返测试。
+- 约束：行号连续且与向量顺序一致，计数相等，业务 ID 默认唯一；Builder 验证 ID 在目标表中存在。百万级替代编码需由实测驱动。
 
 ## ADR-010：统一资源读取抽象
 
-- 状态：Proposed
-- 决策候选：Runtime 和 Adapter 通过 `ResourceReader` 访问资源，浏览器 HTTP、Node HTTP/文件和未来 `.wsql` 容器分别实现该接口。
+- 状态：Accepted for V1，具体 Reader 待实现
+- 决策：Runtime 和 Adapter 通过 `ResourceReader` 访问资源，范围读取使用左闭右开 `[start,end)`；浏览器 HTTP、Node 文件和未来 `.wsql` 容器分别实现该接口。
 - 原因：避免 Adapter 直接依赖 URL 或文件系统，集中处理路径、Range、取消、资源限制和流式完整性校验。
 - 规范：`RESOURCE_READER_CONTRACT.md`。
-- 冻结条件：至少完成浏览器 HTTP 与 Node 文件两个实现的契约测试。
+- 实现门槛：至少完成 Node 文件与 HTTP 两个实现的契约测试；HTTP 必须严格验证 `206`、`Content-Range` 和实际长度。
 
 ## 明确禁止的未经验证声明
 

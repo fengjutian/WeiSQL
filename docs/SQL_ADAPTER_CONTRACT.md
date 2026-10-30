@@ -7,7 +7,7 @@
 
 SQL Adapter 将 WeiSQL 的统一 SQL 请求交给具体 SQL 引擎。公共 SDK 不暴露 DuckDB connection、relation、extension 等引擎专用类型。
 
-`WeiSQLManifest`、`ResourceResolver`、`SQLValue` 和标准错误码由公共类型层统一定义，Adapter 不得创建不兼容副本。
+`WeiSQLManifest`、`ResourceReader`、`SQLValue` 和标准错误码由公共类型层统一定义，Adapter 不得创建不兼容副本。
 
 ## 2. 接口基线
 
@@ -27,7 +27,7 @@ export interface SqlAdapterCapabilities {
 
 export interface SqlAdapterOpenContext {
   manifest: Readonly<WeiSQLManifest>;
-  resourceResolver: ResourceResolver;
+  reader: ResourceReader;
   signal?: AbortSignal;
 }
 
@@ -46,7 +46,7 @@ export interface SqlAdapter {
 }
 ```
 
-V1 的 `ResourceResolver` 至少应按逻辑资源路径解析可读资源，并在交给引擎前完成路径策略、大小限制和所请求的完整性验证。其最终接口在资源加载规范中冻结。
+V1 的 `ResourceReader` 按逻辑路径提供完整或范围字节读取。路径策略、大小限制和所请求的完整性验证必须在资源交给引擎前完成，详见 `RESOURCE_READER_CONTRACT.md`。
 
 ## 3. 生命周期
 

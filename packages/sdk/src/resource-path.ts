@@ -35,6 +35,8 @@ export function canonicalResourcePath(path: string): string {
   return path;
 }
 
+export const normalizeResourcePath = canonicalResourcePath;
+
 function invalid(path: string, message: string): never {
   throw new WeiSQLError("PATH_INVALID", message, { path });
 }

@@ -7,7 +7,7 @@
 
 Vector Adapter 屏蔽 USearch、DuckDB VSS 或未来向量引擎的内部差异。公共接口只表达向量名称、查询向量、Top-K、过滤条件、业务 ID 和统一距离。
 
-`WeiSQLManifest`、`ResourceResolver`、错误码和公共向量类型由公共类型层定义。
+`WeiSQLManifest`、`ResourceReader`、错误码和公共向量类型由公共类型层定义。
 
 ## 2. 接口基线
 
@@ -40,7 +40,7 @@ export interface VectorAdapterCapabilities {
 
 export interface VectorAdapterOpenContext {
   manifest: Readonly<WeiSQLManifest>;
-  resourceResolver: ResourceResolver;
+  reader: ResourceReader;
   signal?: AbortSignal;
 }
 

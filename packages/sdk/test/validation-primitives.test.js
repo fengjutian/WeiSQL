@@ -30,7 +30,7 @@ test("rejects unsafe and ambiguous resource paths", () => {
 test("validates half-open byte ranges", () => {
   assert.doesNotThrow(() => validateByteRange({ start: 0, end: 4096 }));
   assert.doesNotThrow(() => validateByteRange({ start: 8, end: 8 }));
-  assert.throws(() => validateByteRange({ start: -1, end: 1 }), RangeError);
-  assert.throws(() => validateByteRange({ start: 2, end: 1 }), RangeError);
-  assert.throws(() => validateByteRange({ start: 0.5, end: 1 }), RangeError);
+  assert.throws(() => validateByteRange({ start: -1, end: 1 }), { code: "INVALID_ARGUMENT" });
+  assert.throws(() => validateByteRange({ start: 2, end: 1 }), { code: "INVALID_ARGUMENT" });
+  assert.throws(() => validateByteRange({ start: 0.5, end: 1 }), { code: "INVALID_ARGUMENT" });
 });

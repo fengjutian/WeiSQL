@@ -60,6 +60,17 @@ async function hybridPackage() {
     position += line.byteLength;
   }
 
+  const TEXTS = ["DNA 结构", "RNA 转录", "细胞代谢"];
+  const documentLines = TEXTS.map((text, row) => encoder.encode(`${JSON.stringify({ row, text })}\n`));
+  const documentData = new Uint8Array(documentLines.reduce((sum, line) => sum + line.byteLength, 0));
+  const documentOffsets = [];
+  let documentPosition = 0;
+  for (const line of documentLines) {
+    documentOffsets.push(documentPosition);
+    documentData.set(line, documentPosition);
+    documentPosition += line.byteLength;
+  }
+
   const files = new Map([
     ["vectors/embeddings.f32", floats([1, 0, 0.9, 0.1, 0, 1])],
     ["vectors/id-map.jsonl", idData],
@@ -69,6 +80,8 @@ async function hybridPackage() {
     ["text/doclengths.bin", u32([2, 2, 2])],
     ["text/ids.jsonl", idData],
     ["text/ids.offsets", u64([0, 25, 50])],
+    ["text/documents.jsonl", documentData],
+    ["text/documents.offsets", u64(documentOffsets)],
   ]);
 
   manifest.textIndexes = [{
@@ -87,6 +100,10 @@ async function hybridPackage() {
       offsets: { path: "text/ids.offsets", format: "uint64-le", bytes: 24, sha256: SHA },
       count: IDS.length,
       uniqueIds: true,
+    },
+    documents: {
+      data: { path: "text/documents.jsonl", format: "jsonl", bytes: documentData.byteLength, sha256: SHA },
+      offsets: { path: "text/documents.offsets", format: "uint64-le", bytes: documentOffsets.length * 8, sha256: SHA },
     },
   }];
   return { manifest, reader: new MemoryReader(files) };

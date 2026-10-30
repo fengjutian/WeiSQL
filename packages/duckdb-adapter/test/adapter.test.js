@@ -236,7 +236,7 @@ test("Runtime + DuckDB adapter run the documented SQL/vector end to end", async 
   t.after(() => db.close().catch(() => undefined));
 
   assert.equal(db.state, "READY");
-  assert.deepEqual(db.capabilities(), { sql: true, vectorExactSearch: true, vectorAnnSearch: false, hybridSearch: true, textSearch: false, fusionSearch: true, resourceRange: true });
+  assert.deepEqual(db.capabilities(), { sql: true, vectorExactSearch: true, vectorAnnSearch: false, hybridSearch: true, textSearch: false, fusionSearch: true, ragSearch: false, resourceRange: true });
 
   const rows = await db.sql("SELECT id, title FROM documents WHERE category = ? ORDER BY id", ["genetics"]);
   assert.deepEqual(rows, [

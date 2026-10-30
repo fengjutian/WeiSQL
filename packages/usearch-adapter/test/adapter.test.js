@@ -104,7 +104,7 @@ test("refuses a filtered row set instead of post-filtering", async () => {
 test("Runtime wires the ANN adapter and hides hybrid capabilities", async () => {
   const { manifest, reader } = await fixture();
   const db = await open({ manifest, resourceReader: reader, vectorAdapter: createUSearchAdapter() });
-  assert.deepEqual(db.capabilities(), { sql: false, vectorExactSearch: false, vectorAnnSearch: true, hybridSearch: false, textSearch: false, fusionSearch: true, resourceRange: true });
+  assert.deepEqual(db.capabilities(), { sql: false, vectorExactSearch: false, vectorAnnSearch: true, hybridSearch: false, textSearch: false, fusionSearch: true, ragSearch: false, resourceRange: true });
 
   const hits = await db.vector.search("document_embeddings", [1, 0], { topK: 2 });
   assert.deepEqual(hits.map(hit => hit.id), ["doc-001", "doc-002"]);

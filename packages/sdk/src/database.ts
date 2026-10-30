@@ -6,7 +6,7 @@ import { IndexedIdMapReader } from "./indexed-id-map-reader.js";
 import { validateManifest } from "./manifest.js";
 import type { ResourceReader } from "./resource-reader.js";
 import type { SqlAdapter } from "./sql-adapter.js";
-import type { HybridFusionHit, HybridSearchOptions, HybridStrategy, OpenOptions, QueryOptions, RuntimeState, SQLValue, VectorHit, VectorSearchOptions, WeiSQLCapabilities, WeiSQLManifest } from "./types.js";
+import type { HybridFusionHit, HybridSearchOptions, HybridStrategy, OpenOptions, QueryOptions, RagResult, RagSearchOptions, RuntimeState, SQLValue, VectorHit, VectorSearchOptions, WeiSQLCapabilities, WeiSQLManifest } from "./types.js";
 import type { TextHit, TextSearchOptions } from "./text-index-reader.js";
 import { TextIndexReader } from "./text-index-reader.js";
 import { reciprocalRankFusion } from "./fusion.js";
@@ -22,6 +22,7 @@ export interface WeiSQLDatabase {
   readonly vector: { search(vectorName: string, queryVector: Float32Array | readonly number[], options?: VectorSearchOptions): Promise<readonly VectorHit[]> };
   readonly text: { search(indexName: string, query: string, options?: TextSearchOptions): Promise<readonly TextHit[]> };
   readonly hybrid: { search(options: HybridSearchOptions): Promise<readonly HybridFusionHit[]> };
+  readonly rag: { search(options: RagSearchOptions): Promise<RagResult> };
   capabilities(): Readonly<WeiSQLCapabilities>;
   close(): Promise<void>;
 }
@@ -33,6 +34,7 @@ class Database implements WeiSQLDatabase {
   readonly vector;
   readonly text;
   readonly hybrid;
+  readonly rag;
   private readonly textReaders = new Map<string, TextIndexReader>();
   private constructor(
     manifest: WeiSQLManifest,
@@ -44,6 +46,7 @@ class Database implements WeiSQLDatabase {
     this.vector = { search: this.search.bind(this) };
     this.text = { search: this.textSearch.bind(this) };
     this.hybrid = { search: this.hybridSearch.bind(this) };
+    this.rag = { search: this.ragSearch.bind(this) };
   }
   static async create(
     manifest: WeiSQLManifest,
@@ -124,6 +127,84 @@ class Database implements WeiSQLDatabase {
         diagnostics: { backend: "rrf" as const, k, ...(elapsedMs === undefined ? {} : { elapsedMs }) },
       };
     });
+  }
+
+  /**
+   * Assembles retrieval evidence for RAG.
+   *
+   * WeiSQL does not call a model and does not render prompts: it returns the
+   * fused, budgeted evidence plus its provenance, so the caller keeps control of
+   * prompting, citations and model choice.
+   */
+  private async ragSearch(options: RagSearchOptions): Promise<RagResult> {
+    this.ensureOpen(); aborted(options?.signal);
+    if (options.text === undefined) {
+      throw new WeiSQLError("INVALID_ARGUMENT", "rag.search requires a text source, which carries the document text");
+    }
+    const topK = options.topK ?? 5;
+    if (!Number.isSafeInteger(topK) || topK <= 0) throw new WeiSQLError("INVALID_ARGUMENT", "topK must be a positive integer", { topK });
+    const maxCharacters = options.maxCharacters ?? 4000;
+    if (!Number.isSafeInteger(maxCharacters) || maxCharacters <= 0) {
+      throw new WeiSQLError("INVALID_ARGUMENT", "maxCharacters must be a positive integer", { maxCharacters });
+    }
+    const k = options.k ?? 60;
+    if (!(k > 0) || !Number.isFinite(k)) throw new WeiSQLError("INVALID_ARGUMENT", "k must be a positive finite number", { k });
+
+    const descriptor = (this.manifest.textIndexes ?? []).find(item => item.name === options.text!.name);
+    if (descriptor === undefined) throw new WeiSQLError("INDEX_NOT_FOUND", `Unknown text index '${options.text.name}'`, { index: options.text.name });
+    if (descriptor.documents === undefined) {
+      throw new WeiSQLError("INVALID_ARGUMENT", "This text index does not declare documents; rebuild it with the current builder", { index: descriptor.name });
+    }
+
+    const started = typeof performance === "undefined" ? 0 : performance.now();
+    const signalOption = options.signal === undefined ? {} : { signal: options.signal };
+    const fused = await this.hybridSearch({
+      topK,
+      k,
+      text: options.text,
+      ...(options.vector === undefined ? {} : { vector: options.vector }),
+      ...signalOption,
+    });
+
+    const rows = fused.map(hit => hit.text?.row).filter((row): row is number => row !== undefined);
+    const textReader = this.textReaders.get(descriptor.name);
+    if (textReader === undefined) throw new WeiSQLError("INTERNAL_ERROR", "Text reader missing for the declared index");
+    const documents = await textReader.getDocuments(rows, signalOption);
+
+    const evidences: RagResult["evidences"][number][] = [];
+    let usedCharacters = 0;
+    let truncated = false;
+    let droppedHits = 0;
+    for (const [index, hit] of fused.entries()) {
+      const row = hit.text?.row;
+      const text = row === undefined ? undefined : documents.get(row);
+      if (text === undefined || usedCharacters >= maxCharacters) {
+        droppedHits++;
+        continue;
+      }
+      const remaining = maxCharacters - usedCharacters;
+      const fragment = text.length > remaining ? text.slice(0, remaining) : text;
+      const cut = fragment.length !== text.length;
+      if (cut) truncated = true;
+      usedCharacters += fragment.length;
+      evidences.push({
+        id: hit.id,
+        text: fragment,
+        rank: index + 1,
+        characters: fragment.length,
+        truncated: cut,
+        ranks: hit.ranks,
+      });
+    }
+
+    const elapsedMs = typeof performance === "undefined" ? undefined : performance.now() - started;
+    return {
+      evidences,
+      usedCharacters,
+      truncated,
+      droppedHits,
+      diagnostics: { backend: "rrf", k, maxCharacters, ...(elapsedMs === undefined ? {} : { elapsedMs }) },
+    };
   }
 
   /** BM25 text search over a Manifest-declared `textIndexes` entry. */
@@ -337,6 +418,7 @@ class Database implements WeiSQLDatabase {
       hybridSearch: this.reader !== undefined && this.sqlAdapter !== undefined && (adapter === undefined || adapter.capabilities.exactSearch),
       textSearch: this.reader !== undefined && (this.manifest.textIndexes?.length ?? 0) > 0,
       fusionSearch: this.reader !== undefined && ((this.manifest.vectorCollections?.length ?? 0) > 0 || (this.manifest.textIndexes?.length ?? 0) > 0),
+      ragSearch: this.reader !== undefined && (this.manifest.textIndexes ?? []).some(index => index.documents !== undefined),
       resourceRange: this.reader !== undefined,
     });
   }

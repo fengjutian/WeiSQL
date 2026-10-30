@@ -81,13 +81,17 @@ const docLengths = [];
 const ids = [];
 const idLines = [];
 const idOffsets = [];
+const documentLines = [];
+const documentOffsets = [];
 let idBytes = 0;
+let documentBytes = 0;
 
 for (let row = 0; row < rows.length; row++) {
   const record = rows[row];
   const text = record[options.column];
   if (text !== null && text !== undefined && typeof text !== "string") throw new Error(`row ${row}: column is not text`);
-  const tokens = tokenize(typeof text === "string" ? text : "", { minLength: options.minLength });
+  const value = typeof text === "string" ? text : "";
+  const tokens = tokenize(value, { minLength: options.minLength });
   docLengths.push(tokens.length);
   for (const token of tokens) {
     let postings = terms.get(token);
@@ -107,6 +111,11 @@ for (let row = 0; row < rows.length; row++) {
   idOffsets.push(idBytes);
   idBytes += line.byteLength;
   idLines.push(line);
+
+  const documentLine = encoder.encode(`${JSON.stringify({ row, text: value })}\n`);
+  documentOffsets.push(documentBytes);
+  documentBytes += documentLine.byteLength;
+  documentLines.push(documentLine);
 }
 
 const averageDocumentLength = docLengths.reduce((sum, value) => sum + value, 0) / docLengths.length;
@@ -137,6 +146,15 @@ const idData = new Uint8Array(idBytes);
   }
 }
 
+const documentData = new Uint8Array(documentBytes);
+{
+  let position = 0;
+  for (const line of documentLines) {
+    documentData.set(line, position);
+    position += line.byteLength;
+  }
+}
+
 const base = `text-index/${options.name}`;
 const files = new Map([
   [`${base}.terms.jsonl`, termData],
@@ -144,6 +162,8 @@ const files = new Map([
   [`${base}.doclengths.bin`, u32(docLengths)],
   [`${base}.ids.jsonl`, idData],
   [`${base}.ids.offsets`, u64(idOffsets)],
+  [`${base}.documents.jsonl`, documentData],
+  [`${base}.documents.offsets`, u64(documentOffsets)],
 ]);
 
 await mkdir(path.join(directory, "text-index"), { recursive: true });
@@ -168,6 +188,10 @@ const entry = {
     count: ids.length,
     uniqueIds: new Set(ids).size === ids.length,
   },
+  documents: {
+    data: { ...descriptorOf(`${base}.documents.jsonl`, documentData), format: "jsonl" },
+    offsets: { ...descriptorOf(`${base}.documents.offsets`, u64(documentOffsets)), format: "uint64-le" },
+  },
   ...(options.k1 === undefined ? {} : { k1: options.k1 }),
   ...(options.b === undefined ? {} : { b: options.b }),
 };
@@ -189,6 +213,7 @@ console.log(JSON.stringify({
     termOffsets: files.get(`${base}.terms.offsets`).byteLength,
     docLengths: files.get(`${base}.doclengths.bin`).byteLength,
     ids: idData.byteLength,
+    documents: documentData.byteLength,
   },
   sampleTerms: sortedTerms.slice(0, 5),
   next: "weisql validate <package-dir>",

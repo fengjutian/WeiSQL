@@ -7,6 +7,7 @@ import type { ResourceReader } from "./resource-reader.js";
 import type { SqlAdapter } from "./sql-adapter.js";
 import type { OpenOptions, QueryOptions, RuntimeState, SQLValue, VectorHit, VectorSearchOptions, WeiSQLCapabilities, WeiSQLManifest } from "./types.js";
 import { VectorBlockReader } from "./vector-block-reader.js";
+import { exactFilterFirst } from "./hybrid-executor.js";
 
 export interface WeiSQLDatabase {
   readonly manifest: Readonly<WeiSQLManifest>;
@@ -55,7 +56,8 @@ class Database implements WeiSQLDatabase {
     if (queryVector.length !== vector.dimension) throw new WeiSQLError("VECTOR_DIMENSION_MISMATCH", "Query vector dimension does not match manifest", { expected: vector.dimension, actual: queryVector.length });
     for (let i = 0; i < queryVector.length; i++) if (!Number.isFinite(queryVector[i])) throw new WeiSQLError("VECTOR_INVALID_VALUE", "Query vector contains a non-finite value", { position: i });
     if (vector.metric === "cosine" && !queryVector.some(value => value !== 0)) throw new WeiSQLError("VECTOR_INVALID_VALUE", "Cosine distance is undefined for a zero query vector");
-    if (options?.filter !== undefined) throw new WeiSQLError("SQL_UNSUPPORTED", "Vector filtering requires a SQL or metadata-filtering adapter");
+    const filter = options?.filter;
+    if (filter !== undefined && !this.sqlAdapter) throw new WeiSQLError("SQL_UNSUPPORTED", "Vector filtering requires a SQL or metadata-filtering adapter", { strategy: "exact-filter-first" });
     if (!this.reader) throw new WeiSQLError("INDEX_NOT_FOUND", "No vector resource reader is configured");
     const started = performance.now();
     const idMap = new IndexedIdMapReader(this.reader, {
@@ -66,22 +68,49 @@ class Database implements WeiSQLDatabase {
       offsetsBytes: vector.idMap.offsets.bytes,
     });
     try {
+      const allowed = filter === undefined ? undefined : (await exactFilterFirst({
+        manifest: this.manifest,
+        sqlAdapter: this.sqlAdapter!,
+        idMap,
+        vector,
+        filter,
+        ...(options?.signal ? { signal: options.signal } : {}),
+      })).allowedRows;
+      if (allowed !== undefined && allowed.size === 0) return [];
       const hits = await exactVectorSearch({
         reader: new VectorBlockReader(this.reader, { path: vector.data.path, count: vector.count, dimension: vector.dimension, bytes: vector.data.bytes }),
         idMap,
         query: queryVector instanceof Float32Array ? queryVector : Float32Array.from(queryVector),
         collectionCount: vector.count,
         dimension: vector.dimension,
-        search: { topK, metric: vector.metric, ...(options?.signal ? { signal: options.signal } : {}) },
+        search: {
+          topK,
+          metric: vector.metric,
+          ...(options?.signal ? { signal: options.signal } : {}),
+          ...(allowed === undefined ? {} : { isAllowed: (row: number) => allowed.has(row) }),
+        },
       });
       const elapsedMs = performance.now() - started;
-      return hits.map(hit => ({ ...hit, diagnostics: { backend: "typescript-exact", exact: true, elapsedMs } }));
+      if (allowed === undefined) {
+        return hits.map(hit => ({ ...hit, diagnostics: { backend: "typescript-exact", exact: true, elapsedMs } }));
+      }
+      return hits.map(hit => ({
+        ...hit,
+        diagnostics: { backend: "typescript-exact+sql-filter", exact: true, strategy: "exact-filter-first" as const, filteredCandidates: allowed.size, elapsedMs },
+      }));
     } finally {
       await idMap.close();
     }
   }
+
   capabilities(): Readonly<WeiSQLCapabilities> {
-    return Object.freeze({ sql: this.sqlAdapter !== undefined, vectorExactSearch: this.reader !== undefined, vectorAnnSearch: false, hybridSearch: false, resourceRange: this.reader !== undefined });
+    return Object.freeze({
+      sql: this.sqlAdapter !== undefined,
+      vectorExactSearch: this.reader !== undefined,
+      vectorAnnSearch: false,
+      hybridSearch: this.reader !== undefined && this.sqlAdapter !== undefined,
+      resourceRange: this.reader !== undefined,
+    });
   }
   async close(): Promise<void> {
     if (this.runtimeState === "CLOSED") return;

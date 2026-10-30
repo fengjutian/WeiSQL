@@ -26,7 +26,7 @@ export interface WeiSQLManifest {
 export type SQLValue = string | number | bigint | boolean | null | Uint8Array | Date;
 export interface QueryOptions { signal?: AbortSignal }
 export interface VectorSearchOptions { topK?: number; filter?: Readonly<Record<string, string | number | boolean | null>>; signal?: AbortSignal }
-export interface VectorHit { row: number; id: string | number; distance: number; metadata?: Readonly<Record<string, unknown>>; diagnostics?: { backend: string; elapsedMs?: number; exact?: boolean } }
+export interface VectorHit { row: number; id: string | number; distance: number; metadata?: Readonly<Record<string, unknown>>; diagnostics?: { backend: string; elapsedMs?: number; exact?: boolean; strategy?: "exact" | "exact-filter-first"; filteredCandidates?: number } }
 export interface WeiSQLCapabilities {
   sql: boolean;
   vectorExactSearch: boolean;

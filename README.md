@@ -21,6 +21,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - 零依赖增量 SHA-256，浏览器与 Node.js 同一实现
 - `buildPackage()` Builder：接收已有 Parquet，生成 Float32、ID Map、真实摘要与 Manifest，暂存区自检后原子发布
 - Node.js DuckDB 只读 SQL Adapter（`@weisql/duckdb-adapter`）：真实 SQL 查询、参数绑定、语句级只读边界、L4 Parquet 模式校验与原生取消
+- `exact-filter-first` 混合检索：结构化等值过滤先解析为完整 ID 集合，再限定精确向量扫描范围
 - 已接入公开 `vector.search()` 的端到端精确搜索
 - Float32 little-endian 向量分块读取
 - Cosine、L2、IP 统一距离语义
@@ -38,7 +39,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - WASM 构建与 TypeScript/Rust 自动黄金数据对照
 - Netlify/CDN 的真实 CORS、Range 和缓存验收
 - `.wsql` 单文件容器
-- 全文检索、混合搜索和 RAG 集成层
+- `vector-first` 混合策略、全文检索与 RAG 集成层
 
 ## 快速开始
 
@@ -256,6 +257,24 @@ const rows = await db.sql(
 - **已知限制**：`DECIMAL` 由驱动转换为 `number`，超过 15 位有效数字会丢精度；可空性不在 L4 比对范围内（`read_parquet` 不保留 `NOT NULL` 约束）。
 
 详见 [DuckDB Adapter](docs/DUCKDB_ADAPTER.md)。
+
+## 过滤与混合检索
+
+`vector.search()` 接受 `filter`，语义是「字段 = 标量」的 AND 等值条件。V1 实现的是 `exact-filter-first`：
+
+```ts
+const hits = await db.vector.search("document_embeddings", [1, 0], {
+  topK: 2,
+  filter: { category: "genetics" },
+});
+// hits[i].diagnostics → { strategy: "exact-filter-first", exact: true, filteredCandidates: 2 }
+```
+
+- **过滤发生在 Top-K 之前**：先用 SQL 求出满足条件的完整 ID 集合，再映射成向量行，最后只在这些行上做精确比较。所以结果仍是「过滤子集上的严格最近 K」，`exact: true` 站得住。
+- 反过来（先取 Top-K 再丢弃不匹配项）会少返回结果，也不能声明 `exact`，因此没有采用。
+- 每次过滤查询要付一次 SQL 查询 + 一次完整 ID Map 扫描（业务 ID → 向量行）。V1 没有持久化反向索引，规模变大后这是硬成本。
+- 需要 `sqlAdapter`；未注入时返回 `SQL_UNSUPPORTED`，不会静默忽略过滤条件。
+- 字段必须在 Manifest 中声明（未知列 → `INVALID_ARGUMENT`），值按列类型校验并全部参数绑定，`null` 编译为 `IS NULL`。`date`/`timestamp`/`json` 的等值过滤尚未支持，会明确报错而不是静默匹配不到。
 
 ## 仓库结构
 

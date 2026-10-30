@@ -137,6 +137,15 @@
 - 决策六：取消使用 `connection.interrupt()`，因此能力声明为 `native` 而非 `best-effort`；测试验证中断后可继续使用同一连接。
 - 后果：`DECIMAL` 由驱动转 `number`（>15 位有效数字丢精度），`INTERVAL`/`UNION`/`BIT` 未专门映射——均为已记录限制。大表内存与大包体积尚未实测，不得对外声明性能结论。
 
+## ADR-018：混合检索先过滤后精确扫描，并接受 O(N) 反向索引
+
+- 状态：Accepted and implemented（`exact-filter-first`）；`vector-first` 未实现
+- 决策一：`filter` 在 Top-K **之前**生效。先用 SQL 求出满足条件的完整业务 ID 集合，映射为向量行，再让精确扫描只考虑这些行。反向做法（先取 Top-K 再丢弃不匹配项）在过滤子集较小时会少返回结果，也无法诚实地声明 `exact: true`，因此不采用。
+- 决策二：Hybrid 逻辑放在独立 `hybrid-executor.ts`，Runtime 只负责注入依赖与诊断，遵守 V0.8 §4「不进入 Runtime 主类硬编码」。`vector-first` 与自适应策略留待需要成本模型时再引入独立执行器。
+- 决策三：过滤器只接受 Manifest 白名单中的列，值按列类型校验并全部参数绑定；未知列、类型不匹配在进入引擎前拒绝。`date`/`timestamp`/`json` 的等值过滤在 V1 明确不支持并报错，避免猜测格式导致静默零匹配。
+- 决策四：接受反向映射的 O(N) 成本。V1 没有持久化 `business ID → 向量行` 索引，每次过滤查询扫描完整 ID Map；该成本写入文档与诊断（`filteredCandidates`），不包装成性能保证。
+- 后果：`capabilities().hybridSearch` 仅在同时存在 Reader 与 SQL Adapter 时为 `true`；ANN 路径未接入，不能声称混合检索在近似索引上有效。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

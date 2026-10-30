@@ -40,7 +40,7 @@ export type SQLValue = string | number | bigint | boolean | null | Uint8Array | 
 export interface QueryOptions { signal?: AbortSignal; }
 export interface VectorSearchOptions {
   topK?: number;
-  /** Optional metadata filter; the exact expression language is not frozen in V1. */
+  /** Field → scalar equality, AND semantics; V1 implements `exact-filter-first`. */
   filter?: Readonly<Record<string, string | number | boolean | null>>;
   signal?: AbortSignal;
 }

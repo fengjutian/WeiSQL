@@ -236,7 +236,7 @@ test("Runtime + DuckDB adapter run the documented SQL/vector end to end", async 
   t.after(() => db.close().catch(() => undefined));
 
   assert.equal(db.state, "READY");
-  assert.deepEqual(db.capabilities(), { sql: true, vectorExactSearch: true, vectorAnnSearch: false, hybridSearch: false, resourceRange: true });
+  assert.deepEqual(db.capabilities(), { sql: true, vectorExactSearch: true, vectorAnnSearch: false, hybridSearch: true, resourceRange: true });
 
   const rows = await db.sql("SELECT id, title FROM documents WHERE category = ? ORDER BY id", ["genetics"]);
   assert.deepEqual(rows, [
@@ -253,5 +253,32 @@ test("Runtime + DuckDB adapter run the documented SQL/vector end to end", async 
   await db.close();
   assert.equal(db.state, "CLOSED");
   assert.equal(adapter.state, "CLOSED");
+});
+
+test("exact-filter-first filters through real SQL before Top-K", async t => {
+  const manifest = await fixtureManifest();
+  const reader = new NodeFileResourceReader({ rootDirectory: FIXTURE });
+  const db = await open({ manifest, resourceReader: reader, sqlAdapter: createDuckDbAdapter() });
+  t.after(() => db.close().catch(() => undefined));
+  assert.equal(db.capabilities().hybridSearch, true);
+
+  const unfiltered = await db.vector.search("document_embeddings", [1, 0], { topK: 3 });
+  assert.deepEqual(unfiltered.map(hit => hit.id), ["doc-001", "doc-002", "doc-003"]);
+  assert.equal(unfiltered[0].diagnostics.strategy, undefined);
+
+  const genetics = await db.vector.search("document_embeddings", [1, 0], { topK: 2, filter: { category: "genetics" } });
+  assert.deepEqual(genetics.map(hit => hit.id), ["doc-001", "doc-002"]);
+  assert.equal(genetics[0].diagnostics.strategy, "exact-filter-first");
+  assert.equal(genetics[0].diagnostics.exact, true);
+  assert.equal(genetics[0].diagnostics.filteredCandidates, 2);
+
+  // doc-003 is the farthest hit overall; the filter must still surface it.
+  const metabolic = await db.vector.search("document_embeddings", [1, 0], { topK: 1, filter: { category: "metabolism" } });
+  assert.deepEqual(metabolic.map(hit => hit.id), ["doc-003"]);
+  assert.ok(Math.abs(metabolic[0].distance - 1) < 1e-6);
+
+  assert.deepEqual(await db.vector.search("document_embeddings", [1, 0], { filter: { category: "nope" } }), []);
+  await assert.rejects(db.vector.search("document_embeddings", [1, 0], { filter: { missing: "x" } }), { code: "INVALID_ARGUMENT" });
+  await assert.rejects(db.vector.search("document_embeddings", [1, 0], { filter: { id: 3 } }), { code: "INVALID_ARGUMENT" });
 });
 

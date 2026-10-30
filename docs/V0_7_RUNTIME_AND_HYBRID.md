@@ -51,7 +51,7 @@ await db.close();
 
 诊断中的 `elapsedMs` 从输入校验完成后开始，包含向量 Range 读取、距离扫描、Top-K 和最终 ID 映射，不包含 `open()` 与 Manifest 获取时间。
 
-当前过滤尚未实现；传入 `filter` 会明确返回 `SQL_UNSUPPORTED`，不会被忽略。
+`exact-filter-first` 已实现：`filter` 会先解析为完整 ID 集合，再限定精确扫描范围，结果可声明 `exact: true`。`vector-first` 尚未实现；传入过滤条件但未注入 SQL Adapter 时返回 `SQL_UNSUPPORTED`，不会被忽略。
 
 ## 4. 能力探测
 

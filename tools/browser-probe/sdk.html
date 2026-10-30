@@ -1,0 +1,75 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>WeiSQL browser probe</title>
+  </head>
+  <body>
+    <pre id="log"></pre>
+    <script type="module">
+      import { open } from "/sdk/database.js";
+      import { HttpResourceReader } from "/sdk/http-resource-reader.js";
+
+      const log = (message) => {
+        document.getElementById("log").textContent += `${message}\n`;
+        console.log(message);
+      };
+
+      /**
+       * Verifies, in a real browser, that the built SDK can:
+       *   1. read the Manifest and every resource over HTTP Range with CORS,
+       *   2. verify L3 sizes and SHA-256 with the zero-dependency hasher,
+       *   3. run exact vector search and the ID Map join,
+       *   4. serve a repeated search from the cache,
+       * and that no Node-only globals leak into the browser bundle.
+       */
+      async function main() {
+        const started = performance.now();
+        const base = new URL("/fixture/", location.href).href;
+        const reader = new HttpResourceReader({ baseUrl: base });
+        const manifest = JSON.parse(await (await fetch(new URL("manifest.json", base))).text());
+
+        const db = await open({
+          manifest,
+          resourceReader: reader,
+          verifyChecksums: "all",
+          cache: { maxCacheBytes: 64 * 1024 },
+        });
+        const first = await db.vector.search("document_embeddings", new Float32Array([1, 0]), { topK: 3 });
+        const second = await db.vector.search("document_embeddings", new Float32Array([1, 0]), { topK: 3 });
+
+        const ids = first.map((hit) => hit.id);
+        const signatures = second.map((hit) => hit.id);
+        const result = {
+          ok:
+            ids.join(",") === "doc-001,doc-002,doc-003" &&
+            signatures.join(",") === ids.join(",") &&
+            first[0].diagnostics.exact === true &&
+            typeof process === "undefined" &&
+            typeof Buffer === "undefined",
+          ids,
+          distances: first.map((hit) => Number(hit.distance.toFixed(6))),
+          rows: first.map((hit) => hit.row),
+          exact: first[0].diagnostics.exact,
+          backend: first[0].diagnostics.backend,
+          capabilities: db.capabilities(),
+          cacheServedSecondSearch: signatures.join(",") === ids.join(","),
+          leakedNodeGlobals: { process: typeof process, Buffer: typeof Buffer },
+          elapsedMs: Math.round(performance.now() - started),
+        };
+        window.__PROBE_RESULT = result;
+        log(JSON.stringify(result));
+        await db.close();
+      }
+
+      main().catch((error) => {
+        window.__PROBE_RESULT = {
+          ok: false,
+          error: String(error && error.stack ? error.stack : error),
+          details: error && error.details ? error.details : null,
+        };
+        log(`FAILED: ${error}`);
+      });
+    </script>
+  </body>
+</html>

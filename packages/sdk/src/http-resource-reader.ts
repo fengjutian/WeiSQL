@@ -27,8 +27,11 @@ export class HttpResourceReader implements ResourceReader {
       throw new WeiSQLError("INVALID_ARGUMENT", "baseUrl must not contain credentials");
     }
     this.baseUrl = baseUrl;
-    this.fetcher = options.fetch ?? globalThis.fetch;
-    if (!this.fetcher) throw new WeiSQLError("INVALID_ARGUMENT", "No fetch implementation is available");
+    // `globalThis.fetch` must keep its global receiver: browsers throw
+    // "Illegal invocation" when fetch is called as a bare function.
+    const fetcher = options.fetch ?? globalThis.fetch;
+    if (!fetcher) throw new WeiSQLError("INVALID_ARGUMENT", "No fetch implementation is available");
+    this.fetcher = fetcher.bind(globalThis);
     this.credentials = options.credentials ?? "same-origin";
   }
 

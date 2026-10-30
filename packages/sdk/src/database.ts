@@ -202,9 +202,12 @@ export async function open(options: OpenOptions): Promise<WeiSQLDatabase> {
   if (options.manifest !== undefined) return prepare(validateManifest(options.manifest), options);
   const fetcher = options.fetch ?? globalThis.fetch;
   if (!fetcher) throw new WeiSQLError("INTERNAL_ERROR", "No fetch implementation is available");
+  // Keep the global receiver: browsers reject a detached `fetch` with
+  // "Illegal invocation".
+  const request = fetcher.bind(globalThis);
   let response: Response;
   const requestInit: RequestInit = options.signal ? { signal: options.signal } : {};
-  try { response = await fetcher(options.manifestUrl!, requestInit); }
+  try { response = await request(options.manifestUrl!, requestInit); }
   catch (cause) { if (options.signal?.aborted) throw new WeiSQLError("QUERY_CANCELLED", "Manifest request was cancelled"); throw new WeiSQLError("RESOURCE_NOT_FOUND", "Manifest could not be loaded", { cause: String(cause) }); }
   if (!response.ok) throw new WeiSQLError("RESOURCE_NOT_FOUND", `Manifest request failed with HTTP ${response.status}`, { status: response.status });
   let json: unknown;

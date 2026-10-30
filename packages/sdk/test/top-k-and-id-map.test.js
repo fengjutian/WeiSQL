@@ -72,7 +72,7 @@ test("IndexedIdMapReader batch-reads middle and final records", async () => {
   const fixture = idMapFixture([{ row: 0, id: "doc-0" }, { row: 1, id: 42 }, { row: 2, id: "doc-2" }, { row: 3, id: "doc-3" }]);
   const resources = { "ids.jsonl": fixture.data, "ids.offsets": fixture.offsets };
   const resource = new MultiResourceReader(resources);
-  const reader = new IndexedIdMapReader(resource, { dataPath: "ids.jsonl", offsetsPath: "ids.offsets", count: 4, dataBytes: fixture.data.byteLength });
+  const reader = new IndexedIdMapReader(resource, { dataPath: "ids.jsonl", offsetsPath: "ids.offsets", count: 4, dataBytes: fixture.data.byteLength, offsetsBytes: fixture.offsets.byteLength });
   assert.deepEqual(await reader.getIds(1, 2), [42, "doc-2"]);
   assert.deepEqual(await reader.getIds(3, 10), ["doc-3"]);
   assert.equal(resource.calls.length, 4); // one offsets + one JSONL range per request
@@ -86,7 +86,7 @@ test("exact search integrates vector ranges, indexed IDs and heap Top-K", async 
   const vectors = floatBytes([1, 0, 0.9, 0.1, 0, 1]);
   const resource = new MultiResourceReader({ vectors, ids: fixture.data, offsets: fixture.offsets });
   const vectorReader = new VectorBlockReader(resource, { path: "vectors", count: 3, dimension: 2, bytes: vectors.byteLength });
-  const idMap = new IndexedIdMapReader(resource, { dataPath: "ids", offsetsPath: "offsets", count: 3, dataBytes: fixture.data.byteLength });
+  const idMap = new IndexedIdMapReader(resource, { dataPath: "ids", offsetsPath: "offsets", count: 3, dataBytes: fixture.data.byteLength, offsetsBytes: fixture.offsets.byteLength });
   const hits = await exactVectorSearch({ reader: vectorReader, idMap, query: new Float32Array([1, 0]), collectionCount: 3, dimension: 2, search: { topK: 2, metric: "cosine", blockSize: 2 } });
   assert.deepEqual(hits.map(hit => hit.id), ["doc-001", "doc-002"]);
   assert.deepEqual(hits.map(hit => hit.row), [0, 1]);
@@ -95,18 +95,18 @@ test("exact search integrates vector ranges, indexed IDs and heap Top-K", async 
 test("IndexedIdMapReader rejects corrupt indexes and records", async t => {
   await t.test("truncated index", async () => {
     const fixture = idMapFixture([{ row: 0, id: "a" }, { row: 1, id: "b" }]);
-    const reader = new IndexedIdMapReader(new MultiResourceReader({ data: fixture.data, offsets: fixture.offsets.slice(0, 8) }), { dataPath: "data", offsetsPath: "offsets", count: 2, dataBytes: fixture.data.byteLength });
+    const reader = new IndexedIdMapReader(new MultiResourceReader({ data: fixture.data, offsets: fixture.offsets.slice(0, 8) }), { dataPath: "data", offsetsPath: "offsets", count: 2, dataBytes: fixture.data.byteLength, offsetsBytes: fixture.offsets.byteLength });
     await assert.rejects(reader.getIds(0, 1), { code: "RESOURCE_INTEGRITY_FAILED" });
   });
   await t.test("non-monotonic offsets", async () => {
     const fixture = idMapFixture([{ row: 0, id: "a" }, { row: 1, id: "b" }]);
     new DataView(fixture.offsets.buffer).setBigUint64(8, 0n, true);
-    const reader = new IndexedIdMapReader(new MultiResourceReader({ data: fixture.data, offsets: fixture.offsets }), { dataPath: "data", offsetsPath: "offsets", count: 2, dataBytes: fixture.data.byteLength });
+    const reader = new IndexedIdMapReader(new MultiResourceReader({ data: fixture.data, offsets: fixture.offsets }), { dataPath: "data", offsetsPath: "offsets", count: 2, dataBytes: fixture.data.byteLength, offsetsBytes: fixture.offsets.byteLength });
     await assert.rejects(reader.getIds(0, 1), { code: "RESOURCE_INTEGRITY_FAILED" });
   });
   await t.test("wrong row", async () => {
     const fixture = idMapFixture([{ row: 9, id: "a" }]);
-    const reader = new IndexedIdMapReader(new MultiResourceReader({ data: fixture.data, offsets: fixture.offsets }), { dataPath: "data", offsetsPath: "offsets", count: 1, dataBytes: fixture.data.byteLength });
+    const reader = new IndexedIdMapReader(new MultiResourceReader({ data: fixture.data, offsets: fixture.offsets }), { dataPath: "data", offsetsPath: "offsets", count: 1, dataBytes: fixture.data.byteLength, offsetsBytes: fixture.offsets.byteLength });
     await assert.rejects(reader.getIds(0, 1), { code: "RESOURCE_INTEGRITY_FAILED" });
   });
 });

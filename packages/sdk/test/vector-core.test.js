@@ -83,7 +83,8 @@ test("exact search breaks equal-distance ties by global row", async () => {
 test("exact search rejects ID count mismatch and stops after cancellation", async () => {
   const resource = new MemoryResourceReader(encodeFloat32([1, 0, 0, 1]));
   const reader = new VectorBlockReader(resource, { path: "v", count: 2, dimension: 2, bytes: 16 });
-  await assert.rejects(exactVectorSearch({ reader, idMap: new MemoryIdMap(["only-one"]), query: new Float32Array([1, 0]), collectionCount: 2, dimension: 2, search: { topK: 1, metric: "cosine", blockSize: 2 } }), { code: "RESOURCE_INTEGRITY_FAILED" });
+  const badIds = new MemoryIdMap(["only-one"]); badIds.getIdsByRows = async () => [];
+  await assert.rejects(exactVectorSearch({ reader, idMap: badIds, query: new Float32Array([1, 0]), collectionCount: 2, dimension: 2, search: { topK: 1, metric: "cosine", blockSize: 2 } }), { code: "RESOURCE_INTEGRITY_FAILED" });
 
   const controller = new AbortController();
   const cancellingIds = new MemoryIdMap(["a", "b"], () => controller.abort());

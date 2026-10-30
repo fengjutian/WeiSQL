@@ -1,0 +1,46 @@
+# Changelog
+
+All notable changes to the WeiSQL AI packages. Format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
+
+Nothing has been published to a registry yet, so every entry below is unreleased.
+
+## [Unreleased]
+
+### `@weisql/sdk` 0.1.0
+
+- Manifest V1 validation (L1/L2) with path, uniqueness and cross-field rules.
+- L3 resource integrity: `verifyChecksums` modes `none` / `manifest` / `all`,
+  streaming SHA-256 and ID Map content checks.
+- `HttpResourceReader` and `NodeFileResourceReader` with strict Range handling,
+  root containment and cancellation.
+- `CachedResourceReader`: bounded LRU, request coalescing, publication-version
+  isolation and hit statistics.
+- Runtime: dual Manifest sources, lifecycle state machine, `capabilities()`,
+  idempotent `close()`, `SqlAdapter` / `VectorAdapter` injection.
+- Exact vector search, ID Map join, stable Top-K and the `exact-filter-first`
+  and `vector-first` hybrid strategies.
+- `buildPackage()` Builder: writes vectors, ID Map, real digests and Manifest,
+  verifies the staged package, then publishes atomically.
+- `createExactVectorAdapter()` reference `VectorAdapter` implementation.
+
+### `@weisql/cli` 0.1.0
+
+- `weisql validate <dir>` with `--mode` / `--json` and exit codes 0/1/2.
+
+### `@weisql/duckdb-adapter` 0.1.0
+
+- Read-only DuckDB adapter: statement-type enforcement, parameter binding,
+  L4 schema verification, native interruption.
+- `tableLoading: "memory" | "lazy"` with the security/memory trade-off documented.
+
+### `@weisql/usearch-adapter` 0.1.0
+
+- HNSW `VectorAdapter` with measured metric mapping and honest `exact: false`.
+- Persisted index loading (`index.params`) and in-memory build fallback.
+
+### Tooling (not published)
+
+- Browser probe, playground example, cross-environment parity check.
+- Benchmark harness with exact and ANN (`--ann`) modes.
+- ANN index builder and release checks.

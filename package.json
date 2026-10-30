@@ -15,7 +15,8 @@
     "playground": "node tools/browser-probe/serve.mjs",
     "probe:playground": "node tools/browser-probe/run-playground.mjs",
     "probe:parity": "node tools/browser-probe/parity.mjs",
-    "bench": "node tools/bench/run.mjs"
+    "bench": "node tools/bench/run.mjs",
+    "release:check": "node tools/release-check.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

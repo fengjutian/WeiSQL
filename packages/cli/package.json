@@ -23,7 +23,7 @@
     "test": "npm run build && node --test test/*.test.js"
   },
   "dependencies": {
-    "@weisql/sdk": "*"
+    "@weisql/sdk": "^0.1.0"
   },
   "engines": {
     "node": ">=20"

@@ -39,6 +39,9 @@ export interface WeiSQLDatabase {
       options?: TextSearchOptions,
     ): Promise<readonly TextHit[]>;
   };
+  hybrid: {
+    search(options: HybridSearchOptions): Promise<readonly HybridFusionHit[]>;
+  };
   capabilities(): Readonly<WeiSQLCapabilities>;
   close(): Promise<void>;
 }
@@ -52,6 +55,24 @@ export interface TextHit {
   /** BM25 relevance: higher is better, the opposite of `VectorHit.distance`. */
   score: number;
   diagnostics?: { backend: string; elapsedMs?: number };
+}
+export interface HybridSearchOptions {
+  topK?: number;
+  /** RRF constant; defaults to 60. */
+  k?: number;
+  vector?: { name: string; query: Float32Array | readonly number[]; topK?: number };
+  text?: { name: string; query: string; topK?: number };
+  signal?: AbortSignal;
+}
+export interface HybridFusionHit {
+  id: string | number;
+  /** Fused RRF score, higher is better; not comparable with BM25 or distance. */
+  score: number;
+  /** 1-based rank per contributing source. */
+  ranks: Readonly<Record<string, number>>;
+  vector?: { row: number; distance: number };
+  text?: { row: number; score: number };
+  diagnostics?: { backend: "rrf"; k: number; elapsedMs?: number };
 }
 export interface VectorSearchOptions {
   topK?: number;
@@ -95,6 +116,7 @@ interface WeiSQLCapabilities {
   vectorAnnSearch: boolean;
   hybridSearch: boolean;
   textSearch: boolean;
+  fusionSearch: boolean;
   resourceRange: boolean;
 }
 ```

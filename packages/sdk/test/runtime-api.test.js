@@ -37,7 +37,7 @@ test("public Runtime opens an injected package and executes exact vector search"
     ["vectors/id-map.offsets", offsets([0, 25, 50])],
   ]));
   const db = await open({ manifest, resourceReader: reader, mode: "readonly" });
-  assert.deepEqual(db.capabilities(), { sql: false, vectorExactSearch: true, vectorAnnSearch: false, hybridSearch: false, textSearch: false, resourceRange: true });
+  assert.deepEqual(db.capabilities(), { sql: false, vectorExactSearch: true, vectorAnnSearch: false, hybridSearch: false, textSearch: false, fusionSearch: true, resourceRange: true });
   const hits = await db.vector.search("document_embeddings", new Float32Array([1, 0]), { topK: 2 });
   assert.deepEqual(hits.map(hit => hit.id), ["doc-001", "doc-002"]);
   assert.deepEqual(hits.map(hit => hit.row), [0, 1]);

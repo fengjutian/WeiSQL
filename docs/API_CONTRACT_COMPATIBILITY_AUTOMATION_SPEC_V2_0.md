@@ -6,6 +6,22 @@ V1.9 冻结了公共 API 的设计。本阶段不再扩展 API，而是把接口
 
 核心目标是：开发者修改任意一个模块后，CI 能够自动判断是否破坏了既有契约，而不是等到用户使用时才发现问题。
 
+### 与当前仓库的差异
+
+本文描述**目标设计**，尚未按本文落地。当前进度以实现为准：
+
+| 本文的设计 | 当前仓库的实际状态 |
+| --- | --- |
+| L0–L5 五级 CI 门禁并接入 GitHub Actions | 仓库**没有** `.github/` 目录，门禁脚本已具备但未接入自动化 |
+| 以 Vitest 为主测试框架 | 使用 Node.js 内置 `node --test`，零测试框架依赖 |
+| ESLint + Prettier 静态规则 | 未接入；当前只有 `tsc --noEmit` 类型检查 |
+| `fast-check` 属性测试、`API Extractor` API 报告 | 未接入 |
+| `packages/testing` 公共测试工具包、`tests/` 分层目录 | 未采用；测试代码内聚在各包的 `test/` 目录 |
+| 独立契约测试项目（仅从公共入口导入） | 部分实现：各包测试从公共入口导入，但**未**建立跨包快照比对 |
+| Playwright 浏览器集成 | 使用 `playwright-core` 驱动本机 Chromium 的手写探针（`tools/browser-probe`），未引入测试框架 |
+
+已落地且可复用的部分：跨环境对照（`npm run probe:parity` 逐字段比对 Node 与 Chromium 结果与错误码）、损坏数据包测试、发布前静态检查（`npm run release:check`）。这些是本文 L4/L5 门禁的雏形，但**尚未**由 CI 自动触发。
+
 ## 一、测试体系总体架构
 
 ### 开发提交与 Pull Request

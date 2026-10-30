@@ -41,4 +41,6 @@ export { bm25Score, inverseDocumentFrequency, tokenize } from "./text-search.js"
 export type { Bm25Input, Bm25Options, Bm25TermStat, TokenizeOptions } from "./text-search.js";
 export { TextIndexReader } from "./text-index-reader.js";
 export type { TextHit, TextSearchOptions } from "./text-index-reader.js";
+export { reciprocalRankFusion } from "./fusion.js";
+export type { FusedHit, FusionOptions, Ranking } from "./fusion.js";
 export type * from "./types.js";

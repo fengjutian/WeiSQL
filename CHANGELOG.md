@@ -26,6 +26,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - Full-text: `textIndexes` Manifest field, BM25 scoring, `tokenize()`,
   `TextIndexReader` and the public `db.text.search()` (higher score = better,
   the opposite of vector distance).
+- Hybrid fusion: `db.hybrid.search()` combining vector and text rankings with
+  Reciprocal Rank Fusion, reporting per-source ranks and raw values.
 
 ### `@weisql/cli` 0.1.0
 

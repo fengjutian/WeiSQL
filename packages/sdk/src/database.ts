@@ -6,9 +6,11 @@ import { IndexedIdMapReader } from "./indexed-id-map-reader.js";
 import { validateManifest } from "./manifest.js";
 import type { ResourceReader } from "./resource-reader.js";
 import type { SqlAdapter } from "./sql-adapter.js";
-import type { HybridStrategy, OpenOptions, QueryOptions, RuntimeState, SQLValue, VectorHit, VectorSearchOptions, WeiSQLCapabilities, WeiSQLManifest } from "./types.js";
+import type { HybridFusionHit, HybridSearchOptions, HybridStrategy, OpenOptions, QueryOptions, RuntimeState, SQLValue, VectorHit, VectorSearchOptions, WeiSQLCapabilities, WeiSQLManifest } from "./types.js";
 import type { TextHit, TextSearchOptions } from "./text-index-reader.js";
 import { TextIndexReader } from "./text-index-reader.js";
+import { reciprocalRankFusion } from "./fusion.js";
+import { businessIdKey } from "./vector-filter.js";
 import type { VectorAdapter } from "./vector-adapter.js";
 import { VectorBlockReader } from "./vector-block-reader.js";
 import { candidateCapFor, exactFilterFirst, vectorFirst } from "./hybrid-executor.js";
@@ -19,6 +21,7 @@ export interface WeiSQLDatabase {
   sql<T extends Record<string, unknown> = Record<string, unknown>>(query: string, params?: readonly SQLValue[], options?: QueryOptions): Promise<readonly T[]>;
   readonly vector: { search(vectorName: string, queryVector: Float32Array | readonly number[], options?: VectorSearchOptions): Promise<readonly VectorHit[]> };
   readonly text: { search(indexName: string, query: string, options?: TextSearchOptions): Promise<readonly TextHit[]> };
+  readonly hybrid: { search(options: HybridSearchOptions): Promise<readonly HybridFusionHit[]> };
   capabilities(): Readonly<WeiSQLCapabilities>;
   close(): Promise<void>;
 }
@@ -29,6 +32,7 @@ class Database implements WeiSQLDatabase {
   readonly manifest: Readonly<WeiSQLManifest>;
   readonly vector;
   readonly text;
+  readonly hybrid;
   private readonly textReaders = new Map<string, TextIndexReader>();
   private constructor(
     manifest: WeiSQLManifest,
@@ -39,6 +43,7 @@ class Database implements WeiSQLDatabase {
     this.manifest = manifest;
     this.vector = { search: this.search.bind(this) };
     this.text = { search: this.textSearch.bind(this) };
+    this.hybrid = { search: this.hybridSearch.bind(this) };
   }
   static async create(
     manifest: WeiSQLManifest,
@@ -67,6 +72,58 @@ class Database implements WeiSQLDatabase {
     this.ensureOpen(); aborted(options?.signal);
     if (!this.sqlAdapter) throw new WeiSQLError("SQL_UNSUPPORTED", "No SQL adapter is configured");
     return this.sqlAdapter.query<T>(query, params, options);
+  }
+
+  /**
+   * Reciprocal-rank fusion of vector and text results.
+   *
+   * RRF is used instead of score normalisation because BM25 scores are unbounded
+   * and vector distances live in metric-specific ranges; only ranks are
+   * comparable across sources. Each source is over-fetched so the fusion has
+   * candidates that are not in the other list.
+   */
+  private async hybridSearch(options: HybridSearchOptions): Promise<readonly HybridFusionHit[]> {
+    this.ensureOpen(); aborted(options?.signal);
+    if (options.vector === undefined && options.text === undefined) {
+      throw new WeiSQLError("INVALID_ARGUMENT", "hybrid.search requires at least one source", { sources: [] });
+    }
+    const topK = options.topK ?? 10;
+    if (!Number.isSafeInteger(topK) || topK <= 0) throw new WeiSQLError("INVALID_ARGUMENT", "topK must be a positive integer", { topK });
+    const k = options.k ?? 60;
+    if (!(k > 0) || !Number.isFinite(k)) throw new WeiSQLError("INVALID_ARGUMENT", "k must be a positive finite number", { k });
+    const started = typeof performance === "undefined" ? 0 : performance.now();
+    const sourceTopK = Math.max(topK * 4, topK);
+    const signalOption = options.signal === undefined ? {} : { signal: options.signal };
+
+    const vectorHits = options.vector === undefined
+      ? []
+      : await this.search(options.vector.name, options.vector.query, { topK: options.vector.topK ?? sourceTopK, ...signalOption });
+    const textHits = options.text === undefined
+      ? []
+      : await this.textSearch(options.text.name, options.text.query, { topK: options.text.topK ?? sourceTopK, ...signalOption });
+
+    const rankings = [];
+    if (vectorHits.length > 0) rankings.push({ name: "vector", ids: vectorHits.map(hit => hit.id) });
+    if (textHits.length > 0) rankings.push({ name: "text", ids: textHits.map(hit => hit.id) });
+    if (rankings.length === 0) return [];
+
+    const fused = reciprocalRankFusion(rankings, { k, topK });
+    const vectorById = new Map(vectorHits.map(hit => [businessIdKey(hit.id), hit]));
+    const textById = new Map(textHits.map(hit => [businessIdKey(hit.id), hit]));
+    const elapsedMs = typeof performance === "undefined" ? undefined : performance.now() - started;
+
+    return fused.map(entry => {
+      const vector = vectorById.get(businessIdKey(entry.id));
+      const text = textById.get(businessIdKey(entry.id));
+      return {
+        id: entry.id,
+        score: entry.score,
+        ranks: entry.ranks,
+        ...(vector === undefined ? {} : { vector: { row: vector.row, distance: vector.distance } }),
+        ...(text === undefined ? {} : { text: { row: text.row, score: text.score } }),
+        diagnostics: { backend: "rrf" as const, k, ...(elapsedMs === undefined ? {} : { elapsedMs }) },
+      };
+    });
   }
 
   /** BM25 text search over a Manifest-declared `textIndexes` entry. */
@@ -279,6 +336,7 @@ class Database implements WeiSQLDatabase {
       vectorAnnSearch: adapter !== undefined && !adapter.capabilities.exactSearch,
       hybridSearch: this.reader !== undefined && this.sqlAdapter !== undefined && (adapter === undefined || adapter.capabilities.exactSearch),
       textSearch: this.reader !== undefined && (this.manifest.textIndexes?.length ?? 0) > 0,
+      fusionSearch: this.reader !== undefined && ((this.manifest.vectorCollections?.length ?? 0) > 0 || (this.manifest.textIndexes?.length ?? 0) > 0),
       resourceRange: this.reader !== undefined,
     });
   }

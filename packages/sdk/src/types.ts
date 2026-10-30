@@ -25,8 +25,7 @@ export interface VectorCollectionDescriptor {
  * `documentCount` and `averageDocumentLength` are declared rather than derived:
  * a BM25 query must not rescan the collection to recompute them.
  */
-export interface TextIndexDescriptor {
-  name: string;
+export interface TextIndexDescriptor {  name: string;
   tableName: string;
   column: string;
   idColumn: string;
@@ -76,6 +75,8 @@ export interface WeiSQLCapabilities {
   vectorAnnSearch: boolean;
   hybridSearch: boolean;
   textSearch: boolean;
+  /** Reciprocal-rank fusion across vector and text sources. */
+  fusionSearch: boolean;
   resourceRange: boolean;
 }
 export type RuntimeState = "OPENING" | "READY" | "CLOSING" | "CLOSED" | "FAILED";
@@ -92,5 +93,35 @@ export interface CacheOptions {
 export interface OpenOptions {
   manifestUrl?: string; manifest?: unknown; mode?: "readonly"; verifyChecksums?: "none" | "manifest" | "all";
   fetch?: typeof globalThis.fetch; resourceReader?: ResourceReader; sqlAdapter?: SqlAdapter; vectorAdapter?: VectorAdapter; cache?: CacheOptions; signal?: AbortSignal;
+}
+export interface HybridVectorSource {
+  name: string;
+  query: Float32Array | readonly number[];
+  /** Candidates fetched from this source; defaults to `max(topK × 4, topK)`. */
+  topK?: number;
+}
+export interface HybridTextSource {
+  name: string;
+  query: string;
+  /** Candidates fetched from this source; defaults to `max(topK × 4, topK)`. */
+  topK?: number;
+}
+export interface HybridSearchOptions {
+  topK?: number;
+  /** RRF constant; defaults to 60. */
+  k?: number;
+  vector?: HybridVectorSource;
+  text?: HybridTextSource;
+  signal?: AbortSignal;
+}
+export interface HybridFusionHit {
+  id: string | number;
+  /** Fused RRF score; higher is better. Not comparable with BM25 or distance. */
+  score: number;
+  /** 1-based rank per contributing source. */
+  ranks: Readonly<Record<string, number>>;
+  vector?: { row: number; distance: number };
+  text?: { row: number; score: number };
+  diagnostics?: { backend: "rrf"; k: number; elapsedMs?: number };
 }
 

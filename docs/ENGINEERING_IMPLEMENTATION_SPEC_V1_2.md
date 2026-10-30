@@ -1,5 +1,19 @@
 # WeiSQL AI 工程实施规范 V1.2
 
+### 与当前仓库的差异
+
+本文是**设计建议**，工程结构未按本文落地。当前实际结构：
+
+| 本文的设计 | 当前仓库的实际状态 |
+| --- | --- |
+| pnpm Workspace | npm workspaces（`package.json` 的 `workspaces`） |
+| Vitest | Node.js 内置 `node --test`，零测试框架依赖 |
+| `apps/playground`（React + TypeScript） | `examples/playground`，纯静态 HTML + ESM，直接加载 SDK 构建产物，不引入框架或 bundler |
+| 按 `core` / `manifest` / `resource-reader` / `runtime` / `vector` 拆包 | 单包 `@weisql/sdk` 加三个适配器包；引擎通过 Adapter 注入而非拆包隔离 |
+| 独立的 Rust Core 与 WASM 构建 | `crates/vector-benchmark` 仅作精确 Cosine 对照基线；WASM 构建尚未开始 |
+
+本文关于**分层原则**的部分（引擎解耦、构建与运行分离、索引可重建）已落地并由 `docs/DECISION_LOG.md` 记录；具体目录与工具链的选择以仓库现状为准。
+
 ## 一、冻结 Monorepo 工程结构
 
 建议采用 pnpm Workspace + TypeScript + Rust。先把 TypeScript 核心跑通，再分别实现浏览器和 Node.js 适配器，避免一开始就同时引入 SQL 引擎、WASM、Rust 和向量索引造成调试困难。

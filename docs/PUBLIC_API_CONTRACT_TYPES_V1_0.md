@@ -10,6 +10,10 @@ Browser + Node.js
 
 适用范围：公开 SDK、SQL 查询、向量搜索、混合检索、资源生命周期和错误处理。
 
+### 与当前仓库的差异
+
+本文是**设计草案**，包结构与命名未按本文落地（本文用 `@weisql/runtime`，实际是 `@weisql/sdk`）。当前公共 API 与错误码以 [`PUBLIC_TYPES_AND_ERRORS_V1.md`](PUBLIC_TYPES_AND_ERRORS_V1.md) 和 [`SDK_API_CONTRACT_V1.md`](SDK_API_CONTRACT_V1.md) 为准——那两份已由实现与测试验证。冲突时以它们为准。
+
 ## 一、公开 API 总览
 
 应用开发者只需要接触 WeiSQL SDK，不需要了解 DuckDB、DuckDB-Wasm、USearch 或 Rust 内部实现。

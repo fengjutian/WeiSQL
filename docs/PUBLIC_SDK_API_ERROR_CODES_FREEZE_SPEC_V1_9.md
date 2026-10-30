@@ -6,6 +6,20 @@
 
 本次目标是冻结公共契约，而不是宣称 SDK 已经实现。 具体适配器能力、性能表现和跨运行环境兼容性仍须通过实现与测试验证。
 
+### 与当前仓库的差异
+
+本文描述**目标设计**，尚未按本文落地。当前进度以实现为准：
+
+| 本文的设计 | 当前仓库的实际状态 |
+| --- | --- |
+| 包名 `@weisql-ai/core` / `manifest` / `runtime` / `node` / `browser` / `builder` 六个独立包 | 单包 `@weisql/sdk` 加三个适配器包 `@weisql/duckdb-adapter`、`@weisql/usearch-adapter`、`@weisql/cli`。拆分方案**未采纳**，包名尚未发布到 npm |
+| pnpm Monorepo | npm workspaces（`package.json` 的 `workspaces` 字段） |
+| `open({ source, integrity })` | `open({ manifestUrl \| manifest, resourceReader, cache, sqlAdapter, vectorAdapter, verifyChecksums })` |
+| Node 与浏览器各一个入口包 | 同一份 `@weisql/sdk` 产物同时供 Node 与浏览器使用，靠 `NodeFileResourceReader` 与 `HttpResourceReader` 区分环境 |
+| 独立 `builder` 包 | `buildPackage()` 在 `@weisql/sdk` 内，不单独成包 |
+
+本文的错误码体系、类型系统与生命周期规则已由 `@weisql/sdk` 落实并有自动化测试覆盖，可作为公共契约的依据；**包拆分与包名属于尚未决策的发布形态**，落地前需重新确认。
+
 ## 一、冻结原则
 
 公共 API 不依赖底层引擎

@@ -69,7 +69,7 @@ test("injected exact adapter produces the same results as the built-in pipeline"
   const injected = await fixturePackage();
   const adapter = createExactVectorAdapter();
   const db = await open({ manifest: injected.manifest, resourceReader: injected.reader, vectorAdapter: adapter });
-  assert.deepEqual(db.capabilities(), { sql: false, vectorExactSearch: true, vectorAnnSearch: false, hybridSearch: false, textSearch: false, resourceRange: true });
+  assert.deepEqual(db.capabilities(), { sql: false, vectorExactSearch: true, vectorAnnSearch: false, hybridSearch: false, textSearch: false, fusionSearch: true, resourceRange: true });
   const hits = await db.vector.search("document_embeddings", [1, 0], { topK: 2 });
   await db.close();
 
@@ -125,7 +125,7 @@ test("an approximate adapter is reported honestly and cannot pretend to filter",
 
   const db = await open({ manifest, resourceReader: reader, sqlAdapter: fakeSqlAdapter([{ id: "doc-003" }]), vectorAdapter: ann });
   assert.equal(ann.opened, true);
-  assert.deepEqual(db.capabilities(), { sql: true, vectorExactSearch: false, vectorAnnSearch: true, hybridSearch: false, textSearch: false, resourceRange: true });
+  assert.deepEqual(db.capabilities(), { sql: true, vectorExactSearch: false, vectorAnnSearch: true, hybridSearch: false, textSearch: false, fusionSearch: true, resourceRange: true });
 
   const hits = await db.vector.search("document_embeddings", [1, 0], { topK: 2 });
   assert.deepEqual(hits.map(hit => hit.id), ["approx-0", "approx-1"]);

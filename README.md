@@ -38,7 +38,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 ## 尚未实现
 
 - DuckDB-Wasm（浏览器）SQL Adapter（Node.js 端已实现）
-- USearch 或其他 ANN Adapter
+- USearch 或其他 ANN Adapter（已验证可行，但默认参数召回不可接受，见 [ANN 可行性](docs/ANN_FEASIBILITY.md)）
 - Builder 的 CSV/JSON → Parquet 生成与类型推断
 - Parquet 内容级校验（L4，需要 SQL 引擎）
 - WASM 构建与 TypeScript/Rust 自动黄金数据对照
@@ -413,6 +413,7 @@ tools/                     源 Parquet 生成脚本
 - [V0.5 验收清单](docs/V0_5_ACCEPTANCE.md)
 - [基准测试协议](docs/BENCHMARK_PROTOCOL_V1.md)
 - [基准测量装置](docs/BENCHMARK_HARNESS.md)
+- [ANN 可行性探测](docs/ANN_FEASIBILITY.md)
 - [技术决策记录](docs/DECISION_LOG.md)
 
 ## 安全边界

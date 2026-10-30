@@ -24,6 +24,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - Node.js DuckDB 只读 SQL Adapter（`@weisql/duckdb-adapter`）：真实 SQL 查询、参数绑定、语句级只读边界、L4 Parquet 模式校验与原生取消
 - 混合检索两策略：`exact-filter-first`（过滤先于 Top-K，结果严格）与 `vector-first`（有界候选窗口，诊断标注 `exact` 是否成立）
 - 真实浏览器验收探针（`npm run probe:browser`）：Chromium 中验证 HTTP Range、L3 校验、精确搜索与缓存命中
+- 跨环境对照（`npm run probe:parity`）：同一进程驱动 Node 与 Chromium，逐字段比较查询结果、`exact` 标记与错误码
 - `weisql validate` 校验命令（`@weisql/cli`）：L1/L2/L3 逐级校验、`--json` 输出与 CI 友好退出码
 - 已接入公开 `vector.search()` 的端到端精确搜索
 - Float32 little-endian 向量分块读取
@@ -75,6 +76,7 @@ npm run fixture
 ```bash
 npm run probe:browser
 npm run probe:playground   # 打开 Playground 并断言交互结果
+npm run probe:parity       # Node 与 Chromium 结果对照（见 docs/ENVIRONMENT_PARITY.md）
 npm run playground         # 手动浏览 http://127.0.0.1:8099/playground/
 ```
 
@@ -398,6 +400,7 @@ tools/                     源 Parquet 生成脚本
 - [SQL Adapter 契约](docs/SQL_ADAPTER_CONTRACT.md)
 - [DuckDB Adapter](docs/DUCKDB_ADAPTER.md)
 - [表加载模式对比](docs/TABLE_LOADING_OPTIONS.md)
+- [跨环境兼容性对照](docs/ENVIRONMENT_PARITY.md)
 - [Vector Adapter 契约](docs/VECTOR_ADAPTER_CONTRACT.md)
 - [ResourceReader 契约](docs/RESOURCE_READER_CONTRACT.md)
 - [资源完整性校验规范](docs/RESOURCE_INTEGRITY_SPEC.md)

@@ -7,9 +7,10 @@
   <body>
     <pre id="log"></pre>
     <script type="module">
-      import { open, validateManifest } from "/sdk/database.js";
+      import { open } from "/sdk/database.js";
+      import { validateManifest } from "/sdk/manifest.js";
       import { HttpResourceReader } from "/sdk/http-resource-reader.js";
-      import { INVALID_MANIFESTS, QUERIES, summarizeError, summarizeHits } from "/parity/queries.js";
+      import { INVALID_MANIFESTS, QUERIES, summarizeError, summarizeHits } from "/parity/parity-queries.mjs";
 
       const log = (message) => {
         document.getElementById("log").textContent += `${message}\n`;

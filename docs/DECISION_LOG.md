@@ -199,6 +199,16 @@
 - 决策五：视图定义不允许参数绑定（`Unexpected prepared parameter`），`lazy` 模式内联转义后的临时路径；路径来自 `mkdtemp()` 与 Manifest 已验证标识符。
 - 后果：REQ-103「大型数据集不应默认整体读入内存」只被部分满足——调用方必须显式选择 `lazy` 并接受其安全代价。两种模式的内存与延迟差异未测量，不得据此宣称性能结论。
 
+## ADR-024：跨环境对照必须比较结果，而不只是分别跑通
+
+- 状态：Accepted and implemented（REQ-403，`npm run probe:parity`）
+- 决策一：对照必须由**一个进程**同时驱动两端（Node 直接执行，Chromium 通过 Playwright），否则两边各自「通过」不能证明一致。
+- 决策二：查询集与非法 Manifest 用例放在 `tools/browser-probe/parity-queries.mjs`，Node 与浏览器页面导入同一个文件。两个清单分头维护迟早漂移，那样对照就失去意义。
+- 决策三：比较 `ids`、`rows`、`exact`、`backend` 完全相等；`distances` 用显式 `1e-6` 容差。浮点不要求逐位一致，但容差必须写在输出里。
+- 决策四：非法 Manifest 也必须对照错误码。只比较成功路径会漏掉「两端拒绝方式不同」这类真实兼容性问题。
+- 决策五：结论范围写进文档（`ENVIRONMENT_PARITY.md`）：只覆盖 Manifest 校验与精确向量检索；SQL、混合检索、CDN 行为与性能不在其中，不能外推。
+- 后果：`probe:parity` 依赖本机 Chromium，未纳入 `npm test`；CI 若没有浏览器会失败，需要显式配置后才可接入。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

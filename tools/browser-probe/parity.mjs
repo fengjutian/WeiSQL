@@ -14,7 +14,7 @@ import { chromium } from "playwright-core";
 
 import { NodeFileResourceReader, open, validateManifest } from "@weisql/sdk";
 
-import { INVALID_MANIFESTS, QUERIES, summarizeError, summarizeHits } from "./parity-queries.js";
+import { INVALID_MANIFESTS, QUERIES, summarizeError, summarizeHits } from "./parity-queries.mjs";
 import { createProbeServer } from "./server.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -74,10 +74,18 @@ async function runNode() {
 async function runBrowser(port, executablePath) {
   const browser = await chromium.launch({ executablePath, args: ["--no-sandbox", "--disable-dev-shm-usage"] });
   const page = await browser.newPage();
+  const logs = [];
+  page.on("console", message => logs.push(`${message.type()}: ${message.text()}`));
+  page.on("pageerror", error => logs.push(`pageerror: ${error.message}`));
+  page.on("response", response => { if (response.status() >= 400) logs.push(`http ${response.status()}: ${response.url()}`); });
   try {
     await page.goto(`http://127.0.0.1:${port}/parity/`, { waitUntil: "domcontentloaded" });
     await page.waitForFunction(() => window.__PARITY_RESULT !== undefined, undefined, { timeout: 60_000 });
     return await page.evaluate(() => window.__PARITY_RESULT);
+  } catch (error) {
+    console.error(`browser parity page did not finish: ${String(error).slice(0, 300)}`);
+    for (const line of logs) console.error(`  ${line}`);
+    throw error;
   } finally {
     await browser.close();
   }
@@ -140,9 +148,15 @@ console.log("ENVIRONMENT PARITY");
 console.log(`node:    ${nodeResult.queries.length} queries, ${nodeResult.invalid.length} manifest cases`);
 console.log(`browser: ${executablePath}`);
 console.log("");
-console.log("query".padEnd(18) + "node".padEnd(30) + "browser".padEnd(30) + "match");
+const widths = {
+  query: Math.max(5, ...rows.map(row => row.query.length)),
+  node: Math.max(4, ...rows.map(row => row.node.length)),
+  browser: Math.max(7, ...rows.map(row => row.browser.length)),
+};
+const pad = (value, width) => value.padEnd(width);
+console.log(pad("query", widths.query + 2) + pad("node", widths.node + 2) + pad("browser", widths.browser + 2) + "match");
 for (const row of rows) {
-  console.log(row.query.padEnd(18) + row.node.padEnd(30) + row.browser.padEnd(30) + (row.match ? "PASS" : "FAIL"));
+  console.log(pad(row.query, widths.query + 2) + pad(row.node, widths.node + 2) + pad(row.browser, widths.browser + 2) + (row.match ? "PASS" : "FAIL"));
 }
 console.log("");
 if (failures.length === 0) {

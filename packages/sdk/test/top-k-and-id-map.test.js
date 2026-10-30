@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compareCandidate, decodeUint64LE, exactVectorSearch, IndexedIdMapReader, parseIdMapLine, TopKMaxHeap, VectorBlockReader } from "../dist/index.js";
+import { compareCandidate, decodeUint64LE, exactVectorSearch, groupRows, IndexedIdMapReader, parseIdMapLine, TopKMaxHeap, VectorBlockReader } from "../dist/index.js";
 
 class MultiResourceReader {
   calls = [];
@@ -46,10 +46,26 @@ test("TopKMaxHeap retains the nearest candidates in stable order", () => {
 });
 
 test("TopKMaxHeap matches a full deterministic sort", () => {
-  const candidates = Array.from({ length: 257 }, (_, row) => ({ row, id: row, distance: ((row * 73) % 101) / 10 }));
-  const heap = new TopKMaxHeap(17);
-  for (const candidate of candidates) heap.offer(candidate);
-  assert.deepEqual(heap.toSortedArray(), [...candidates].sort(compareCandidate).slice(0, 17));
+  let state = 123456789;
+  const random = () => { state = (1664525 * state + 1013904223) >>> 0; return state / 2 ** 32; };
+  const candidates = Array.from({ length: 1000 }, (_, row) => ({ row, id: row, distance: random() }));
+  for (const k of [1, 2, 10, 100]) {
+    const heap = new TopKMaxHeap(k);
+    for (const candidate of candidates) heap.offer(candidate);
+    assert.deepEqual(heap.toSortedArray(), [...candidates].sort(compareCandidate).slice(0, k));
+  }
+});
+
+test("groupRows merges consecutive unique rows and preserves output positions", () => {
+  assert.deepEqual(groupRows([8, 2, 3, 10]), [
+    { startRow: 2, count: 2, outputIndexes: [1, 2] },
+    { startRow: 8, count: 1, outputIndexes: [0] },
+    { startRow: 10, count: 1, outputIndexes: [3] },
+  ]);
+  assert.deepEqual(groupRows([]), []);
+  assert.throws(() => groupRows([2, 2]), { code: "INVALID_ARGUMENT" });
+  assert.throws(() => groupRows([-1]), { code: "INVALID_ARGUMENT" });
+  assert.throws(() => groupRows([Number.MAX_SAFE_INTEGER + 1]), { code: "INVALID_ARGUMENT" });
 });
 
 test("TopKMaxHeap rejects invalid capacity and candidates", () => {
@@ -75,7 +91,8 @@ test("IndexedIdMapReader batch-reads middle and final records", async () => {
   const reader = new IndexedIdMapReader(resource, { dataPath: "ids.jsonl", offsetsPath: "ids.offsets", count: 4, dataBytes: fixture.data.byteLength, offsetsBytes: fixture.offsets.byteLength });
   assert.deepEqual(await reader.getIds(1, 2), [42, "doc-2"]);
   assert.deepEqual(await reader.getIds(3, 1), ["doc-3"]);
-  assert.deepEqual(await reader.getIdsByRows([3, 0, 2, 0]), ["doc-3", "doc-0", "doc-2", "doc-0"]);
+  assert.deepEqual(await reader.getIdsByRows([3, 0, 2]), ["doc-3", "doc-0", "doc-2"]);
+  await assert.rejects(reader.getIdsByRows([0, 0]), { code: "INVALID_ARGUMENT" });
   assert.equal(resource.calls.length, 8); // two direct reads plus two contiguous groups for random rows
   assert.deepEqual(resource.calls[0], { path: "ids.offsets", range: { start: 8, end: 32 } });
   await reader.close(); await reader.close();

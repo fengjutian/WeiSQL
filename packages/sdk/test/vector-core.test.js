@@ -91,3 +91,10 @@ test("exact search rejects ID count mismatch and stops after cancellation", asyn
   await assert.rejects(exactVectorSearch({ reader, idMap: cancellingIds, query: new Float32Array([1, 0]), collectionCount: 2, dimension: 2, search: { topK: 1, metric: "cosine", blockSize: 1, signal: controller.signal } }), { code: "QUERY_CANCELLED" });
   assert.equal(resource.calls.length, 3); // one previous call plus both vector blocks before final ID resolution
 });
+
+test("exact search rejects out-of-order or malformed vector block coverage", async () => {
+  const resource = new MemoryResourceReader(encodeFloat32([1, 0, 0, 1]));
+  const reader = new VectorBlockReader(resource, { path: "v", count: 2, dimension: 2, bytes: 16 });
+  reader.readBlock = async () => ({ startRow: 1, count: 1, values: new Float32Array([1, 0]) });
+  await assert.rejects(exactVectorSearch({ reader, idMap: new MemoryIdMap(["a", "b"]), query: new Float32Array([1, 0]), collectionCount: 2, dimension: 2, search: { topK: 1, metric: "cosine" } }), { code: "RESOURCE_INTEGRITY_FAILED" });
+});

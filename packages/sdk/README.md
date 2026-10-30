@@ -17,6 +17,8 @@ HTTP Reader 已通过注入 Fetch 的自动化测试，但尚未完成真实 Net
 
 精确向量基线只用于语义验证和后续 Adapter 对照；Builder 端 ID 索引生成、ANN 索引和大规模性能验证尚未完成。
 
+`IndexedIdMapReader.getIdsByRows()` 会拒绝重复或非法行号、合并连续候选行并恢复调用顺序；精确搜索验证向量块连续完整覆盖，并只在距离扫描完成后为最终 Top-K 解析业务 ID。测试使用 Node.js 内置测试运行器，可执行 `npm test` 或 `npm run test:watch`。
+
 ## 开发
 
 在仓库根目录运行：

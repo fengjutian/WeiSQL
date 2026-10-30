@@ -19,4 +19,6 @@ export { compareCandidate, TopKMaxHeap } from "./top-k-max-heap.js";
 export type { RankedCandidate } from "./top-k-max-heap.js";
 export { decodeUint64LE, IndexedIdMapReader, parseIdMapLine } from "./indexed-id-map-reader.js";
 export type { IndexedIdMapDescriptor, IndexedIdMapReaderOptions } from "./indexed-id-map-reader.js";
+export { groupRows } from "./row-groups.js";
+export type { RowGroup } from "./row-groups.js";
 export type * from "./types.js";

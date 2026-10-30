@@ -31,18 +31,23 @@ export async function exactVectorSearch(input: ExactVectorSearchInput): Promise<
   }
   checkCancelled(search.signal);
   const best = new TopKMaxHeap<ExactVectorHit>(Math.min(search.topK, collectionCount));
-  for (let startRow = 0; startRow < collectionCount; startRow += blockSize) {
+  let expectedStartRow = 0;
+  while (expectedStartRow < collectionCount) {
     checkCancelled(search.signal);
-    const block = await reader.readBlock(startRow, blockSize, signalOptions(search.signal));
+    const block = await reader.readBlock(expectedStartRow, blockSize, signalOptions(search.signal));
     checkCancelled(search.signal);
-    if (block.startRow !== startRow || block.count <= 0 || block.startRow + block.count > collectionCount || block.values.length !== block.count * dimension) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Vector block does not provide the expected contiguous rows", { expectedStart: startRow, blockStart: block.startRow, count: block.count });
+    if (block.startRow !== expectedStartRow || !Number.isSafeInteger(block.count) || block.count <= 0 || block.startRow + block.count > collectionCount || block.values.length !== block.count * dimension) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Vector blocks are incomplete, overlapping or out of order", { expectedStart: expectedStartRow, blockStart: block.startRow, count: block.count });
     for (let localRow = 0; localRow < block.count; localRow++) {
+      checkCancelled(search.signal);
       const offset = localRow * dimension;
       const distance = vectorDistance(query, block.values.subarray(offset, offset + dimension), search.metric);
+      if (!Number.isFinite(distance)) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Distance calculation returned a non-finite value", { row: block.startRow + localRow });
       const row = block.startRow + localRow;
       best.offer({ row, id: row, distance });
     }
+    expectedStartRow += block.count;
   }
+  if (expectedStartRow !== collectionCount) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Vector blocks do not cover the entire collection", { expected: collectionCount, actual: expectedStartRow });
   const candidates = best.toSortedArray();
   checkCancelled(search.signal);
   const ids = await idMap.getIdsByRows(candidates.map(candidate => candidate.row), signalOptions(search.signal));

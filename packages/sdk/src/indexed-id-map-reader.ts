@@ -1,6 +1,7 @@
 import { WeiSQLError } from "./errors.js";
 import type { ResourceReader } from "./resource-reader.js";
 import type { IdMapReader } from "./vector-core-types.js";
+import { groupRows } from "./row-groups.js";
 
 const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
 
@@ -71,20 +72,21 @@ export class IndexedIdMapReader implements IdMapReader {
   async getIdsByRows(rows: readonly number[], options?: { signal?: AbortSignal }): Promise<readonly (string | number)[]> {
     this.ensureOpen();
     if (rows.length === 0) return [];
-    for (const row of rows) if (!Number.isSafeInteger(row) || row < 0 || row >= this.descriptor.count) throw new WeiSQLError("INVALID_ARGUMENT", "ID row is out of bounds", { row, count: this.descriptor.count });
-    const unique = [...new Set(rows)].sort((a, b) => a - b);
-    const byRow = new Map<number, string | number>();
-    let index = 0;
-    while (index < unique.length) {
-      if (options?.signal?.aborted) throw new WeiSQLError("QUERY_CANCELLED", "ID map read was cancelled");
-      const start = unique[index]!;
-      let end = index + 1;
-      while (end < unique.length && unique[end] === unique[end - 1]! + 1 && end - index < this.maxBatchRows) end++;
-      const ids = await this.getIds(start, end - index, options);
-      for (let i = index; i < end; i++) byRow.set(unique[i]!, ids[i - index]!);
-      index = end;
+    const groups = groupRows(rows);
+    const output: (string | number)[] = new Array(rows.length);
+    for (const group of groups) {
+      if (group.startRow + group.count > this.descriptor.count) throw new WeiSQLError("INVALID_ARGUMENT", "ID row is out of bounds", { row: group.startRow + group.count - 1, count: this.descriptor.count });
+      let consumed = 0;
+      while (consumed < group.count) {
+        if (options?.signal?.aborted) throw new WeiSQLError("QUERY_CANCELLED", "ID map read was cancelled");
+        const batchCount = Math.min(this.maxBatchRows, group.count - consumed);
+        const ids = await this.getIds(group.startRow + consumed, batchCount, options);
+        if (ids.length !== batchCount) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "ID group count mismatch", { expected: batchCount, actual: ids.length });
+        for (let i = 0; i < batchCount; i++) output[group.outputIndexes[consumed + i]!] = ids[i]!;
+        consumed += batchCount;
+      }
     }
-    return rows.map(row => byRow.get(row)!);
+    return output;
   }
   async close(): Promise<void> { this.closed = true; }
   private ensureOpen(): void { if (this.closed) throw new WeiSQLError("DATABASE_CLOSED", "ID map reader has been closed"); }

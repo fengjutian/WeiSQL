@@ -1,6 +1,6 @@
 import { WeiSQLError } from "./errors.js";
 import { validateResourcePath } from "./resource-path.js";
-import type { ColumnDescriptor, FileDescriptor, TableDescriptor, VectorCollectionDescriptor, WeiSQLManifest } from "./types.js";
+import type { ColumnDescriptor, FileDescriptor, TableDescriptor, TextIndexDescriptor, VectorCollectionDescriptor, WeiSQLManifest } from "./types.js";
 
 interface Issue { path: string; message: string }
 const identifier = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -13,7 +13,7 @@ const metrics = new Set(["cosine", "l2", "ip"]);
 export function validateManifest(input: unknown): WeiSQLManifest {
   const issues: Issue[] = [];
   if (!record(input)) fail([{ path: "$", message: "manifest must be an object" }]);
-  allowed(input, ["format", "formatVersion", "datasetId", "tables", "vectorCollections", "metadata"], "$", issues);
+  allowed(input, ["format", "formatVersion", "datasetId", "tables", "vectorCollections", "textIndexes", "metadata"], "$", issues);
   if (input.format !== "weisql") issue(issues, "$.format", "must equal 'weisql'");
   if (input.formatVersion !== "1.0.0") {
     if (typeof input.formatVersion === "string") throw new WeiSQLError("FORMAT_VERSION_UNSUPPORTED", `Unsupported manifest format version '${input.formatVersion}'`, { supported: "1.0.0" });
@@ -33,10 +33,19 @@ export function validateManifest(input: unknown): WeiSQLManifest {
     if (input.vectorCollections.length > 10_000) issue(issues, "$.vectorCollections", "must contain at most 10000 items");
     input.vectorCollections.forEach((value, index) => { const parsed = vector(value, `$.vectorCollections[${index}]`, issues); if (parsed) vectors.push(parsed); });
   }
+  const texts: TextIndexDescriptor[] = [];
+  if (input.textIndexes !== undefined) {
+    if (!Array.isArray(input.textIndexes)) issue(issues, "$.textIndexes", "must be an array");
+    else {
+      if (input.textIndexes.length > 1000) issue(issues, "$.textIndexes", "must contain at most 1000 items");
+      input.textIndexes.forEach((value, index) => { const parsed = textIndex(value, `$.textIndexes[${index}]`, issues); if (parsed) texts.push(parsed); });
+    }
+  }
   metadata(input.metadata, issues);
 
   unique(tables.map(item => item.name), "$.tables", "table name", issues);
   unique(vectors.map(item => item.name), "$.vectorCollections", "vector collection name", issues);
+  unique(texts.map(item => item.name), "$.textIndexes", "text index name", issues);
   const resources = new Map<string, string>();
   const register = (file: FileDescriptor, path: string) => {
     const previous = resources.get(file.path);
@@ -48,6 +57,12 @@ export function validateManifest(input: unknown): WeiSQLManifest {
     const path = `$.vectorCollections[${index}]`;
     register(item.data, `${path}.data`); register(item.idMap.data, `${path}.idMap.data`); register(item.idMap.offsets, `${path}.idMap.offsets`);
     if (item.index) register(item.index.file, `${path}.index.file`);
+  });
+  texts.forEach((item, index) => {
+    const path = `$.textIndexes[${index}]`;
+    register(item.data, `${path}.data`);
+    register(item.termOffsets, `${path}.termOffsets`);
+    register(item.docLengths, `${path}.docLengths`);
   });
 
   const tableByName = new Map(tables.map(value => [value.name, value]));
@@ -67,6 +82,25 @@ export function validateManifest(input: unknown): WeiSQLManifest {
     if (collection.idMap.offsets.format !== "uint64-le") issue(issues, `${path}.idMap.offsets.format`, "must equal 'uint64-le'");
     const offsetBytes = BigInt(collection.idMap.count) * 8n;
     if (BigInt(collection.idMap.offsets.bytes) !== offsetBytes) issue(issues, `${path}.idMap.offsets.bytes`, `must equal idMap.count × 8 (${offsetBytes})`);
+  });
+
+  texts.forEach((entry, position) => {
+    const path = `$.textIndexes[${position}]`;
+    const source = tableByName.get(entry.tableName);
+    if (!source) issue(issues, `${path}.tableName`, "must reference an existing table");
+    else {
+      const column = source.columns.find(item => item.name === entry.column);
+      if (column === undefined) issue(issues, `${path}.column`, "must reference a declared table column");
+      else if (column.type !== "string" && column.type !== "json") issue(issues, `${path}.column`, "must reference a text column (string or json)");
+      if (!source.columns.some(item => item.name === entry.idColumn)) issue(issues, `${path}.idColumn`, "must reference a source table column");
+      else if (!source.primaryKey.includes(entry.idColumn)) issue(issues, `${path}.idColumn`, "must reference a primary key column");
+    }
+    if (BigInt(entry.termCount) * 8n > BigInt(Number.MAX_SAFE_INTEGER)) issue(issues, `${path}.termOffsets.bytes`, "term offset size exceeds the safe integer range");
+    else if (BigInt(entry.termOffsets.bytes) !== BigInt(entry.termCount) * 8n) issue(issues, `${path}.termOffsets.bytes`, `must equal termCount × 8 (${BigInt(entry.termCount) * 8n})`);
+    if (BigInt(entry.documentCount) * 4n > BigInt(Number.MAX_SAFE_INTEGER)) issue(issues, `${path}.docLengths.bytes`, "doc length size exceeds the safe integer range");
+    else if (BigInt(entry.docLengths.bytes) !== BigInt(entry.documentCount) * 4n) issue(issues, `${path}.docLengths.bytes`, `must equal documentCount × 4 (${BigInt(entry.documentCount) * 4n})`);
+    if (entry.k1 !== undefined && !(entry.k1 > 0 && Number.isFinite(entry.k1))) issue(issues, `${path}.k1`, "must be a positive finite number");
+    if (entry.b !== undefined && !(entry.b >= 0 && entry.b <= 1)) issue(issues, `${path}.b`, "must be within [0, 1]");
   });
   if (issues.length) fail(issues);
   return input as unknown as WeiSQLManifest;
@@ -158,6 +192,63 @@ function indexParams(value: unknown, path: string, issues: Issue[]): Readonly<Re
     if (typeof entry !== "number" || !Number.isFinite(entry)) issue(issues, `${path}.${key}`, "must be a finite number");
   }
   return value as Record<string, number>;
+}
+
+/**
+ * Parses one `textIndexes[]` entry.
+ *
+ * `documentCount` and `averageDocumentLength` are declared, not derived: BM25
+ * must not rescan the collection to recompute them at query time.
+ */
+function textIndex(value: unknown, path: string, issues: Issue[]): TextIndexDescriptor | undefined {
+  if (!record(value)) { issue(issues, path, "must be an object"); return; }
+  allowed(value, ["name", "tableName", "column", "idColumn", "documentCount", "termCount", "averageDocumentLength", "data", "termOffsets", "docLengths", "k1", "b"], path, issues);
+  name(value.name, `${path}.name`, issues);
+  name(value.tableName, `${path}.tableName`, issues);
+  name(value.column, `${path}.column`, issues);
+  name(value.idColumn, `${path}.idColumn`, issues);
+  integer(value.documentCount, `${path}.documentCount`, issues, 1);
+  integer(value.termCount, `${path}.termCount`, issues, 1);
+  if (typeof value.averageDocumentLength !== "number" || !Number.isFinite(value.averageDocumentLength) || value.averageDocumentLength <= 0) {
+    issue(issues, `${path}.averageDocumentLength`, "must be a positive finite number");
+  }
+  const data = file(value.data, `${path}.data`, issues);
+  const termOffsets = file(value.termOffsets, `${path}.termOffsets`, issues);
+  const docLengths = file(value.docLengths, `${path}.docLengths`, issues);
+
+  let k1: number | undefined;
+  if (value.k1 !== undefined) {
+    if (typeof value.k1 !== "number" || !Number.isFinite(value.k1) || value.k1 <= 0) issue(issues, `${path}.k1`, "must be a positive finite number");
+    else k1 = value.k1;
+  }
+  let b: number | undefined;
+  if (value.b !== undefined) {
+    if (typeof value.b !== "number" || !(value.b >= 0 && value.b <= 1)) issue(issues, `${path}.b`, "must be within [0, 1]");
+    else b = value.b;
+  }
+
+  if (
+    typeof value.name !== "string" || typeof value.tableName !== "string" || typeof value.column !== "string" || typeof value.idColumn !== "string" ||
+    !Number.isSafeInteger(value.documentCount) || (value.documentCount as number) < 1 ||
+    !Number.isSafeInteger(value.termCount) || (value.termCount as number) < 1 ||
+    typeof value.averageDocumentLength !== "number" || value.averageDocumentLength <= 0 ||
+    !data || !termOffsets || !docLengths
+  ) return;
+
+  return {
+    name: value.name,
+    tableName: value.tableName,
+    column: value.column,
+    idColumn: value.idColumn,
+    documentCount: value.documentCount as number,
+    termCount: value.termCount as number,
+    averageDocumentLength: value.averageDocumentLength,
+    data,
+    termOffsets,
+    docLengths,
+    ...(k1 === undefined ? {} : { k1 }),
+    ...(b === undefined ? {} : { b }),
+  };
 }
 
 function file(value: unknown, path: string, issues: Issue[]): FileDescriptor | undefined {

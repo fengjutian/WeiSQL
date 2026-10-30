@@ -110,6 +110,30 @@ interface VectorCollectionDescriptor {
 
 距离统一为越小越相似：Cosine 为 `1 - similarity`，L2 为欧氏距离，IP 为负内积。
 
+## 4.1 全文索引（可选）
+
+```ts
+interface TextIndexDescriptor {
+  name: string;
+  tableName: string;
+  column: string;        // 必须是 string 或 json 列
+  idColumn: string;      // 必须是该表主键列
+  documentCount: number; // ≥ 1
+  termCount: number;     // ≥ 1
+  averageDocumentLength: number;
+  data: FileDescriptor;        // terms.jsonl
+  termOffsets: FileDescriptor; // u64-le，数量 = termCount
+  docLengths: FileDescriptor;  // u32-le，数量 = documentCount
+  k1?: number; // 默认 1.2
+  b?: number;  // 默认 0.75，范围 [0, 1]
+}
+```
+
+- `documentCount` 与 `averageDocumentLength` 是**声明值**，运行时不重新统计：BM25 查询不应扫描全库；
+- `termOffsets.bytes` 必须等于 `termCount × 8`，`docLengths.bytes` 必须等于 `documentCount × 4`；
+- 三个文件都参与 L3 校验，路径与其他资源一样必须全局唯一；
+- 格式与评分语义见 `FULL_TEXT_SEARCH.md`。
+
 ## 5. ID Map 与偏移索引
 
 ```ts

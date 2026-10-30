@@ -95,7 +95,7 @@ score  = Σ idf(t) · tf·(k1+1) / (tf + k1·(1 - b + b·dl/avgdl))
 ## 7. 实现顺序
 
 1. ✅ 分词与 BM25 评分核心（可独立测试，无格式依赖）
-2. Manifest `textIndexes` + 校验器 + 测试（格式增量，需原子更新）
-3. 索引读取器（二分定位 + 倒排解码）
+2. ✅ Manifest `textIndexes` + 校验器 + Schema + L3 资源登记
+3. ⬜ 索引读取器（二分定位 + 倒排解码）
 4. Runtime `db.text.search()` 与能力声明
 5. 索引生成工具（读取 Parquet 文本列，写三个文件并回写 Manifest）

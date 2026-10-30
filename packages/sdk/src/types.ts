@@ -19,9 +19,33 @@ export interface VectorCollectionDescriptor {
   encoding: "f32-le-row-major"; data: FileDescriptor; idMap: IdMapDescriptor;
   index?: { engine: string; version: string; file: FileDescriptor; params?: Readonly<Record<string, number>> };
 }
+/**
+ * Full-text index over one text column of one table.
+ *
+ * `documentCount` and `averageDocumentLength` are declared rather than derived:
+ * a BM25 query must not rescan the collection to recompute them.
+ */
+export interface TextIndexDescriptor {
+  name: string;
+  tableName: string;
+  column: string;
+  idColumn: string;
+  documentCount: number;
+  termCount: number;
+  averageDocumentLength: number;
+  /** Sorted term → postings JSONL. */
+  data: FileDescriptor;
+  /** UInt64 LE term start offsets; count = termCount. */
+  termOffsets: FileDescriptor;
+  /** UInt32 LE per-document token counts; count = documentCount. */
+  docLengths: FileDescriptor;
+  k1?: number;
+  b?: number;
+}
 export interface WeiSQLManifest {
   format: "weisql"; formatVersion: "1.0.0"; datasetId: string;
   tables: TableDescriptor[]; vectorCollections: VectorCollectionDescriptor[];
+  textIndexes?: TextIndexDescriptor[];
   metadata?: { title?: string; description?: string; createdAt?: string; builderVersion?: string };
 }
 export type SQLValue = string | number | bigint | boolean | null | Uint8Array | Date;

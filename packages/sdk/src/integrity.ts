@@ -32,7 +32,7 @@ export interface VerifyManifestResourcesInput {
   options?: IntegrityOptions;
 }
 
-export type DeclaredResourceKind = "table" | "vector-data" | "id-map-data" | "id-map-offsets" | "index";
+export type DeclaredResourceKind = "table" | "vector-data" | "id-map-data" | "id-map-offsets" | "index" | "text-data" | "text-offsets" | "text-lengths";
 
 export interface DeclaredResource {
   path: string;
@@ -120,6 +120,11 @@ export function declaredResources(manifest: Readonly<WeiSQLManifest>): DeclaredR
     add("id-map-data", collection.name, collection.idMap.data);
     add("id-map-offsets", collection.name, collection.idMap.offsets);
     if (collection.index) add("index", collection.name, collection.index.file);
+  }
+  for (const text of manifest.textIndexes ?? []) {
+    add("text-data", text.name, text.data);
+    add("text-offsets", text.name, text.termOffsets);
+    add("text-lengths", text.name, text.docLengths);
   }
   return [...seen.values()];
 }

@@ -1,69 +1,30 @@
-export type ColumnType =
-  | "utf8" | "int32" | "int64" | "float32"
-  | "float64" | "boolean" | "binary" | "timestamp";
-
-export interface ManifestFile {
-  path: string;
-  format: string;
-  rows?: number;
-  bytes: number;
-  sha256: string;
+export type WeiSQLScalarType = "string" | "int32" | "int64" | "float32" | "float64" | "boolean" | "timestamp" | "date" | "json";
+export interface FileDescriptor { path: string; bytes: number; sha256: string }
+export interface ColumnDescriptor { name: string; type: WeiSQLScalarType; nullable: boolean }
+export interface TableDescriptor { name: string; file: FileDescriptor; format: "parquet"; columns: ColumnDescriptor[]; primaryKey: string[] }
+export type VectorMetric = "cosine" | "l2" | "ip";
+export interface IdMapDescriptor {
+  data: FileDescriptor & { format: "jsonl" };
+  offsets: FileDescriptor & { format: "uint64-le" };
+  count: number;
+  uniqueIds: boolean;
 }
-
-export interface ManifestColumn { name: string; type: ColumnType; nullable: boolean }
-
-export interface ManifestTable {
-  name: string;
-  schema: ManifestColumn[];
-  primaryKey?: string[];
-  files: ManifestFile[];
+export interface VectorCollectionDescriptor {
+  name: string; tableName: string; idColumn: string;
+  count: number; dimension: number; metric: VectorMetric;
+  encoding: "f32-le-row-major"; data: FileDescriptor; idMap: IdMapDescriptor;
+  index?: { engine: string; version: string; file: FileDescriptor };
 }
-
-export interface ManifestVector {
-  name: string;
-  sourceTable: string;
-  idColumn: string;
-  dimension: number;
-  elementType: "float32";
-  metric: "cosine" | "l2" | "ip";
-  normalization?: "unit" | "not-required-by-format" | "unknown";
-  files: ManifestFile[];
-  index?: { engine: string; engineVersion?: string; path: string; sha256?: string };
-}
-
 export interface WeiSQLManifest {
-  format: "weisql-ai";
-  formatVersion: string;
-  datasetId: string;
-  createdAt?: string;
-  metadata?: Record<string, unknown>;
-  tables: ManifestTable[];
-  vectors?: ManifestVector[];
-  features?: {
-    sql?: boolean;
-    vectorSearch?: boolean;
-    fullTextSearch?: boolean;
-    hybridSearch?: boolean;
-  };
+  format: "weisql"; formatVersion: "1.0.0"; datasetId: string;
+  tables: TableDescriptor[]; vectorCollections: VectorCollectionDescriptor[];
+  metadata?: { title?: string; description?: string; createdAt?: string; builderVersion?: string };
 }
-
 export type SQLValue = string | number | bigint | boolean | null | Uint8Array | Date;
 export interface QueryOptions { signal?: AbortSignal }
-export interface VectorSearchOptions {
-  topK?: number;
-  filter?: Readonly<Record<string, string | number | boolean | null>>;
-  signal?: AbortSignal;
-}
-export interface VectorHit {
-  id: string | number;
-  distance: number;
-  metadata?: Readonly<Record<string, unknown>>;
-  diagnostics?: { backend: string; elapsedMs?: number };
-}
+export interface VectorSearchOptions { topK?: number; filter?: Readonly<Record<string, string | number | boolean | null>>; signal?: AbortSignal }
+export interface VectorHit { id: string | number; distance: number; metadata?: Readonly<Record<string, unknown>>; diagnostics?: { backend: string; elapsedMs?: number } }
 export interface OpenOptions {
-  manifestUrl: string;
-  mode?: "readonly";
-  verifyChecksums?: "none" | "manifest" | "all";
-  fetch?: typeof globalThis.fetch;
-  signal?: AbortSignal;
+  manifestUrl: string; mode?: "readonly"; verifyChecksums?: "none" | "manifest" | "all";
+  fetch?: typeof globalThis.fetch; signal?: AbortSignal;
 }

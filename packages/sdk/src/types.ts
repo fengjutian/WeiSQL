@@ -17,7 +17,7 @@ export interface VectorCollectionDescriptor {
   name: string; tableName: string; idColumn: string;
   count: number; dimension: number; metric: VectorMetric;
   encoding: "f32-le-row-major"; data: FileDescriptor; idMap: IdMapDescriptor;
-  index?: { engine: string; version: string; file: FileDescriptor };
+  index?: { engine: string; version: string; file: FileDescriptor; params?: Readonly<Record<string, number>> };
 }
 export interface WeiSQLManifest {
   format: "weisql"; formatVersion: "1.0.0"; datasetId: string;

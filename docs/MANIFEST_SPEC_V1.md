@@ -94,6 +94,7 @@ interface VectorCollectionDescriptor {
     engine: string;
     version: string;
     file: FileDescriptor;
+    params?: Readonly<Record<string, number>>;
   };
 }
 ```
@@ -104,7 +105,8 @@ interface VectorCollectionDescriptor {
 - `dimension` 是正安全整数；
 - Float32 使用小端、row-major 连续编码；
 - `data.bytes` 必须等于 `count × dimension × 4`，计算使用 BigInt 防止溢出；
-- 引擎索引是可选派生资源，不属于跨引擎公共数据语义。
+- 引擎索引是可选派生资源，不属于跨引擎公共数据语义；
+- `index.params` 是引擎相关构建参数的扁平数字表（参数名须为标识符，最多 32 项）。V1 不把它拆成具体字段，因为 `engine` + `version` 已确定解释方式；加载方无法重建参数时必须拒绝加载，而不是猜测。USearch 目前使用 `connectivity`、`expansion_add`、`expansion_search`。
 
 距离统一为越小越相似：Cosine 为 `1 - similarity`，L2 为欧氏距离，IP 为负内积。
 

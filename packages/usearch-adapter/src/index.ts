@@ -1,3 +1,7 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
 import { Index } from "usearch";
 import type { MetricKind, ScalarKind } from "usearch";
 
@@ -35,6 +39,8 @@ interface CollectionIndex {
   index: Index;
   metric: VectorMetric;
   count: number;
+  /** True when the index came from the package instead of being built locally. */
+  persisted: boolean;
 }
 
 /**
@@ -48,7 +54,8 @@ interface CollectionIndex {
  *   calling an approximate adapter.
  *
  * Build cost is real: one full vector read plus index construction, paid on the
- * first search per collection.
+ * first search per collection. When the Manifest declares an index for a
+ * collection, that file is loaded instead and the build is skipped.
  */
 export function createUSearchAdapter(options: USearchAdapterOptions = {}): VectorAdapter {
   const connectivity = positive(options.connectivity ?? 16, "connectivity");
@@ -60,11 +67,12 @@ export function createUSearchAdapter(options: USearchAdapterOptions = {}): Vecto
   let manifest: Readonly<WeiSQLManifest> | undefined;
   let reader: ResourceReader | undefined;
   const indexes = new Map<string, CollectionIndex>();
+  const tempDirectories: string[] = [];
 
   const capabilities: VectorAdapterCapabilities = Object.freeze({
     engine: "usearch",
     metrics: ["cosine", "l2", "ip"] as const,
-    persistedIndex: false,
+    persistedIndex: true,
     metadataFiltering: false,
     exactSearch: false,
     cancellation: "unsupported" as const,
@@ -104,7 +112,62 @@ export function createUSearchAdapter(options: USearchAdapterOptions = {}): Vecto
       for (let row = 0; row < rows; row++) keys[row] = BigInt(startRow + row);
       index.add(keys, vectors);
     }
-    return { index, metric: collection.metric, count: collection.count };
+    return { index, metric: collection.metric, count: collection.count, persisted: false };
+  }
+
+  /**
+   * Loads the index described by the Manifest.
+   *
+   * USearch can only load from a path, not from bytes, so the resource is written
+   * to a private temporary file and kept until `close()`. Building parameters come
+   * from `index.params`; without them the file cannot be reconstructed, and
+   * guessing would silently change recall.
+   */
+  async function loadPersisted(collection: VectorCollectionDescriptor, signal: AbortSignal | undefined): Promise<CollectionIndex> {
+    const descriptor = collection.index!;
+    if (descriptor.engine !== capabilities.engine) {
+      throw new WeiSQLError("INDEX_NOT_FOUND", "Manifest index engine is not supported by this adapter", {
+        expected: capabilities.engine,
+        actual: descriptor.engine,
+      });
+    }
+    const params = descriptor.params ?? {};
+    const fileConnectivity = numberParam(params, "connectivity", connectivity);
+    const fileExpansionAdd = numberParam(params, "expansion_add", expansionAdd);
+    const fileExpansionSearch = numberParam(params, "expansion_search", expansionSearch);
+    const bytes = await reader!.read(descriptor.file.path, signal === undefined ? undefined : { signal });
+    if (bytes.byteLength !== descriptor.file.bytes) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Persisted index byte length does not match the Manifest", {
+        declared: descriptor.file.bytes,
+        actual: bytes.byteLength,
+      });
+    }
+    const directory = await mkdtemp(path.join(tmpdir(), "weisql-usearch-"));
+    const file = path.join(directory, "index.bin");
+    await writeFile(file, bytes);
+    const index = new Index({
+      metric: METRIC_MAP[collection.metric].usearch,
+      dimensions: collection.dimension,
+      quantization: "f32" as ScalarKind,
+      connectivity: fileConnectivity,
+      expansion_add: fileExpansionAdd,
+      expansion_search: fileExpansionSearch,
+      multi: false,
+    });
+    try {
+      index.load(file);
+    } catch (cause) {
+      await rm(directory, { recursive: true, force: true }).catch(() => undefined);
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Persisted index could not be loaded", { cause: String(cause) });
+    }
+    tempDirectories.push(directory);
+    if (index.size() !== collection.count) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Persisted index vector count does not match the Manifest", {
+        expected: collection.count,
+        actual: index.size(),
+      });
+    }
+    return { index, metric: collection.metric, count: collection.count, persisted: true };
   }
 
   return {
@@ -130,7 +193,7 @@ export function createUSearchAdapter(options: USearchAdapterOptions = {}): Vecto
       const started = typeof performance === "undefined" ? 0 : performance.now();
       let entry = indexes.get(vector.name);
       if (entry === undefined) {
-        entry = await buildIndex(vector, signal);
+        entry = vector.index === undefined ? await buildIndex(vector, signal) : await loadPersisted(vector, signal);
         indexes.set(vector.name, entry);
       }
 
@@ -167,12 +230,23 @@ export function createUSearchAdapter(options: USearchAdapterOptions = {}): Vecto
       indexes.clear();
       manifest = undefined;
       reader = undefined;
+      const directories = tempDirectories.splice(0, tempDirectories.length);
       state = "CLOSED";
+      for (const directory of directories) await rm(directory, { recursive: true, force: true }).catch(() => undefined);
     },
   };
 }
 
 function positive(value: number, name: string): number {
   if (!Number.isSafeInteger(value) || value <= 0) throw new WeiSQLError("INVALID_ARGUMENT", `${name} must be a positive safe integer`, { [name]: value });
+  return value;
+}
+
+function numberParam(params: Readonly<Record<string, number>>, key: string, fallback: number): number {
+  const value = params[key];
+  if (value === undefined) return fallback;
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new WeiSQLError("INVALID_ARGUMENT", `index.params.${key} must be a positive safe integer`, { [key]: value });
+  }
   return value;
 }

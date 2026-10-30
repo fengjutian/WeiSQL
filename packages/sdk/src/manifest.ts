@@ -133,9 +133,31 @@ function idMapValue(value: unknown, path: string, issues: Issue[]): VectorCollec
 
 function indexValue(value: unknown, path: string, issues: Issue[]): NonNullable<VectorCollectionDescriptor["index"]> | undefined {
   if (!record(value)) { issue(issues, path, "must be an object"); return; }
-  allowed(value, ["engine", "version", "file"], path, issues); text(value.engine, `${path}.engine`, issues); text(value.version, `${path}.version`, issues);
+  allowed(value, ["engine", "version", "file", "params"], path, issues); text(value.engine, `${path}.engine`, issues); text(value.version, `${path}.version`, issues);
   const descriptor = file(value.file, `${path}.file`, issues);
-  return typeof value.engine === "string" && typeof value.version === "string" && descriptor ? { engine: value.engine, version: value.version, file: descriptor } : undefined;
+  const params = indexParams(value.params, `${path}.params`, issues);
+  if (typeof value.engine !== "string" || typeof value.version !== "string" || !descriptor) return;
+  return { engine: value.engine, version: value.version, file: descriptor, ...(params === undefined ? {} : { params }) };
+}
+
+/**
+ * Engine-specific index build parameters.
+ *
+ * V1 keeps them as a flat number map instead of engine-specific fields: the
+ * `engine` + `version` pair already identifies how to interpret them, and the
+ * runtime refuses to load an index whose parameters it cannot reconstruct.
+ */
+function indexParams(value: unknown, path: string, issues: Issue[]): Readonly<Record<string, number>> | undefined {
+  if (value === undefined) return undefined;
+  if (!record(value)) { issue(issues, path, "must be an object"); return undefined; }
+  const keys = Object.keys(value);
+  if (keys.length > 32) issue(issues, path, "must declare at most 32 parameters");
+  for (const key of keys) {
+    if (!identifier.test(key)) issue(issues, `${path}.${key}`, "parameter names must be valid identifiers");
+    const entry = value[key];
+    if (typeof entry !== "number" || !Number.isFinite(entry)) issue(issues, `${path}.${key}`, "must be a finite number");
+  }
+  return value as Record<string, number>;
 }
 
 function file(value: unknown, path: string, issues: Issue[]): FileDescriptor | undefined {

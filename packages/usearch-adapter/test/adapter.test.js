@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import { open, vectorDistance } from "@weisql/sdk";
@@ -49,7 +51,7 @@ test("reports approximate capabilities honestly", async () => {
   const adapter = createUSearchAdapter();
   assert.equal(adapter.capabilities.engine, "usearch");
   assert.equal(adapter.capabilities.exactSearch, false);
-  assert.equal(adapter.capabilities.persistedIndex, false);
+  assert.equal(adapter.capabilities.persistedIndex, true);
   assert.deepEqual([...adapter.capabilities.metrics], ["cosine", "l2", "ip"]);
 });
 
@@ -135,4 +137,103 @@ test("lifecycle: single open, idempotent close, cancelled before execution", asy
 test("rejects invalid construction options", () => {
   assert.throws(() => createUSearchAdapter({ connectivity: 0 }), { code: "INVALID_ARGUMENT" });
   assert.throws(() => createUSearchAdapter({ expansionSearch: -1 }), { code: "INVALID_ARGUMENT" });
+});
+
+/** Writes a real USearch index file and returns its bytes plus the Manifest entry. */
+async function persistedIndexFixture({ count = 3, connectivity = 8, expansionAdd = 32, expansionSearch = 32 } = {}) {
+  const { Index } = await import("usearch");
+  const { sha256Hex } = await import("@weisql/sdk");
+  const index = new Index({
+    metric: "cos",
+    dimensions: 2,
+    quantization: "f32",
+    connectivity,
+    expansion_add: expansionAdd,
+    expansion_search: expansionSearch,
+    multi: false,
+  });
+  index.add(new BigUint64Array([0n, 1n, 2n].slice(0, count)), new Float32Array(ROWS.slice(0, count).flat()));
+  const file = path.join(await mkdtemp(path.join(tmpdir(), "weisql-usearch-test-")), "index.bin");
+  index.save(file);
+  const bytes = new Uint8Array(await readFile(file));
+  return {
+    bytes,
+    descriptor: {
+      engine: "usearch",
+      version: "2.26.5",
+      file: { path: "indexes/embeddings.usearch", bytes: bytes.byteLength, sha256: sha256Hex(bytes) },
+      params: { connectivity, expansion_add: expansionAdd, expansion_search: expansionSearch },
+    },
+  };
+}
+
+test("loads a persisted index instead of rebuilding from vectors", async () => {
+  const { bytes, descriptor } = await persistedIndexFixture();
+  const { manifest } = await fixture();
+  manifest.vectorCollections[0].index = descriptor;
+
+  // Deliberately omit the vector file: a rebuild would fail, so success proves
+  // the persisted index path was used.
+  const reader = {
+    async read(pathname) {
+      if (pathname === descriptor.file.path) return bytes;
+      throw new Error(`unexpected read: ${pathname}`);
+    },
+    async readRange(pathname, range) {
+      if (pathname === "vectors/id-map.offsets" || pathname === "vectors/id-map.jsonl") {
+        return new MemoryReader(new Map([
+          ["vectors/id-map.jsonl", new TextEncoder().encode('{"row":0,"id":"doc-001"}\n{"row":1,"id":"doc-002"}\n{"row":2,"id":"doc-003"}\n')],
+          ["vectors/id-map.offsets", offsets([0, 25, 50])],
+        ])).readRange(pathname, range);
+      }
+      throw new Error(`unexpected range read: ${pathname}`);
+    },
+    async stat(pathname) { return { size: pathname === descriptor.file.path ? bytes.byteLength : 0 }; },
+    async close() {},
+  };
+
+  const adapter = createUSearchAdapter();
+  await adapter.open({ manifest, reader });
+  const hits = await adapter.search({ vector: manifest.vectorCollections[0], query: new Float32Array([1, 0]), topK: 3 });
+  assert.deepEqual(hits.map(hit => hit.id), ["doc-001", "doc-002", "doc-003"]);
+  assert.equal(hits[0].diagnostics.exact, false);
+  await adapter.close();
+});
+
+test("rejects an index built by a different engine or for a different count", async () => {
+  const { bytes, descriptor } = await persistedIndexFixture();
+
+  const wrongEngine = await fixture();
+  wrongEngine.manifest.vectorCollections[0].index = { ...descriptor, engine: "faiss" };
+  const engineReader = { async read() { return bytes; }, async readRange() { throw new Error("no"); }, async stat() { return { size: bytes.byteLength }; }, async close() {} };
+  const engineAdapter = createUSearchAdapter();
+  await engineAdapter.open({ manifest: wrongEngine.manifest, reader: engineReader });
+  await assert.rejects(
+    engineAdapter.search({ vector: wrongEngine.manifest.vectorCollections[0], query: new Float32Array([1, 0]), topK: 1 }),
+    { code: "INDEX_NOT_FOUND" },
+  );
+
+  const wrongCount = await fixture();
+  wrongCount.manifest.vectorCollections[0].count = 2;
+  wrongCount.manifest.vectorCollections[0].idMap.count = 2;
+  wrongCount.manifest.vectorCollections[0].index = descriptor;
+  const countAdapter = createUSearchAdapter();
+  await countAdapter.open({ manifest: wrongCount.manifest, reader: engineReader });
+  await assert.rejects(
+    countAdapter.search({ vector: wrongCount.manifest.vectorCollections[0], query: new Float32Array([1, 0]), topK: 1 }),
+    { code: "RESOURCE_INTEGRITY_FAILED" },
+  );
+});
+
+test("rejects a persisted index whose bytes do not match the Manifest", async () => {
+  const { descriptor } = await persistedIndexFixture();
+  const { manifest } = await fixture();
+  manifest.vectorCollections[0].index = { ...descriptor, file: { ...descriptor.file, bytes: descriptor.file.bytes + 8 } };
+  const reader = { async read() { return new Uint8Array(4); }, async readRange() { throw new Error("no"); }, async stat() { return { size: 4 }; }, async close() {} };
+  const adapter = createUSearchAdapter();
+  await adapter.open({ manifest, reader });
+  await assert.rejects(
+    adapter.search({ vector: manifest.vectorCollections[0], query: new Float32Array([1, 0]), topK: 1 }),
+    { code: "RESOURCE_INTEGRITY_FAILED" },
+  );
 });

@@ -2,7 +2,16 @@
 
 - 包：`@weisql/usearch-adapter`
 - 契约：实现 `VectorAdapter`（见 `VECTOR_ADAPTER_CONTRACT.md`），通过 `open({ vectorAdapter })` 注入
-- 状态：内存索引首版；**持久化索引未实现**，召回未按数据集评估
+- 状态：支持持久化索引与内存构建；召回未按真实数据集评估
+
+## 0. 生成持久化索引
+
+```bash
+node tools/build-ann-index.mjs ./my-package --connectivity 16 --expansion-add 128 --expansion-search 512
+weisql validate ./my-package      # 索引文件同样纳入 L3 校验
+```
+
+命令会写入 `indexes/<collection>.usearch`，并把 `engine` / `version` / `file` / `params` 回写到 Manifest（写盘前重新校验）。之后 `open()` 会加载该索引，跳过首次检索的构建开销。没有声明索引的包仍然在首次检索时现场构建。
 
 ## 1. 用法
 
@@ -38,8 +47,8 @@ USearch 的原始距离与公共契约不一致，Adapter 在边界处转换：
 
 | 项目 | 现状 |
 | --- | --- |
-| 索引构建 | 首次检索时**现场构建**：完整读取一次向量文件并插入 HNSW；100k × 128 约 10 秒（合成数据实测） |
-| 持久化 | 未实现。Manifest 的 `index` 只有 `{engine, version, file}`，缺少 connectivity / expansion 等构建参数，加载时无法复现同一索引 |
+| 索引构建 | 优先加载 Manifest 声明的索引；未声明时**首次检索现场构建**（100k × 128 合成数据约 10 秒） |
+| 持久化 | 已实现：`index.params` 提供 connectivity / expansion，缺失时拒绝加载而不是回退默认值 |
 | 过滤 | 不支持。Runtime 在调用近似 Adapter 前就拒绝带 `filter` 的查询（`SQL_UNSUPPORTED`），Adapter 侧也会拒绝 `allowedRows` |
 | 召回 | **不保证**。`expansionSearch` 默认 512 只是折中：合成数据上 512 ≈ 0.73、2048 ≈ 1.0、64 ≈ 0.17。必须按真实数据集测 Recall@K |
 | 取消 | `unsupported`。构建阶段只在批次之间检查 `AbortSignal`；检索本身无法中断 |
@@ -53,6 +62,6 @@ USearch 的原始距离与公共契约不一致，Adapter 在边界处转换：
 
 ## 5. 尚未完成
 
-1. 持久化索引：Builder 侧生成、Manifest 描述参数、Adapter 加载。
-2. 按数据集的 Recall@K 与延迟报告（`BENCHMARK_PROTOCOL_V1.md` 要求）。
-3. 过滤与 ANN 的组合语义（目前明确不支持，而不是悄悄后过滤）。
+1. 按数据集的 Recall@K 与延迟报告（`BENCHMARK_PROTOCOL_V1.md` 要求）。
+2. 过滤与 ANN 的组合语义（目前明确不支持，而不是悄悄后过滤）。
+3. 索引与 Adapter 版本的兼容性策略：目前只校验 `engine` 与向量数量，不校验 USearch 版本是否与构建时一致。

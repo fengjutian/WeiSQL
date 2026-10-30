@@ -150,5 +150,5 @@ TypeScript SDK 和 Rust Core 共用错误语义、距离公式、维度规则、
 - 参考实现 `createExactVectorAdapter()` 已提供：内部复用 `VectorBlockReader` + `exactVectorSearch` + `IndexedIdMapReader`，测试证明它与内置精确管线结果一致（含 ID、行号与距离）。
 - Runtime 职责：参数校验、Top-K、过滤解析为 `allowedRows`、能力汇总。Adapter 只负责「查询 → 排序后的行与距离」。
 - 限制（已验证）：注入 `exactSearch: false` 的 Adapter 时，`capabilities().vectorAnnSearch = true`、`vectorExactSearch = false`、`hybridSearch = false`；带 `filter` 的检索返回 `SQL_UNSUPPORTED`，因为近似候选的后过滤不能声称为「过滤子集的最近 K」。`vector-first` 目前也只在内置精确管线上可用。
-- 尚未实现：USearch 或其他 ANN Adapter 本身、持久化索引加载、Transformer 侧的能力探测。
+- 尚未实现：ANN + 过滤的组合语义、持久化索引的版本兼容策略、真实数据集召回评估。
 

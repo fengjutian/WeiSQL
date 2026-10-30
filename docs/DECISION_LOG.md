@@ -247,6 +247,16 @@
 - 决策五：带过滤的查询直接拒绝，不做候选后过滤。后过滤既不能给出「过滤子集的最近 K」，也会让诊断中的 `exact: false` 掩盖真实语义。
 - 后果：ANN 路径从「契约」变成「有实现」，`capabilities().vectorAnnSearch` 只有在注入该适配器时才为 `true`。持久化索引、按数据集召回评估、ANN+过滤组合语义仍未完成；内存索引的 10 秒构建成本是真实开销，不能被描述成「零成本加速」。
 
+## ADR-029：索引参数进 Manifest，加载失败优于猜参数
+
+- 状态：Accepted and implemented
+- 决策一：`vectorCollections[].index` 增加可选 `params`，为扁平数字表（标识符键、最多 32 项、值必须有限数字）。不拆成引擎专用字段：`engine` + `version` 已经确定解释方式，拆字段会让每个新引擎都改一次 Schema。
+- 决策二：这是 Schema 的**增量**变更（可选字段），但按项目规则仍必须原子更新：JSON Schema、TypeScript 类型、运行时校验器、格式文档、测试与 ADR 同步完成，否则拒绝合并。
+- 决策三：加载方在缺少必需参数时**拒绝加载**，不回退到默认值。用错误的 connectivity/expansion 打开索引不会报错，只会悄悄改变召回率——这比直接失败更危险。
+- 决策四：USearch 只能从路径加载，Adapter 因此把资源字节写到私有临时文件，`close()` 时连同临时目录一起删除。这是与 DuckDB Adapter 相同的取舍：引擎不支持内存文件系统时，落地文件是唯一可行路径。
+- 决策五：索引文件纳入 L3 校验（`declaredResources` 已包含 `index.file`），`weisql validate` 会对它做尺寸与 SHA-256 校验。索引损坏在发布前就会被发现，而不是等到检索时。
+- 后果：`tools/build-ann-index.mjs` 负责生成索引并回写 Manifest（写盘前重新 `validateManifest`）。`capabilities().persistedIndex` 对 USearch 适配器改为 `true`；未声明索引的包仍在首次检索时现场构建。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

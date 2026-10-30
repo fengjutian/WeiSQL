@@ -240,9 +240,9 @@ V1 不支持对公开数据包进行在线写事务。静态数据库更新采�
 
 ## 6. 优先完成的五份核心规范
 
-1. `MANIFEST_SPEC_V1.md`（设计基线已建立，Schema 与实现待迁移）
-2. `SQL_ADAPTER_CONTRACT.md`（设计基线已建立，Adapter 待实现）
-3. `VECTOR_ADAPTER_CONTRACT.md`（设计基线已建立，Adapter 待实现）
+1. `MANIFEST_SPEC_V1.md`（格式已冻结，L1/L2 校验已实现；L3 完整性与 Builder 待完成）
+2. `SQL_ADAPTER_CONTRACT.md`（契约与 Runtime 注入边界已实现；DuckDB 实现待完成）
+3. `VECTOR_ADAPTER_CONTRACT.md`（精确搜索已接入公开 `vector.search()`；USearch/ANN 与独立 Adapter 生命周期待完成）
 4. `WSQL_PACKAGE_FORMAT.md`
 5. `BENCHMARK_PROTOCOL_V1.md`
 
@@ -257,6 +257,8 @@ V1 不支持对公开数据包进行在线写事务。静态数据库更新采�
 | Manifest JSON Schema | 已有 V1 草案 |
 | TypeScript Manifest 运行时校验 | 已有首版，覆盖结构、路径和主要跨字段规则 |
 | TypeScript SDK | Manifest、Reader 与精确向量 Runtime 已接通；SQL Adapter 注入边界已实现 |
+| 资源读取实现 | `HttpResourceReader` 与 `NodeFileResourceReader` 首版已实现并有自动化测试 |
+| SQL Adapter | 仅有注入契约与生命周期测试，无 DuckDB/DuckDB-Wasm 实现 |
 | Rust 向量能力 | 已有精确余弦搜索正确性基线 |
 | DuckDB / DuckDB-Wasm / USearch | 尚未集成；不得把测试 Adapter 当作引擎实现 |
 | 浏览器 WASM / Netlify | 尚未验证 |

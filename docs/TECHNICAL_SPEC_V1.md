@@ -1,6 +1,6 @@
 # WeiSQL AI V1 技术规范（草案）
 
-- 文档状态：设计草案，尚未由可运行原型验证
+- 文档状态：设计草案；Manifest 校验、HTTP/Node 文件 Reader 与精确向量 Runtime 已有可运行原型，SQL 引擎、Builder、WASM 与 CDN 部署尚未验证
 - 版本：0.1.0-draft
 - 项目定位：面向静态网站和嵌入式场景、可随应用发布的只读 AI 数据库
 - 目标运行环境：浏览器（WASM）、Node.js；静态发布目标包含 Netlify/CDN

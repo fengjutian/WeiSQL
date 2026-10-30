@@ -13,7 +13,11 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - 路径穿越、绝对路径、URL scheme、百分号编码和重复资源防护
 - 向量及 UInt64 偏移文件字节数公式校验
 - 浏览器兼容的 `HttpResourceReader`
+- Node.js `NodeFileResourceReader`：包根 containment、符号链接逃逸防护和精确范围读取
 - 严格 HTTP Range、`Content-Range`、响应长度、取消和生命周期处理
+- `open()` 双 Manifest 来源、`capabilities()`、只读 `state` 和幂等 `close()`
+- 引擎无关的 `SqlAdapter` 注入边界（`open({ sqlAdapter })`）
+- 已接入公开 `vector.search()` 的端到端精确搜索
 - Float32 little-endian 向量分块读取
 - Cosine、L2、IP 统一距离语义
 - 固定容量最大堆 Top-K
@@ -23,11 +27,10 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 
 ## 尚未实现
 
-- DuckDB / DuckDB-Wasm SQL Adapter
+- DuckDB / DuckDB-Wasm SQL Adapter 实现（当前只有注入契约，没有引擎）
 - USearch 或其他 ANN Adapter
 - WeiSQL Builder 和真实 Parquet 数据包生成
-- 实际资源 SHA-256、完整文件长度和 Parquet 内容验证
-- `NodeFileResourceReader`
+- 实际资源 SHA-256、完整文件长度和 Parquet 内容验证（`verifyChecksums` 已声明但尚未生效）
 - WASM 构建与 TypeScript/Rust 自动黄金数据对照
 - Netlify/CDN 的真实 CORS、Range 和缓存验收
 - `.wsql` 单文件容器
@@ -140,6 +143,27 @@ ResourceReader
 搜索只保留一个解码块和 Top-K 候选，并在距离扫描结束后读取最终候选的业务 ID。分块能够降低峰值内存，但不会减少精确搜索的总网络读取量和计算量。
 
 详情见 [TypeScript 精确搜索基线](docs/EXACT_VECTOR_BASELINE.md)。
+
+## Runtime API
+
+```ts
+import { open, HttpResourceReader } from "@weisql/sdk";
+
+const db = await open({
+  manifestUrl: "https://example.test/datasets/demo/manifest.json",
+  resourceReader: new HttpResourceReader({
+    baseUrl: "https://example.test/datasets/demo/",
+  }),
+});
+
+const hits = await db.vector.search("document_embeddings", query, { topK: 10 });
+db.capabilities(); // { sql, vectorExactSearch, vectorAnnSearch, hybridSearch, resourceRange }
+await db.close();
+```
+
+`manifestUrl` 与已解析的 `manifest` 必须二选一，两条路径都经过同一套运行时校验。注入 `resourceReader` 后，`vector.search()` 执行完整闭环（Range 读取 → Float32 解码 → 距离扫描 → Top-K → Indexed ID Map → 业务 ID），并在 `diagnostics` 中标记 `exact: true`。
+
+未注入 Reader 时返回 `INDEX_NOT_FOUND`，未注入 `sqlAdapter` 时 `sql()` 返回 `SQL_UNSUPPORTED`，两者都不会返回模拟数据。
 
 ## 仓库结构
 

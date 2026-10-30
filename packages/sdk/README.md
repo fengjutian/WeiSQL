@@ -1,19 +1,25 @@
 # @weisql/sdk
 
-WeiSQL AI 的只读 TypeScript SDK 骨架。当前版本提供：
+WeiSQL AI 的只读 TypeScript SDK。当前版本提供：
 
-- `validateManifest()`：Manifest V1 结构、路径和跨字段校验。
-- `open()`：获取并校验远程 Manifest，返回生命周期受控的数据库对象。
+- `validateManifest()`：Manifest V1 结构、路径和跨字段校验（L1/L2）。
+- `open()`：接受 `manifestUrl` 或已解析的 `manifest`（二选一），返回生命周期受控的数据库对象。
+- Runtime API：`sql()`、`vector.search()`、`capabilities()`、只读 `state` 和幂等 `close()`。
+- 引擎无关的 `SqlAdapter` 注入契约（`open({ sqlAdapter })`）。
 - 稳定的 `WeiSQLError` 错误码。
-- SQL 与向量查询的公开类型和输入边界。
 - `HttpResourceReader`：浏览器兼容的完整读取、严格 HTTP Range、元数据和取消支持。
+- `NodeFileResourceReader`：Node.js 文件读取，`realpath` 包根 containment、符号链接逃逸防护和精确范围读取。
 - `VectorBlockReader` 与 `exactVectorSearch()`：分块 Float32 解码及 Cosine/L2/IP 正确性基线。
 - `IndexedIdMapReader` 与 `TopKMaxHeap`：JSONL/UInt64 偏移随机访问和 `O(N log K)` 候选维护。
 
-SQL、Parquet 和向量索引适配器尚未接入。调用查询接口会返回明确的
-`SQL_UNSUPPORTED` 或 `INDEX_NOT_FOUND`，不会模拟查询结果。
+注入 `resourceReader` 后，`vector.search()` 执行完整闭环（Range 读取 → Float32 解码
+→ 距离扫描 → Top-K → Indexed ID Map → 业务 ID），诊断中标记 `exact: true`。
+未注入 Reader 时返回 `INDEX_NOT_FOUND`，未注入 SQL Adapter 时 `sql()` 返回
+`SQL_UNSUPPORTED`，不会返回模拟结果。仓库内没有 DuckDB 或任何真实 SQL 引擎实现。
 
-HTTP Reader 已通过注入 Fetch 的自动化测试，但尚未完成真实 Netlify/CDN 的 CORS、Range 和缓存验收，也尚未实现流式 SHA-256 校验。
+HTTP Reader 与 Node 文件 Reader 已通过自动化测试，但尚未完成真实 Netlify/CDN 的
+CORS、Range 和缓存验收，也尚未实现流式 SHA-256 校验；`verifyChecksums` 选项已在
+类型中声明，L3（真实文件长度与 SHA-256）校验尚未接入 `open()`。
 
 精确向量基线只用于语义验证和后续 Adapter 对照；Builder 端 ID 索引生成、ANN 索引和大规模性能验证尚未完成。
 
@@ -45,3 +51,19 @@ const manifest = validateManifest(JSON.parse(source));
 - 向量集合的 `tableName`、`idColumn` 和主键引用；
 - 数值是否为 JavaScript 安全整数；
 - Manifest 主版本是否受支持。
+
+## Runtime
+
+```ts
+import { open, NodeFileResourceReader } from "@weisql/sdk";
+
+const db = await open({
+  manifestUrl: "./demo/manifest.json",
+  resourceReader: new NodeFileResourceReader({ rootDirectory: "./demo" }),
+});
+
+await db.vector.search("document_embeddings", new Float32Array([1, 0]), { topK: 10 });
+await db.close();
+```
+
+`sql()` 需要注入实现了 `SqlAdapter` 的引擎适配器；本包只定义契约，不包含 DuckDB 或 DuckDB-Wasm 实现。

@@ -92,7 +92,7 @@
 
 ## ADR-009：向量源表与业务 ID 映射
 
-- 状态：Accepted for V1，待实现迁移
+- 状态：Accepted for V1；`IndexedIdMapReader` 已实现，Builder 生成器待完成
 - 决策：向量声明增加 `tableName`；独立 `idMap` 文件按行映射业务 ID，编码为每行一个 `{row,id}` 对象的 JSONL。
 - 原因：纯 Float32 文件不包含业务 ID，仅靠隐含行号无法可靠映射 SQL 记录；`tableName` 消除多表数据包中的 `idColumn` 歧义。
 - 约束：行号连续且与向量顺序一致，计数相等，业务 ID 默认唯一；Builder 验证 ID 在目标表中存在。百万级替代编码需由实测驱动。
@@ -100,12 +100,12 @@
 
 ## ADR-010：统一资源读取抽象
 
-- 状态：Accepted for V1，具体 Reader 待实现
+- 状态：Accepted for V1，HTTP 与 Node 文件实现已完成首版
 - 决策：Runtime 和 Adapter 通过 `ResourceReader` 访问资源，范围读取使用左闭右开 `[start,end)`；浏览器 HTTP、Node 文件和未来 `.wsql` 容器分别实现该接口。
 - 原因：避免 Adapter 直接依赖 URL 或文件系统，集中处理路径、Range、取消、资源限制和流式完整性校验。
 - 规范：`RESOURCE_READER_CONTRACT.md`。
 - 实现门槛：至少完成 Node 文件与 HTTP 两个实现的契约测试；HTTP 必须严格验证 `206`、`Content-Range` 和实际长度。
-- 当前进度：`HttpResourceReader` 首版及注入 Fetch 的契约测试已完成；Node 文件实现与真实 CDN 验收待完成。
+- 当前进度：`HttpResourceReader` 与 `NodeFileResourceReader` 首版及自动化测试已完成；流式 SHA-256 完整性层、LRU 缓存和真实 CDN 验收待完成。
 
 ## ADR-015：评估带哨兵的 ID Map 边界偏移
 

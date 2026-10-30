@@ -118,11 +118,12 @@ npx weisql validate /path/to/a/real/package
 
 ## 7. 当前阻塞项
 
+CI 已配置（`.github/workflows/ci.yml`）：`npm ci` → build → typecheck → test → release:check → 示例包校验，Ubuntu 与 Windows 双平台；另有独立作业校验 fixture 可复现性并构建文本/ANN 派生索引。`probe:*` 与 `bench` **不在闸门内**（需要 Chromium / Python / 稳定机器），因此浏览器与性能结论仍须本地验证并在文档中注明环境。
+
 | 项 | 状态 |
 | --- | --- |
 | LICENSE | **未确定**。这是法律决策，不是默认值；`release:check` 会持续警告 |
 | npm 组织与访问令牌 | 未配置 |
-| CI | 未配置。当前所有检查靠本地执行，且 `probe:*` 与 `bench` 需要 Chromium / Python |
 | 多机基准复现 | 未做，`BENCHMARK_HARNESS.md` 的数字仅代表一台机器 |
 
-在 LICENSE 与 CI 落地之前，不应对外宣称「已发布」。
+在 LICENSE 与 npm 组织落地之前，不应对外宣称「已发布」。

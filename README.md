@@ -1,5 +1,7 @@
 # WeiSQL AI
 
+[![CI](https://github.com/fengjutian/WeiSQL/actions/workflows/ci.yml/badge.svg)](https://github.com/fengjutian/WeiSQL/actions/workflows/ci.yml)
+
 WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行时实验项目。数据集可以随应用发布到静态托管或 CDN，由浏览器或 Node.js 按需读取，无需单独部署数据库服务。
 
 项目采用 TypeScript + Rust：TypeScript 提供公开 SDK、Manifest 校验、资源读取、Runtime 编排、精确向量检索与 Adapter 注入；Rust 提供用于对照的精确 Cosine 基线。DuckDB（Node.js）与 USearch 已作为 Adapter 实现并接入，DuckDB-Wasm 尚未验证。

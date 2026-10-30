@@ -335,6 +335,15 @@
 - 决策五：`hybridSearch` 能力仍要求 `exactSearch`，后过滤不会让过滤语义变成精确；`vector-first` 对 ANN 仍然拒绝。
 - 后果：ANN + 过滤从「明确不支持」变为「显式可选、可观测、不保证完整」。`capabilities.postFiltering` 进入公开契约；`metadataFiltering` 仍为 `false`，因为后过滤不满足 V1 过滤语义。
 
+## ADR-038：CI 只做行为闸门，派生索引与 fixture 可复现性单独校验
+
+- 状态：Accepted and implemented（`.github/workflows/ci.yml`）
+- 决策一：CI 覆盖「构建 → 类型 → 测试 → 发布元数据 → 示例包校验」，在 Ubuntu 与 Windows 上各跑一遍。Windows 不是可选项：项目主开发环境是 Windows，大小写敏感性、路径分隔符与换行差异只有在两个平台都跑才会暴露。
+- 决策二：`probe:*` 与 `bench` **不进 CI**。它们需要 Chromium 下载、Python 与相对稳定的机器，放进去只会制造随机失败；代价是浏览器与性能结论必须在文档里注明「本地、指定环境」，不能借 CI 绿灯暗示已验证。
+- 决策三：fixture 可复现性作为独立作业：重新生成后要求 `git status --porcelain` 为空。否则 Manifest 里的 SHA-256 只能证明「文件没被改」，不能证明「生成器可复现」。
+- 决策四：派生索引（文本索引、ANN 索引）在 CI 中构建到临时目录并跑 `weisql validate`，不提交产物。它们依赖可选特性，提交后会让每次格式变更都产生大块二进制 diff。
+- 后果：CI 用 Node 24（USearch 要求 ≥22，本地为 v24），`npm ci` 依赖 lockfile 严格一致。LICENSE 与 npm 组织仍不在 CI 能力范围内，`release:check` 只警告不阻塞。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

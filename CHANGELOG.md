@@ -50,6 +50,9 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 
 ### Tooling (not published)
 
+- GitHub Actions CI: build, typecheck, tests and release checks on Ubuntu and
+  Windows, plus fixture reproducibility and derived-index validation.
+
 - Browser probe, playground example, cross-environment parity check.
 - Benchmark harness with exact and ANN (`--ann`) modes.
 - ANN index builder and release checks.

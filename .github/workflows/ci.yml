@@ -1,0 +1,74 @@
+name: CI
+
+# Behaviour gates only. Browser probes and the benchmark harness need Chromium,
+# a cached browser download and (for the fixture) Python, so they stay out of CI;
+# run them locally before claiming a browser or performance result.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: verify (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run release:check
+      - name: Validate the example package
+        run: node packages/cli/dist/bin.js validate examples/fixture
+
+  derived:
+    name: derived indexes and fixture determinism
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+      # The committed fixture must be reproducible byte-for-byte; otherwise the
+      # digests in the Manifest prove nothing about the generator.
+      - name: Rebuild the fixture
+        run: npm run fixture
+      - name: Fixture must not change
+        shell: bash
+        run: |
+          set -euo pipefail
+          git status --porcelain -- examples/fixture
+          test -z "$(git status --porcelain -- examples/fixture)"
+
+      - name: Build derived indexes and validate the result
+        shell: bash
+        run: |
+          set -euo pipefail
+          package="$RUNNER_TEMP/pkg"
+          rm -rf "$package"
+          cp -R examples/fixture "$package"
+          node tools/build-text-index.mjs "$package" --table documents --column title
+          node tools/build-ann-index.mjs "$package"
+          node packages/cli/dist/bin.js validate "$package"

@@ -17,7 +17,7 @@ export interface ExactVectorSearchInput {
 export async function exactVectorSearch(input: ExactVectorSearchInput): Promise<readonly ExactVectorHit[]> {
   const { reader, idMap, query, collectionCount, dimension, search } = input;
   const blockSize = search.blockSize ?? 1024;
-  if (!Number.isSafeInteger(search.topK) || search.topK <= 0 || search.topK > 100_000 || !Number.isSafeInteger(blockSize) || blockSize <= 0 || !Number.isSafeInteger(collectionCount) || collectionCount <= 0 || !Number.isSafeInteger(dimension) || dimension <= 0) {
+  if (!Number.isSafeInteger(search.topK) || search.topK <= 0 || search.topK > 100_000 || !Number.isSafeInteger(blockSize) || blockSize <= 0 || !Number.isSafeInteger(collectionCount) || collectionCount < 0 || !Number.isSafeInteger(dimension) || dimension <= 0) {
     throw new WeiSQLError("INVALID_ARGUMENT", "Invalid exact vector search options");
   }
   if (reader.descriptor.count !== collectionCount || reader.descriptor.dimension !== dimension) {
@@ -30,6 +30,7 @@ export async function exactVectorSearch(input: ExactVectorSearchInput): Promise<
     throw new WeiSQLError("VECTOR_INVALID_VALUE", "Query vector contains a non-finite value", { dimension: i });
   }
   checkCancelled(search.signal);
+  if (collectionCount === 0) return [];
   const best = new TopKMaxHeap<ExactVectorHit>(Math.min(search.topK, collectionCount));
   let expectedStartRow = 0;
   while (expectedStartRow < collectionCount) {

@@ -4,6 +4,7 @@ import { expectedVectorBytes, validateByteRange, validateResourcePath, validateV
 
 test("calculates uncompressed Float32 vector bytes without numeric overflow", () => {
   assert.equal(expectedVectorBytes(100_000, 768), 307_200_000);
+  assert.equal(expectedVectorBytes(0, 768), 0);
   assert.throws(() => expectedVectorBytes(100, 0), { code: "MANIFEST_INVALID" });
   assert.throws(() => expectedVectorBytes(Number.MAX_SAFE_INTEGER, 768), { code: "MANIFEST_INVALID" });
   assert.throws(() => validateVectorBytes({ count: 100, dimension: 768, bytes: 100 }), error => {

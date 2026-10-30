@@ -98,3 +98,11 @@ test("exact search rejects out-of-order or malformed vector block coverage", asy
   reader.readBlock = async () => ({ startRow: 1, count: 1, values: new Float32Array([1, 0]) });
   await assert.rejects(exactVectorSearch({ reader, idMap: new MemoryIdMap(["a", "b"]), query: new Float32Array([1, 0]), collectionCount: 2, dimension: 2, search: { topK: 1, metric: "cosine" } }), { code: "RESOURCE_INTEGRITY_FAILED" });
 });
+
+test("exact search returns no hits for an empty collection without reading", async () => {
+  const resource = new MemoryResourceReader(new Uint8Array());
+  const reader = new VectorBlockReader(resource, { path: "v", count: 0, dimension: 2, bytes: 0 });
+  const hits = await exactVectorSearch({ reader, idMap: new MemoryIdMap([]), query: new Float32Array([1, 0]), collectionCount: 0, dimension: 2, search: { topK: 10, metric: "cosine" } });
+  assert.deepEqual(hits, []);
+  assert.equal(resource.calls.length, 0);
+});

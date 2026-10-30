@@ -53,7 +53,7 @@
 ## ADR-008：Manifest V1 候选字段形状评审
 
 - 状态：Superseded by ADR-011
-- 候选：`MANIFEST_SCHEMA_V1_CANDIDATE.json` 提出 `format = weisql`、单文件表、`f32-le-row-major` 向量数据和显式 `index: null`。
+- 历史候选：曾提出 `format = weisql`、单文件表、`f32-le-row-major` 向量数据和显式 `index: null`；候选文件已在 ADR-011 冻结正式格式后移除。
 - 与当前基线的冲突：当前实现使用 `format = weisql-ai`、表 `schema + files[]`、向量 `sourceTable + files[]`。
 - 冻结前必须决定：稳定格式标识、表分片能力、引擎无关列类型、向量源表引用、空索引表示方式和空数据集语义。
 - 约束：候选 Schema 不用于当前 Runtime，也不表示迁移已经完成；决定后必须原子更新 Schema、类型、校验器、样例和兼容性测试。

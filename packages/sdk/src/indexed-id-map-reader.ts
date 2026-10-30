@@ -29,7 +29,7 @@ export class IndexedIdMapReader implements IdMapReader {
   readonly descriptor: Readonly<IndexedIdMapDescriptor>;
   private readonly maxBatchRows: number;
   constructor(private readonly reader: ResourceReader, descriptor: Readonly<IndexedIdMapDescriptor>, options: IndexedIdMapReaderOptions = {}) {
-    if (!Number.isSafeInteger(descriptor.count) || descriptor.count <= 0 || !Number.isSafeInteger(descriptor.dataBytes) || descriptor.dataBytes <= 0 || BigInt(descriptor.count) * 8n > MAX_SAFE_BIGINT || descriptor.offsetsBytes !== descriptor.count * 8) throw new WeiSQLError("INVALID_ARGUMENT", "Invalid indexed ID map descriptor", { descriptor });
+    if (!Number.isSafeInteger(descriptor.count) || descriptor.count < 0 || !Number.isSafeInteger(descriptor.dataBytes) || descriptor.dataBytes < 0 || BigInt(descriptor.count) * 8n > MAX_SAFE_BIGINT || descriptor.offsetsBytes !== descriptor.count * 8 || (descriptor.count > 0 && descriptor.dataBytes === 0)) throw new WeiSQLError("INVALID_ARGUMENT", "Invalid indexed ID map descriptor", { descriptor });
     this.maxBatchRows = options.maxBatchRows ?? 256;
     if (!Number.isSafeInteger(this.maxBatchRows) || this.maxBatchRows <= 0) throw new WeiSQLError("INVALID_ARGUMENT", "maxBatchRows must be a positive safe integer", { maxBatchRows: this.maxBatchRows });
     this.descriptor = { ...descriptor };

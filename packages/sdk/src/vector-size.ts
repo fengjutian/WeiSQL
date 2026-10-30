@@ -4,8 +4,8 @@ const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
 
 /** Calculate the byte length of uncompressed little-endian row-major Float32 vectors. */
 export function expectedVectorBytes(count: number, dimension: number): number {
-  if (!Number.isSafeInteger(count) || !Number.isSafeInteger(dimension) || count <= 0 || dimension <= 0) {
-    invalid("Vector count and dimension must be positive safe integers", { count, dimension });
+  if (!Number.isSafeInteger(count) || !Number.isSafeInteger(dimension) || count < 0 || dimension <= 0) {
+    invalid("Vector count must be non-negative and dimension must be a positive safe integer", { count, dimension });
   }
   const bytes = BigInt(count) * BigInt(dimension) * 4n;
   if (bytes > MAX_SAFE) {

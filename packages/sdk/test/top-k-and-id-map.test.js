@@ -106,6 +106,9 @@ test("IndexedIdMapReader enforces descriptor size and batch limits", async () =>
   const reader = new IndexedIdMapReader(resource, { dataPath: "data", offsetsPath: "offsets", count: 3, dataBytes: fixture.data.byteLength, offsetsBytes: fixture.offsets.byteLength }, { maxBatchRows: 2 });
   await assert.rejects(reader.getIds(0, 3), { code: "INVALID_ARGUMENT" });
   assert.deepEqual(await reader.getIds(3, 0), []);
+  const empty = new IndexedIdMapReader(resource, { dataPath: "data", offsetsPath: "offsets", count: 0, dataBytes: 0, offsetsBytes: 0 });
+  assert.deepEqual(await empty.getIds(0, 0), []);
+  assert.deepEqual(await empty.getIdsByRows([]), []);
 });
 
 test("exact search integrates vector ranges, indexed IDs and heap Top-K", async () => {

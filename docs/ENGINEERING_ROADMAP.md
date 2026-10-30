@@ -240,29 +240,39 @@ V1 不支持对公开数据包进行在线写事务。静态数据库更新采�
 
 ## 6. 优先完成的五份核心规范
 
-1. `MANIFEST_SPEC_V1.md`（格式已冻结，L1/L2 校验已实现；L3 完整性与 Builder 待完成）
-2. `SQL_ADAPTER_CONTRACT.md`（契约与 Runtime 注入边界已实现；DuckDB 实现待完成）
-3. `VECTOR_ADAPTER_CONTRACT.md`（精确搜索已接入公开 `vector.search()`；USearch/ANN 与独立 Adapter 生命周期待完成）
-4. `WSQL_PACKAGE_FORMAT.md`
-5. `BENCHMARK_PROTOCOL_V1.md`
+| 规范 | 状态 |
+| --- | --- |
+| `MANIFEST_SPEC_V1.md` | 已冻结；L1/L2 校验、L3 完整性与 Builder 均已实现 |
+| `SQL_ADAPTER_CONTRACT.md` | 已实现；Node.js DuckDB 真实实现已通过契约测试 |
+| `VECTOR_ADAPTER_CONTRACT.md` | 已实现；精确搜索与 USearch ANN 两个 Adapter 均已接入 |
+| `WSQL_PACKAGE_FORMAT.md` | 未编写；单文件容器布局尚未冻结 |
+| `BENCHMARK_PROTOCOL_V1.md` | 已实现；测量装置可复现运行 |
 
 这些规范共同定义 TypeScript、Rust、DuckDB、USearch 与静态发布之间的协作边界，也决定未来替换底层引擎时能否保持兼容。
 
-下一步应先完善 Manifest 规范与 SQL/Vector Adapter 契约，再继续扩大校验器和一致性测试覆盖，避免在格式与 API 未稳定前过早堆积具体引擎实现。
+其中前三份的契约已由真实实现验证过，因此下一阶段的重点不再是扩写契约，而是补上契约尚未覆盖的运行环境：浏览器侧引擎路径与真实 CDN 部署。
 
 ## 7. 当前仓库状态（2026-10-30）
 
+本节由实跑验证得出，而非照抄文档自述状态。核对方式：`npm run typecheck`、`npm test`、`cargo test`、`npm run probe:browser`、`npm run probe:parity`、`npm run bench` 全部退出码为 0。
+
 | 项目 | 当前状态 |
 | --- | --- |
-| Manifest JSON Schema | 已有 V1 草案 |
-| TypeScript Manifest 运行时校验 | 已有首版，覆盖结构、路径和主要跨字段规则 |
-| TypeScript SDK | Manifest、Reader 与精确向量 Runtime 已接通；SQL Adapter 注入边界已实现 |
-| 资源读取实现 | `HttpResourceReader` 与 `NodeFileResourceReader` 首版已实现并有自动化测试 |
-| SQL Adapter | 仅有注入契约与生命周期测试，无 DuckDB/DuckDB-Wasm 实现 |
-| Rust 向量能力 | 已有精确余弦搜索正确性基线 |
-| DuckDB / DuckDB-Wasm / USearch | 尚未集成；不得把测试 Adapter 当作引擎实现 |
-| 浏览器 WASM / Netlify | SDK 浏览器路径已在真实 Chrome 中验证（Range、L3、精确搜索、缓存）；DuckDB-Wasm 因扩展无法下载未验证；Netlify 未部署 |
+| Manifest JSON Schema | V1 已冻结，`MANIFEST_SCHEMA_V1.json` 与运行时校验同源 |
+| TypeScript Manifest 运行时校验 | 已实现；覆盖结构、路径、跨字段引用与字节数公式，含 `textIndexes` |
+| TypeScript SDK | 已实现；Manifest、Reader、精确向量 Runtime、Builder、混合检索与全文检索 Runtime 均已接通 |
+| 资源读取实现 | `HttpResourceReader`、`NodeFileResourceReader`、有界 LRU 缓存与并发合并均已实现并有自动化测试 |
+| L3 资源内容完整性校验 | 已实现；`manifest`（尺寸）与 `all`（增量 SHA-256 + ID Map 内容）两种模式 |
+| SQL Adapter | Node.js DuckDB 只读实现已完成：真实 SQL、参数绑定、语句级只读、L4 模式校验、原生取消 |
+| DuckDB-Wasm | 尚未验证；`read_parquet` 扩展下载在本环境不可达，不得宣称浏览器端 SQL 可用 |
+| USearch ANN Adapter | 已实现；HNSW 内存索引、三种度量映射、`exact: false` 如实标注；召回与延迟对照见 `BENCHMARK_HARNESS.md` |
+| ANN 真实数据集召回 | 未评估；现有 Recall@K 均来自合成数据，不能外推 |
+| 全文检索 | 已实现；Manifest `textIndexes`、倒排索引读取器、BM25 排序与 Unicode 分词，`text.search()` 已接入 Runtime |
+| Rust 向量能力 | 精确 Cosine 搜索正确性基线已实现，7 个测试通过 |
+| 浏览器路径 | SDK 浏览器路径已在真实 Chrome 中验证（Range、L3、精确搜索、缓存、无 Node 全局泄漏）；Netlify/CDN 未部署 |
+| 跨环境对照 | Node 与 Chromium 逐字段对照已通过（8 条查询 + 6 个 Manifest 错误用例） |
+| CI | 尚未建立；`.github/` 不存在，门禁脚本已具备但未接入自动化 |
 | `.wsql` 容器 | 尚未实现，布局未冻结 |
-| 资源内容完整性校验 | 尚未实现真实文件大小与 SHA-256 验证 |
-| 性能结论 | 尚无可发布结论 |
+| 性能结论 | 有可复现的装置与合成数据测量，尚无产品级性能承诺 |
+| npm 发布 | 未发布；版本形状与产物检查由 `npm run release:check` 把关 |
 

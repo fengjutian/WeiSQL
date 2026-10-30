@@ -397,6 +397,8 @@ tools/                     源 Parquet、ANN/全文索引生成、基准与浏�
 
 ## 主要文档
 
+### 现状与契约
+
 - [总体技术规范](docs/TECHNICAL_SPEC_V1.md)
 - [工程路线图](docs/ENGINEERING_ROADMAP.md)
 - [Manifest V1](docs/MANIFEST_SPEC_V1.md)
@@ -410,20 +412,44 @@ tools/                     源 Parquet、ANN/全文索引生成、基准与浏�
 - [Vector Adapter 契约](docs/VECTOR_ADAPTER_CONTRACT.md)
 - [ResourceReader 契约](docs/RESOURCE_READER_CONTRACT.md)
 - [资源完整性校验规范](docs/RESOURCE_INTEGRITY_SPEC.md)
+- [端到端验收计划](docs/E2E_ACCEPTANCE_PLAN.md)
+- [V0.5 验收清单](docs/V0_5_ACCEPTANCE.md)
 - [V0.6 Runtime 基础设计](docs/V0_6_RUNTIME_FOUNDATION.md)
 - [V0.7 Runtime API 与混合查询设计](docs/V0_7_RUNTIME_AND_HYBRID.md)
 - [V0.8 工程分层与 V1 交付范围](docs/V0_8_ENGINEERING_AND_DELIVERY.md)
 - [浏览器与 Node.js Runtime 兼容性](docs/RUNTIME_COMPATIBILITY.md)
-- [端到端验收计划](docs/E2E_ACCEPTANCE_PLAN.md)
-- [V0.5 验收清单](docs/V0_5_ACCEPTANCE.md)
+
+### 测量与实验
+
 - [基准测试协议](docs/BENCHMARK_PROTOCOL_V1.md)
 - [基准测量装置](docs/BENCHMARK_HARNESS.md)
 - [ANN 可行性探测](docs/ANN_FEASIBILITY.md)
 - [USearch Adapter](docs/USEARCH_ADAPTER.md)
-- [发布流程](docs/RELEASE_PROCESS.md)
+- [TypeScript 精确搜索基线](docs/EXACT_VECTOR_BASELINE.md)
 - [全文检索设计](docs/FULL_TEXT_SEARCH.md)
+
+### 工程与发布
+
+- [发布流程](docs/RELEASE_PROCESS.md)
 - [变更日志](CHANGELOG.md)
 - [技术决策记录](docs/DECISION_LOG.md)
+
+### 目标态设计规范（尚未全部落地）
+
+以下文档描述 V1 的**目标设计**，与当前仓库实现存在已知差异。每份文档开头都附有「与当前仓库的差异」说明，差异以实现为准。
+
+- [需求规格说明书 V0.9](docs/V0_9_REQUIREMENTS_SPEC.md)
+- [公共 API 契约类型 V1.0](docs/PUBLIC_API_CONTRACT_TYPES_V1_0.md)
+- [Runtime 执行语义与一致性 V1.1](docs/RUNTIME_EXECUTION_SEMANTICS_CONSISTENCY_V1_1.md)
+- [工程实施规范 V1.2](docs/ENGINEERING_IMPLEMENTATION_SPEC_V1_2.md)
+- [资源读取层设计规范 V1.3](docs/RESOURCE_READER_DESIGN_SPEC_V1_3.md)
+- [向量搜索核心算法与一致性 V1.4](docs/VECTOR_SEARCH_CORE_CONSISTENCY_SPEC_V1_4.md)
+- [Builder 数据构建与发布一致性 V1.5](docs/BUILDER_DATA_BUILD_RELEASE_CONSISTENCY_SPEC_V1_5.md)
+- [Builder 实施任务与验收计划 V1.6](docs/BUILDER_IMPLEMENTATION_TASKS_ACCEPTANCE_PLAN_V1_6.md)
+- [测试策略与质量保障 V1.7](docs/TEST_STRATEGY_QUALITY_ASSURANCE_SPEC_V1_7.md)
+- [数据包格式与 Manifest 正式规范 V1.8](docs/DATA_PACKAGE_MANIFEST_SPEC_V1_8.md)
+- [公共 SDK API 与错误码冻结规范 V1.9](docs/PUBLIC_SDK_API_ERROR_CODES_FREEZE_SPEC_V1_9.md)
+- [API 契约测试与兼容性自动化 V2.0](docs/API_CONTRACT_COMPATIBILITY_AUTOMATION_SPEC_V2_0.md)
 
 ## 安全边界
 

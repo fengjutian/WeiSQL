@@ -261,7 +261,7 @@ V1 不支持对公开数据包进行在线写事务。静态数据库更新采�
 | SQL Adapter | 仅有注入契约与生命周期测试，无 DuckDB/DuckDB-Wasm 实现 |
 | Rust 向量能力 | 已有精确余弦搜索正确性基线 |
 | DuckDB / DuckDB-Wasm / USearch | 尚未集成；不得把测试 Adapter 当作引擎实现 |
-| 浏览器 WASM / Netlify | 尚未验证 |
+| 浏览器 WASM / Netlify | SDK 浏览器路径已在真实 Chrome 中验证（Range、L3、精确搜索、缓存）；DuckDB-Wasm 因扩展无法下载未验证；Netlify 未部署 |
 | `.wsql` 容器 | 尚未实现，布局未冻结 |
 | 资源内容完整性校验 | 尚未实现真实文件大小与 SHA-256 验证 |
 | 性能结论 | 尚无可发布结论 |

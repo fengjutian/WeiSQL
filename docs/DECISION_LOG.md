@@ -159,6 +159,16 @@
 - 决策六：`maxConcurrentReads` 在装饰器层用信号量限制底层并发，避免多个逻辑查询同时打满连接池。
 - 后果：`open({ cache })` 默认 32 MiB、单条 1 MiB、并发 8。缓存与 L3 全量校验会互相占用（校验逐块读取并写入缓存），当前未做「校验专用直通」优化；真实 CDN 下的命中率与内存仍需实测，不得据此宣称性能。
 
+## ADR-020：浏览器验收用真实 Chromium 探针，DuckDB-Wasm 受扩展下载阻塞
+
+- 状态：Accepted and implemented（SDK 浏览器路径）；DuckDB-Wasm 验证阻塞
+- 决策一：不引入浏览器测试框架堆栈，而是写一个最小探针（`tools/browser-probe`）：Node 静态服务器提供 CORS + Range，Playwright 驱动本机 Chromium 打开页面，页面加载**构建产物** `packages/sdk/dist`（不经过 bundler）并执行真实查询。`npm run probe:browser` 可在失败时返回非零，可接入 CI。
+- 决策二：探针必须能证明「按 Range 读」，而不只是「跑通」。服务器记录每个 `Range` 请求并在结束时打印，避免把整文件下载误判为按需加载。
+- 决策三：`playwright-core` 只作为 devDependency，浏览器二进制复用本机 Playwright 缓存或系统 Chrome/Edge（`CHROME_PATH` 可覆盖），不下载新的浏览器。
+- 决策四：DuckDB-Wasm 的结论只按实测写。实测结果：WASM 在 Chrome 中 577 ms 完成实例化、可注册 HTTP URL，但 `read_parquet` 会从 `extensions.duckdb.org` 下载 parquet 扩展，该主机在本环境不可达，因此浏览器 SQL 路径**未验证**，不得宣称支持。
+- 后果（真实 bug）：探针首次运行即暴露 `TypeError: Failed to execute 'fetch' on 'Window': Illegal invocation` —— `globalThis.fetch` 被当作分离函数调用，浏览器拒绝、Node 的 undici 容忍。`HttpResourceReader` 与 `open()` 均已改为绑定全局接收者，`test/fetch-binding.test.js` 用会检查 `this` 的 stub 锁定该行为。
+- 后果（真实结论）：浏览器路径（Range、L3 校验、精确搜索、缓存、无 Node 全局泄漏）已在 Chrome 中通过；Netlify 部署、WASM 向量搜索与 DuckDB-Wasm 仍未验证。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

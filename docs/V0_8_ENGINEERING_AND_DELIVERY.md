@@ -114,7 +114,7 @@ Adaptive 策略、BM25 与 RRF 不属于 V1 基础闭环。
 | 基础 Hybrid 两策略 | 必须 | 两策略均已实现；`vector-first` 仅在窗口覆盖全集时声明 `exact` |
 | Range/LRU 缓存 | 基础实现 | Range 与有界 LRU、请求合并、命中统计均已实现 |
 | Builder 与真实 fixture | 必须 | 首版已完成：`buildPackage()` + `examples/fixture`；CSV/JSON 推断未实现 |
-| Playground/静态部署 | 必须 | 待完成 |
+| Playground/静态部署 | 必须 | SDK 浏览器路径已用 Chrome 验证（`npm run probe:browser`）；DuckDB-Wasm 受阻于扩展下载；Netlify 未部署 |
 | USearch ANN | 实验或后置 | 未实现 |
 | Rust/WASM 全面迁移 | 后置 | 不计划全面迁移 |
 | 写入、事务、多用户同步 | 不纳入 | 明确排除 |

@@ -10,11 +10,13 @@
     "test:watch": "npm run build && npm run test:watch --workspace @weisql/sdk",
     "typecheck": "npm run typecheck --workspace @weisql/sdk && npm run typecheck --workspace @weisql/duckdb-adapter",
     "fixture": "npm run build --workspace @weisql/sdk && node examples/build-fixture.mjs",
-    "source:parquet": "python tools/make-source-parquet.py"
+    "source:parquet": "python tools/make-source-parquet.py",
+    "probe:browser": "node tools/browser-probe/run.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
     "hyparquet": "^1.32.0",
+    "playwright-core": "^1.64.1",
     "typescript": "^5.9.3"
   }
 }

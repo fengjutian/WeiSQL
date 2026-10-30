@@ -15,6 +15,7 @@
 - `docs/VECTOR_ADAPTER_CONTRACT.md`：向量引擎适配器距离、过滤、ID 与排序契约。
 - `docs/RESOURCE_READER_CONTRACT.md`：浏览器与 Node.js 的统一资源读取、安全和 Range 契约。
 - `docs/E2E_ACCEPTANCE_PLAN.md`：从数据包、SQL、向量 ID 映射到静态部署的端到端验收计划。
+- `docs/EXACT_VECTOR_BASELINE.md`：TypeScript 分块解码与精确向量搜索基线的语义和限制。
 - `docs/BENCHMARK_PROTOCOL_V1.md`：性能测试协议。
 - `docs/SDK_API_CONTRACT_V1.md`：TypeScript SDK 语义、错误码和安全边界。
 - `docs/DECISION_LOG.md`：架构决策及冻结条件。

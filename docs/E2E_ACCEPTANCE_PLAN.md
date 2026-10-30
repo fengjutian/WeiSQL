@@ -87,7 +87,7 @@ Builder 必须写入实际字节数与 SHA-256，不得保留占位值，并验�
 3. 实现 `NodeFileResourceReader`；
 4. 实现 `HttpResourceReader` 与 Range 契约测试；
 5. 生成三条记录的真实 Parquet fixture；
-6. 接入 DuckDB 与现有 Rust 精确搜索基线；
+6. 将已完成的 TypeScript 分块精确搜索基线接入真实 ID Map fixture，并与 Rust 精确搜索对照；
 7. 完成 Node.js 端到端测试；
 8. 接入 DuckDB-Wasm 并执行 Netlify/CDN 验收；
 9. 从 100k 开始性能测试，再逐步扩大规模。

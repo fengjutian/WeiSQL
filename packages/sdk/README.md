@@ -7,11 +7,14 @@ WeiSQL AI 的只读 TypeScript SDK 骨架。当前版本提供：
 - 稳定的 `WeiSQLError` 错误码。
 - SQL 与向量查询的公开类型和输入边界。
 - `HttpResourceReader`：浏览器兼容的完整读取、严格 HTTP Range、元数据和取消支持。
+- `VectorBlockReader` 与 `exactVectorSearch()`：分块 Float32 解码及 Cosine/L2/IP 正确性基线。
 
 SQL、Parquet 和向量索引适配器尚未接入。调用查询接口会返回明确的
 `SQL_UNSUPPORTED` 或 `INDEX_NOT_FOUND`，不会模拟查询结果。
 
 HTTP Reader 已通过注入 Fetch 的自动化测试，但尚未完成真实 Netlify/CDN 的 CORS、Range 和缓存验收，也尚未实现流式 SHA-256 校验。
+
+精确向量基线只用于语义验证和后续 Adapter 对照；生产 JSONL ID Map Reader、ANN 索引和大规模性能验证尚未完成。
 
 ## 开发
 

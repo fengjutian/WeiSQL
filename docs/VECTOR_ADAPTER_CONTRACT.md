@@ -142,5 +142,5 @@ TypeScript SDK 和 Rust Core 共用错误语义、距离公式、维度规则、
 7. `close()` 幂等，关闭后返回 `DATABASE_CLOSED`；
 8. 精确实现结果一致；ANN 实现额外报告 Recall@K，不要求逐项完全相同。
 
-当前 Rust crate 仅实现精确 Cosine 数值 ID 基线；尚未实现本契约中的 Adapter 生命周期、业务 ID、L2/IP、过滤和持久化索引。
+当前 Rust crate 已实现精确 Cosine 数值 ID 基线；TypeScript SDK 已实现分块 Float32 解码、Cosine/L2/IP 距离与带业务 ID 接口的精确 Top-K 基线。尚未实现生产 ID Map Reader、Adapter 生命周期接线、过滤和持久化索引。
 

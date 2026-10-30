@@ -100,7 +100,7 @@ function vector(value: unknown, path: string, issues: Issue[]): VectorCollection
   const idMap = idMapValue(value.idMap, `${path}.idMap`, issues);
   let index: VectorCollectionDescriptor["index"];
   if (value.index !== undefined) index = indexValue(value.index, `${path}.index`, issues);
-  if (typeof value.name !== "string" || typeof value.tableName !== "string" || typeof value.idColumn !== "string" || typeof value.count !== "number" || typeof value.dimension !== "number" || typeof value.metric !== "string" || !metrics.has(value.metric) || !data || !idMap) return;
+  if (typeof value.name !== "string" || typeof value.tableName !== "string" || typeof value.idColumn !== "string" || !Number.isSafeInteger(value.count) || (value.count as number) < 0 || !Number.isSafeInteger(value.dimension) || (value.dimension as number) < 1 || typeof value.metric !== "string" || !metrics.has(value.metric) || !data || !idMap) return;
   const result: VectorCollectionDescriptor = { name: value.name, tableName: value.tableName, idColumn: value.idColumn, count: value.count, dimension: value.dimension, metric: value.metric as VectorCollectionDescriptor["metric"], encoding: "f32-le-row-major", data, idMap };
   if (index) result.index = index;
   return result;
@@ -111,7 +111,7 @@ function idMapValue(value: unknown, path: string, issues: Issue[]): VectorCollec
   allowed(value, ["data", "offsets", "count", "uniqueIds"], path, issues);
   const data = formattedFile(value.data, `${path}.data`, issues); const offsets = formattedFile(value.offsets, `${path}.offsets`, issues);
   integer(value.count, `${path}.count`, issues, 0); if (typeof value.uniqueIds !== "boolean") issue(issues, `${path}.uniqueIds`, "must be a boolean");
-  if (!data || !offsets || typeof value.count !== "number" || typeof value.uniqueIds !== "boolean") return;
+  if (!data || !offsets || !Number.isSafeInteger(value.count) || (value.count as number) < 0 || typeof value.uniqueIds !== "boolean") return;
   return { data: data as VectorCollectionDescriptor["idMap"]["data"], offsets: offsets as VectorCollectionDescriptor["idMap"]["offsets"], count: value.count, uniqueIds: value.uniqueIds };
 }
 
@@ -125,11 +125,12 @@ function indexValue(value: unknown, path: string, issues: Issue[]): NonNullable<
 function file(value: unknown, path: string, issues: Issue[]): FileDescriptor | undefined {
   if (!record(value)) { issue(issues, path, "must be an object"); return; }
   allowed(value, ["path", "bytes", "sha256"], path, issues);
+  let validPath = false;
   if (typeof value.path !== "string") issue(issues, `${path}.path`, "must be a string");
-  else try { validateResourcePath(value.path); if (value.path.length > 1024) issue(issues, `${path}.path`, "must not exceed 1024 characters"); } catch { issue(issues, `${path}.path`, "must be a safe package-relative path"); }
+  else try { validateResourcePath(value.path); validPath = true; } catch { issue(issues, `${path}.path`, "must be a safe package-relative path"); }
   integer(value.bytes, `${path}.bytes`, issues, 0);
   if (typeof value.sha256 !== "string" || !digest.test(value.sha256)) issue(issues, `${path}.sha256`, "must contain 64 hexadecimal characters");
-  if (typeof value.path !== "string" || typeof value.bytes !== "number" || typeof value.sha256 !== "string") return;
+  if (!validPath || !Number.isSafeInteger(value.bytes) || (value.bytes as number) < 0 || typeof value.sha256 !== "string" || !digest.test(value.sha256)) return;
   return { path: value.path, bytes: value.bytes, sha256: value.sha256 };
 }
 

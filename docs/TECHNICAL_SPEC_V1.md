@@ -70,7 +70,9 @@ my-dataset/
 
 所有路径均相对于 Manifest 所在目录解析。路径必须是相对路径；禁止 `..` 路径穿越、绝对路径和未经许可的 URL scheme。外部 URL 如未来开放，必须通过明确的 allowlist/配置启用。
 
-## 4. Manifest 草案
+## 4. Manifest 历史草案（已废弃）
+
+> 本节以下旧示例保留用于解释早期设计来源，但已经被 `MANIFEST_SPEC_V1.md`、`MANIFEST_SCHEMA_V1.json` 和 ADR-011 取代，不得用于 Builder 或 Runtime 实现。冻结 V1 使用 `format = weisql`、`tables[].file` 和 `vectorCollections[]`。
 
 以下是设计示例，不代表当前 SDK 已支持该格式。字段在实现前需通过 schema 校验和版本策略锁定。
 

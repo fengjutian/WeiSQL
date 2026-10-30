@@ -1,0 +1,167 @@
+# WeiSQL Manifest V1 规范
+
+- 状态：V1 基础结构已冻结
+- 格式标识：`weisql`
+- 格式版本：`1.0.0`
+- 机器可读 Schema：`MANIFEST_SCHEMA_V1.json`
+
+> 本文定义数据包公开协议，不是 DuckDB、USearch 或其他引擎的内部配置。若其他草案与本文冲突，以本文和正式 JSON Schema 为准。
+
+## 1. 数据包布局
+
+```text
+weisql-package/
+├── manifest.json
+├── data/documents.parquet
+└── vectors/
+    ├── embeddings.f32
+    ├── id-map.jsonl
+    └── id-map.offsets
+```
+
+所有路径相对于 `manifest.json` 所在目录，必须在包根内。V1 使用多文件不可变数据包；`.wsql` 单文件容器尚未冻结。
+
+## 2. TypeScript 逻辑类型
+
+```ts
+interface WeiSQLManifest {
+  format: "weisql";
+  formatVersion: "1.0.0";
+  datasetId: string;
+  tables: TableDescriptor[];
+  vectorCollections: VectorCollectionDescriptor[];
+  metadata?: {
+    title?: string;
+    description?: string;
+    createdAt?: string;
+    builderVersion?: string;
+  };
+}
+```
+
+TypeScript 类型只帮助可信代码开发，不能验证下载的 JSON。所有外部 Manifest 必须经过运行时校验器。
+
+## 3. 表定义
+
+```ts
+interface TableDescriptor {
+  name: string;
+  file: { path: string; bytes: number; sha256: string };
+  format: "parquet";
+  columns: Array<{
+    name: string;
+    type: "string" | "int32" | "int64" | "float32" |
+          "float64" | "boolean" | "timestamp" | "date" | "json";
+    nullable: boolean;
+  }>;
+  primaryKey: string[];
+}
+```
+
+约束：
+
+- 表名在包内唯一并符合标识符规则；
+- 列名在表内唯一并符合标识符规则；
+- 至少有一列和一个主键列；
+- 主键成员唯一且必须引用已声明列；
+- V1 表文件格式固定为 Parquet。
+
+## 4. 向量集合
+
+```ts
+interface VectorCollectionDescriptor {
+  name: string;
+  tableName: string;
+  idColumn: string;
+  count: number;
+  dimension: number;
+  metric: "cosine" | "l2" | "ip";
+  encoding: "f32-le-row-major";
+  data: FileDescriptor;
+  idMap: IdMapDescriptor;
+  index?: {
+    engine: string;
+    version: string;
+    file: FileDescriptor;
+  };
+}
+```
+
+- `tableName` 必须引用存在的表；
+- `idColumn` 必须引用该表的主键列；
+- `count` 是非负安全整数，允许空集合；
+- `dimension` 是正安全整数；
+- Float32 使用小端、row-major 连续编码；
+- `data.bytes` 必须等于 `count × dimension × 4`，计算使用 BigInt 防止溢出；
+- 引擎索引是可选派生资源，不属于跨引擎公共数据语义。
+
+距离统一为越小越相似：Cosine 为 `1 - similarity`，L2 为欧氏距离，IP 为负内积。
+
+## 5. ID Map 与偏移索引
+
+```ts
+interface IdMapDescriptor {
+  data: FileDescriptor & { format: "jsonl" };
+  offsets: FileDescriptor & { format: "uint64-le" };
+  count: number;
+  uniqueIds: boolean;
+}
+```
+
+`id-map.jsonl` 使用 UTF-8，每行一个 `{ "row": number, "id": string | safe-integer }`。行号从 0 连续递增，第 N 行对应第 N 条向量。文件末尾允许一个换行符。
+
+`id-map.offsets` 为每条 JSONL 记录保存起始字节位置，每项是 little-endian UInt64：
+
+- 长度严格为 `idMap.count × 8`；
+- 第一项为 0；
+- 偏移严格递增且不超过 JSONL 文件长度；
+- 转换为 JavaScript number 前必须检查安全整数范围；
+- 中间记录以下一项作为结束位置，最后一条以 `idMap.data.bytes` 作为结束位置。
+
+`idMap.count` 必须等于向量 `count`。`uniqueIds: true` 表示 Builder 必须验证业务 ID 唯一。
+
+## 6. 文件描述与路径安全
+
+每个文件描述包含：
+
+- `path`：1–1024 字符的规范相对路径；
+- `bytes`：非负安全整数；
+- `sha256`：64 位十六进制摘要。
+
+路径规则：
+
+- 只使用 `/`；
+- 拒绝绝对路径、盘符、URL scheme、反斜杠、NUL、空路径段、`.` 和 `..`；
+- 拒绝所有 `%`，避免 URL 解码和平台差异；
+- 所有资源路径在整个数据包内唯一；
+- Node 文件 Reader 和 HTTP Reader 仍须进行包根 containment 与重定向检查。
+
+## 7. 四层校验
+
+| 层级 | 内容 | 默认时机 |
+| --- | --- | --- |
+| L1 结构 | JSON 类型、必填字段、未知字段、版本 | `open()` |
+| L2 语义 | 名称、引用、路径、计数和字节公式 | `open()` |
+| L3 内容 | 实际长度、SHA-256、JSONL/偏移对应 | 按验证策略或 Builder 发布时 |
+| L4 引擎 | Parquet 可读性、索引兼容性 | 首次使用对应能力 |
+
+SHA-256 只能证明内容与 Manifest 声明一致，不能证明发布者可信。来源真实性需要可信分发或未来签名机制。
+
+## 8. Builder 一致性要求
+
+Builder 发布前必须：
+
+1. 写出规范 Parquet、Float32、JSONL 和偏移文件；
+2. 使用实际文件计算 `bytes` 和 SHA-256；
+3. 验证向量与 ID Map 计数一致；
+4. 验证 JSONL 行号连续、ID 唯一策略及 ID 在目标表中存在；
+5. 验证偏移索引严格对应 JSONL 记录边界；
+6. 生成 Manifest 后重新通过 Runtime 的 L1/L2 校验；
+7. 在发布验收中由 Runtime 重新打开产物并执行 SQL 与向量查询。
+
+## 9. 当前实现状态
+
+截至 2026-10-30，正式 TypeScript 类型、JSON Schema、L1/L2 运行时校验、路径校验、向量字节公式和 ID 偏移大小校验已迁移到本结构并有自动化测试。
+
+尚未完成 Builder、实际文件 SHA-256/长度验证、Parquet 内容校验、全量 ID 唯一性及主键存在性扫描。不得把这些未实现能力描述为已完成。
+

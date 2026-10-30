@@ -42,6 +42,6 @@ const manifest = validateManifest(JSON.parse(source));
 - 路径穿越、绝对路径、反斜杠、URL scheme 和空路径段；
 - 所有资源的规范化路径唯一性；
 - `primaryKey` 是否引用已声明列；
-- 向量的 `sourceTable` 和 `idColumn` 引用；
+- 向量集合的 `tableName`、`idColumn` 和主键引用；
 - 数值是否为 JavaScript 安全整数；
 - Manifest 主版本是否受支持。

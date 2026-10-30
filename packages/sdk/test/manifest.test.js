@@ -64,6 +64,9 @@ test("validates frozen V1 cross-field constraints", async () => {
     value => { value.vectorCollections[0].data.bytes = 23; },
     value => { value.vectorCollections[0].idMap.count = 2; },
     value => { value.vectorCollections[0].idMap.offsets.bytes = 16; },
+    value => { value.vectorCollections[0].count = 1.5; },
+    value => { value.vectorCollections[0].data.bytes = 1.5; },
+    value => { value.vectorCollections[0].idMap = null; },
     value => { value.extra = true; },
   ];
   for (const mutate of cases) {

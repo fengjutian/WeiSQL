@@ -22,7 +22,7 @@ test("rejects unsafe and ambiguous resource paths", () => {
   const invalid = [
     "../secret.txt", "/etc/passwd", "C:/secret.txt", "data\\secret.txt",
     "data//file", "./data/file", "data/%2e%2e/secret", "https://example.test/file",
-    " data/file", "data/file ", "data/\0file"
+    "data/vector%20file", " data/file", "data/file ", "data/\0file", `data/${"a".repeat(1024)}`
   ];
   for (const path of invalid) assert.throws(() => validateResourcePath(path), { code: "PATH_INVALID" }, path);
 });

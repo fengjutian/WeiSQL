@@ -10,7 +10,6 @@
 - `docs/ENGINEERING_ROADMAP.md`：工程设计补充、测试矩阵和 P0–P3 实施路线。
 - `docs/MANIFEST_SPEC_V1.md`：Manifest V1 字段、版本、向量数据与完整性规则。
 - `docs/MANIFEST_SCHEMA_V1.json`：Manifest JSON Schema 草案。
-- `docs/MANIFEST_SCHEMA_V1_CANDIDATE.json`：待评审的新字段形状候选，不用于当前 Runtime。
 - `docs/SQL_ADAPTER_CONTRACT.md`：SQL 引擎适配器生命周期、参数绑定与结果映射契约。
 - `docs/VECTOR_ADAPTER_CONTRACT.md`：向量引擎适配器距离、过滤、ID 与排序契约。
 - `docs/RESOURCE_READER_CONTRACT.md`：浏览器与 Node.js 的统一资源读取、安全和 Range 契约。

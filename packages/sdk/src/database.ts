@@ -18,6 +18,7 @@ export interface WeiSQLDatabase {
 
 class Database implements WeiSQLDatabase {
   private runtimeState: RuntimeState = "OPENING";
+  private closePromise: Promise<void> | undefined;
   readonly manifest: Readonly<WeiSQLManifest>;
   readonly vector;
   private constructor(manifest: WeiSQLManifest, private readonly reader?: ResourceReader, private readonly sqlAdapter?: SqlAdapter) {
@@ -82,11 +83,13 @@ class Database implements WeiSQLDatabase {
     return Object.freeze({ sql: this.sqlAdapter !== undefined, vectorExactSearch: this.reader !== undefined, vectorAnnSearch: false, hybridSearch: false, resourceRange: this.reader !== undefined });
   }
   async close(): Promise<void> {
-    if (this.runtimeState === "CLOSED" || this.runtimeState === "CLOSING") return;
+    if (this.runtimeState === "CLOSED") return;
+    if (this.closePromise) return this.closePromise;
     this.runtimeState = "CLOSING";
-    try { await this.releaseResources(); }
-    finally { this.runtimeState = "CLOSED"; }
+    this.closePromise = this.finishClose();
+    return this.closePromise;
   }
+  private async finishClose(): Promise<void> { try { await this.releaseResources(); } finally { this.runtimeState = "CLOSED"; } }
   private async releaseResources(): Promise<void> {
     const pending: Promise<void>[] = [];
     if (this.sqlAdapter) pending.push(this.sqlAdapter.close());

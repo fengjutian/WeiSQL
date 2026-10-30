@@ -13,11 +13,13 @@ export interface OpenOptions {
   verifyChecksums?: "none" | "manifest" | "all";
   fetch?: typeof globalThis.fetch;
   resourceReader?: ResourceReader;
+  sqlAdapter?: SqlAdapter;
   signal?: AbortSignal;
 }
 
 export interface WeiSQLDatabase {
   readonly manifest: Readonly<WeiSQLManifest>;
+  readonly state: RuntimeState;
   sql<T extends Record<string, unknown> = Record<string, unknown>>(
     query: string,
     params?: readonly SQLValue[],

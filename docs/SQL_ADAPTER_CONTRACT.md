@@ -1,6 +1,6 @@
 # WeiSQL AI SQL Adapter 契约
 
-- 状态：V1 设计基线草案
+- 状态：V1 契约与 Runtime 注入边界已实现；DuckDB 实现待完成
 - 首个目标实现：DuckDB（Node.js）与 DuckDB-Wasm（浏览器）
 
 ## 1. 职责
@@ -118,5 +118,5 @@ Adapter 必须将引擎错误转换为 WeiSQL 稳定错误码，不向公共 API
 8. 打开失败不会留下半初始化资源；
 9. 只读策略拒绝写入与外部副作用。
 
-当前仓库尚未实现 DuckDB Adapter，本文件只锁定实现边界。
+当前仓库已提供公共 `SqlAdapter` 类型、Runtime 初始化/查询/关闭接线，以及初始化失败清理和参数透传测试。尚未实现 DuckDB 或 DuckDB-Wasm Adapter；现有测试 Adapter 仅用于验证生命周期契约，不证明真实 SQL 引擎能力。
 

@@ -91,3 +91,21 @@ test("Runtime releases initialized resources when SQL adapter open fails", async
   assert.equal(adapterClosed, true);
   assert.equal(reader.closed, true);
 });
+
+test("concurrent close calls share cleanup completion", async () => {
+  const manifest = JSON.parse(await readFile(new URL("../../../examples/manifest/valid-minimal.json", import.meta.url), "utf8"));
+  let release;
+  const reader = new MemoryReader(new Map());
+  reader.close = () => new Promise(resolve => { release = () => { reader.closed = true; resolve(); }; });
+  const db = await open({ manifest, resourceReader: reader });
+  const first = db.close();
+  const second = db.close();
+  assert.equal(db.state, "CLOSING");
+  let secondFinished = false;
+  second.then(() => { secondFinished = true; });
+  await Promise.resolve();
+  assert.equal(secondFinished, false);
+  release();
+  await Promise.all([first, second]);
+  assert.equal(db.state, "CLOSED");
+});

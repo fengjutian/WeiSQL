@@ -256,9 +256,9 @@ V1 不支持对公开数据包进行在线写事务。静态数据库更新采�
 | --- | --- |
 | Manifest JSON Schema | 已有 V1 草案 |
 | TypeScript Manifest 运行时校验 | 已有首版，覆盖结构、路径和主要跨字段规则 |
-| TypeScript SDK | 已有只读 API 骨架，尚未接入 SQL/向量引擎 |
+| TypeScript SDK | Manifest、Reader 与精确向量 Runtime 已接通；SQL Adapter 注入边界已实现 |
 | Rust 向量能力 | 已有精确余弦搜索正确性基线 |
-| DuckDB / USearch | 尚未集成 |
+| DuckDB / DuckDB-Wasm / USearch | 尚未集成；不得把测试 Adapter 当作引擎实现 |
 | 浏览器 WASM / Netlify | 尚未验证 |
 | `.wsql` 容器 | 尚未实现，布局未冻结 |
 | 资源内容完整性校验 | 尚未实现真实文件大小与 SHA-256 验证 |

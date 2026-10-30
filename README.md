@@ -2,9 +2,9 @@
 
 WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行时实验项目。数据集可以随应用发布到静态托管或 CDN，由浏览器或 Node.js 按需读取，无需单独部署数据库服务。
 
-项目采用 TypeScript + Rust：TypeScript 提供公开 SDK、Manifest 校验、资源读取和查询编排；Rust 当前提供精确向量搜索正确性基线。DuckDB、DuckDB-Wasm 和 USearch 被设计为可替换 Adapter，但尚未接入。
+项目采用 TypeScript + Rust：TypeScript 提供公开 SDK、Manifest 校验、资源读取、Runtime 编排和精确向量检索；Rust 提供用于对照的精确 Cosine 基线。DuckDB、DuckDB-Wasm 和 USearch 被设计为可替换 Adapter，当前只有 SQL 注入契约，仓库内没有任何引擎实现。
 
-> 当前状态：工程原型。Manifest V1 基础结构已冻结，核心校验、HTTP Range 读取和 TypeScript 精确向量搜索已有可运行测试；SQL 引擎、ANN、Builder、WASM 与真实 CDN 部署仍在开发计划中。项目尚未发布 npm 包，也没有未经实测的性能承诺。
+> 当前状态：工程原型。Manifest V1 基础结构已冻结；L1/L2 校验、HTTP 与 Node 文件 Reader、Runtime 生命周期和 TypeScript 精确向量检索已实现并有自动化测试。SQL 引擎、Builder 与真实数据包、L3 完整性校验、ANN、WASM 和真实 CDN 部署仍在开发计划中。项目尚未发布 npm 包，也没有未经实测的性能承诺。
 
 ## 已实现
 

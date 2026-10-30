@@ -74,6 +74,8 @@ npm run fixture
 
 ```bash
 npm run probe:browser
+npm run probe:playground   # 打开 Playground 并断言交互结果
+npm run playground         # 手动浏览 http://127.0.0.1:8099/playground/
 ```
 
 测试监听模式：
@@ -245,6 +247,20 @@ OK
 - `--json` 输出机器可读结果，包含 `issues[].stage`、`code` 与 `details.path`。
 - 失败示例：`[resources] RESOURCE_INTEGRITY_FAILED: Resource SHA-256 does not match the Manifest (vectors/document_embeddings.f32)`。
 
+## 示例应用（Playground）
+
+```bash
+npm run playground     # http://127.0.0.1:8099/playground/
+```
+
+页面从静态服务按需读取 `examples/fixture`，没有后端：
+
+- 查询向量不是硬编码的——页面直接从 `vectors/*.f32` 读前 3 行作为预设，点选即检索；
+- 结果展示 `row` / `id` / `distance`，诊断区给出后端、`exact`、耗时与缓存命中统计；
+- SQL 与混合检索在此不可用，因为浏览器端需要 DuckDB-Wasm（扩展下载受阻，见 [ADR-020](docs/DECISION_LOG.md)）。
+
+自动化验收：`npm run probe:playground` 在真实 Chromium 中打开页面，断言初始结果为 `doc-001..doc-003`，再点击第三个预设并断言 `doc-003` 排到第一。
+
 ## 资源完整性校验
 
 `open()` 的 `verifyChecksums` 有三种策略，语义与 `RESOURCE_INTEGRITY_SPEC.md` 一致：
@@ -362,6 +378,7 @@ examples/fixture/          Builder 生成的真实数据包示例
 packages/sdk/              TypeScript SDK、资源层、Builder 和向量基线
 packages/duckdb-adapter/   Node.js DuckDB 只读 SQL Adapter
 packages/cli/              `weisql validate` 数据包校验命令
+examples/playground/       浏览器端示例应用（向量检索演示）
 tools/                     源 Parquet 生成脚本
 ```
 

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WeiSQL Playground</title>
+    <style>
+      :root { color-scheme: light dark; --line: #8884; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font: 14px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+      main { max-width: 860px; margin: 0 auto; padding: 32px 20px 64px; }
+      h1 { font-size: 22px; margin: 0 0 4px; }
+      p.sub { margin: 0 0 24px; opacity: .7; }
+      section { border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+      h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; opacity: .6; margin: 0 0 12px; }
+      .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+      button { font: inherit; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: transparent; cursor: pointer; }
+      button:hover { border-color: currentColor; }
+      button[aria-pressed="true"] { background: #4b7bec; border-color: #4b7bec; color: #fff; }
+      input[type="number"] { width: 72px; font: inherit; padding: 5px 8px; }
+      table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+      th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+      th { font-weight: 600; opacity: .7; font-size: 12px; text-transform: uppercase; }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+      dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
+      dt { opacity: .6; }
+      dd { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+      .muted { opacity: .6; }
+      .error { color: #d64545; white-space: pre-wrap; }
+      .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>WeiSQL Playground</h1>
+      <p class="sub">精确向量检索示例。数据包与代码均从本地静态服务按需读取，无后端。</p>
+
+      <section>
+        <h2>数据包</h2>
+        <dl id="package-info"></dl>
+      </section>
+
+      <section>
+        <h2>查询</h2>
+        <div class="row" id="presets" style="margin-bottom:12px"></div>
+        <div class="row">
+          <label>topK <input id="topk" type="number" min="1" max="20" value="3" /></label>
+          <button id="search">检索</button>
+          <span class="muted" id="status">初始化中…</span>
+        </div>
+      </section>
+
+      <section>
+        <h2>结果</h2>
+        <table>
+          <thead><tr><th>row</th><th>id</th><th>distance</th></tr></thead>
+          <tbody id="results"><tr><td colspan="3" class="muted">尚未查询</td></tr></tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>诊断</h2>
+        <dl id="diagnostics"></dl>
+      </section>
+
+      <p class="muted">
+        SQL 与混合检索需要 DuckDB-Wasm；当前环境无法下载其 parquet 扩展，因此这里只演示向量检索。
+      </p>
+      <p class="error" id="error"></p>
+    </main>
+    <script type="module" src="/playground/app.js"></script>
+  </body>
+</html>

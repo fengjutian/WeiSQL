@@ -16,6 +16,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..");
 const SDK_DIST = path.join(REPO_ROOT, "packages", "sdk", "dist");
 const DEFAULT_FIXTURE = path.join(REPO_ROOT, "examples", "fixture");
+const PLAYGROUND = path.join(REPO_ROOT, "examples", "playground");
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -33,6 +34,8 @@ export function createProbeServer(fixtureDirectory = DEFAULT_FIXTURE) {
 
   const resolveTarget = (urlPath) => {
     if (urlPath === "/" || urlPath === "/index.html" || urlPath === "/sdk.html") return path.join(HERE, "sdk.html");
+    if (urlPath === "/playground" || urlPath === "/playground/") return path.join(PLAYGROUND, "index.html");
+    if (urlPath.startsWith("/playground/")) return path.join(PLAYGROUND, urlPath.slice("/playground/".length));
     if (urlPath.startsWith("/sdk/")) return path.join(SDK_DIST, urlPath.slice("/sdk/".length));
     if (urlPath.startsWith("/fixture/")) return path.join(fixtureDirectory, urlPath.slice("/fixture/".length));
     return undefined;
@@ -90,9 +93,9 @@ export function createProbeServer(fixtureDirectory = DEFAULT_FIXTURE) {
   });
 
   return {
-    listen() {
+    listen(port = 0) {
       return new Promise((resolve) => {
-        server.listen(0, "127.0.0.1", () => resolve(server.address().port));
+        server.listen(port, "127.0.0.1", () => resolve(server.address().port));
       });
     },
     close() {

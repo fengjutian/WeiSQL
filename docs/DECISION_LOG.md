@@ -179,6 +179,16 @@
 - 决策五：实现使用 `process.exitCode` 而非 `process.exit()`，避免管道场景下 stdout 被截断。
 - 后果：`weisql` 目前只有 `validate` 子命令；`inspect`、`build` 等留给后续需求。CLI 未发布到 npm，仓库内通过 `npm run build` 后使用 `node packages/cli/dist/bin.js`。
 
+## ADR-022：示例应用复用探针基础设施，不使用虚构数据
+
+- 状态：Accepted and implemented（REQ-405，`examples/playground`）
+- 决策一：Playground 是纯静态页面（HTML + ESM），直接加载 `packages/sdk/dist`，与探针共用同一个静态服务器。不引入框架或 bundler，避免把演示变成第二个构建体系。
+- 决策二：查询向量来自数据包本身——页面读取 `vectors/*.f32` 的前三行作为预设，而不是在代码里硬编码 `[1, 0]`。演示必须证明「读到的是包里的字节」。
+- 决策三：结果只显示包内真实存在的信息（`row`、业务 `id`、`distance`、诊断）。浏览器端没有 SQL 引擎时，不伪造标题或分类等元数据。
+- 决策四：Playground 有自动化验收（`npm run probe:playground`）：真实 Chromium 打开页面、断言初始 Top-3、点击第三个预设后断言 `doc-003` 升到第一。手动演示和回归测试用同一份代码。
+- 决策五：诊断区暴露 `backend`、`exact`、耗时与缓存命中/未命中，延续「不夸大」原则：演示页同样标注 SQL 与混合检索在浏览器不可用。
+- 后果：Playground 只覆盖向量检索；SQL、混合检索与 Parquet 元数据展示要等 DuckDB-Wasm 阻塞解除。它不是产品级 UI，不承诺可访问性与响应式布局。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

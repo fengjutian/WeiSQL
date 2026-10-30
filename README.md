@@ -326,6 +326,7 @@ const rows = await db.sql(
 - **表会被物化进内存**：为满足上一条边界，Adapter 用 `CREATE TABLE ... AS SELECT` 把 Parquet 载入内存库，而不是保留需要查询期文件访问的视图。内存成本约等于表数据量，由 `maxTableBytes`（默认 256 MiB）兜底。
 - **L4 校验**：表载入后按 Manifest 的列名与类型比对 `DESCRIBE` 结果，不一致返回 `RESOURCE_INTEGRITY_FAILED`；可用 `verifyTableSchema: false` 关闭。
 - **取消是原生的**：通过 `connection.interrupt()` 中断执行中的查询，能力声明为 `cancellation: "native"`。
+- **表加载模式**：默认 `memory`（物化进内存 + 关闭外部文件访问）；大表可显式选择 `lazy`（临时文件 + 视图 + **保留**外部访问），后者只适用于 SQL 由应用作者编写的场景。详见 [表加载模式](docs/TABLE_LOADING_OPTIONS.md)。
 - **已知限制**：`DECIMAL` 由驱动转换为 `number`，超过 15 位有效数字会丢精度；可空性不在 L4 比对范围内（`read_parquet` 不保留 `NOT NULL` 约束）。
 
 详见 [DuckDB Adapter](docs/DUCKDB_ADAPTER.md)。
@@ -396,6 +397,7 @@ tools/                     源 Parquet 生成脚本
 - [V1 公共类型与错误契约](docs/PUBLIC_TYPES_AND_ERRORS_V1.md)
 - [SQL Adapter 契约](docs/SQL_ADAPTER_CONTRACT.md)
 - [DuckDB Adapter](docs/DUCKDB_ADAPTER.md)
+- [表加载模式对比](docs/TABLE_LOADING_OPTIONS.md)
 - [Vector Adapter 契约](docs/VECTOR_ADAPTER_CONTRACT.md)
 - [ResourceReader 契约](docs/RESOURCE_READER_CONTRACT.md)
 - [资源完整性校验规范](docs/RESOURCE_INTEGRITY_SPEC.md)

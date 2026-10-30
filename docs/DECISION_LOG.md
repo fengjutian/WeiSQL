@@ -189,6 +189,16 @@
 - 决策五：诊断区暴露 `backend`、`exact`、耗时与缓存命中/未命中，延续「不夸大」原则：演示页同样标注 SQL 与混合检索在浏览器不可用。
 - 后果：Playground 只覆盖向量检索；SQL、混合检索与 Parquet 元数据展示要等 DuckDB-Wasm 阻塞解除。它不是产品级 UI，不承诺可访问性与响应式布局。
 
+## ADR-023：表加载默认物化，惰性视图作为显式取舍
+
+- 状态：Accepted and implemented（REQ-103 部分满足）
+- 决策一：默认 `tableLoading: "memory"`（物化 + 关闭外部文件访问）。安全边界不可默认放弃：关闭外部访问后 `read_parquet('/etc/passwd')` 失效，代价是内存约等于表大小，由 `maxTableBytes` 兜底。
+- 决策二：新增 `tableLoading: "lazy"`（临时文件 + 视图 + **保留**外部访问），用于大表且 SQL 由应用作者编写的场景。该模式在能力声明中输出 `external-file-access-enabled`，文档明确写出「挡不住读取」，不假装两者兼得。
+- 决策三：放弃虚拟文件系统方案——`@duckdb/node-api` 2.0 未暴露注册文件系统的入口；等上游支持后再评估，不用启发式过滤冒充安全边界。
+- 决策四：`lazy` 模式必须复用同一套只读语句分类；实测发现 `DELETE FROM <view>` 在 `prepare()` 阶段就失败（`can't delete from a view`），错误码与物化模式不一致，因此 `query()` 增加前置关键字拒绝层，只用于稳定 `SQL_UNSUPPORTED`，真正的边界仍是解析后的 `StatementType`。
+- 决策五：视图定义不允许参数绑定（`Unexpected prepared parameter`），`lazy` 模式内联转义后的临时路径；路径来自 `mkdtemp()` 与 Manifest 已验证标识符。
+- 后果：REQ-103「大型数据集不应默认整体读入内存」只被部分满足——调用方必须显式选择 `lazy` 并接受其安全代价。两种模式的内存与延迟差异未测量，不得据此宣称性能结论。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

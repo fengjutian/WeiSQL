@@ -17,6 +17,18 @@ export interface DuckDbAdapterOptions {
   maxTableBytes?: number;
   /** Compare the Parquet physical schema with the Manifest (L4). Defaults to true. */
   verifyTableSchema?: boolean;
+  /**
+   * How tables are exposed to SQL.
+   *
+   * - `memory` (default): copy each table into an in-memory DuckDB table and
+   *   then disable external file access. Safe for untrusted SQL, but memory
+   *   cost equals the table size.
+   * - `lazy`: keep the extracted Parquet file and expose a view. DuckDB reads
+   *   row groups on demand, so memory stays bounded, but external file access
+   *   must stay enabled, which means **untrusted SQL could read arbitrary local
+   *   files**. Only use it when the SQL is authored by the application.
+   */
+  tableLoading?: "memory" | "lazy";
   /** Additional DuckDB configuration applied when the in-memory instance is created. */
   config?: Record<string, string>;
 }
@@ -32,7 +44,6 @@ const SUPPORTED_FEATURES = [
   "parameter-binding",
   "single-statement",
   "read-only-enforced",
-  "external-access-disabled",
 ] as const;
 
 /**
@@ -40,11 +51,14 @@ const SUPPORTED_FEATURES = [
  *
  * Design decisions that the tests pin down:
  *
- * - Tables are materialized with `CREATE TABLE ... AS SELECT * FROM read_parquet(?)`.
- *   A view would need file access at query time, and `enable_external_access=false`
- *   is what stops `read_parquet('/etc/passwd')` inside user SQL, so the view route
- *   cannot be combined with the security boundary. Materializing costs memory and
- *   is documented as the V1 trade-off.
+ * - Tables are materialized with `CREATE TABLE ... AS SELECT * FROM read_parquet(?)`
+ *   by default. A view would need file access at query time, and
+ *   `enable_external_access=false` is what stops `read_parquet('/etc/passwd')`
+ *   inside user SQL, so the view route cannot be combined with that boundary.
+ *   Materializing costs memory and is documented as the default trade-off.
+ * - `tableLoading: "lazy"` opts into views and therefore into enabled external
+ *   file access. It trades safety for bounded memory and is only appropriate when
+ *   the SQL is authored by the application, not by end users.
  * - Read-only is enforced by DuckDB's own statement classification: only SELECT and
  *   EXPLAIN prepared statements run. Keyword filtering would be trivially bypassable
  *   (e.g. `WITH ... DELETE`).
@@ -54,11 +68,12 @@ const SUPPORTED_FEATURES = [
  *   `native` rather than `best-effort`.
  */
 export class DuckDbSqlAdapter implements SqlAdapter {
-  private readonly options: Required<Pick<DuckDbAdapterOptions, "maxTableBytes" | "verifyTableSchema">> & Pick<DuckDbAdapterOptions, "config">;
+  private readonly options: Required<Pick<DuckDbAdapterOptions, "maxTableBytes" | "verifyTableSchema" | "tableLoading">> & Pick<DuckDbAdapterOptions, "config">;
   private stateValue: DuckDbAdapterState = "CREATED";
   private instance: DuckDBInstance | undefined;
   private connection: DuckDBConnection | undefined;
   private workDirectory: string | undefined;
+  private readonly retainedFiles: string[] = [];
   private capabilitiesValue: SqlAdapterCapabilities = Object.freeze({
     engine: "duckdb",
     parameterBinding: true,
@@ -72,11 +87,21 @@ export class DuckDbSqlAdapter implements SqlAdapter {
     if (!Number.isSafeInteger(maxTableBytes) || maxTableBytes <= 0) {
       throw new WeiSQLError("INVALID_ARGUMENT", "maxTableBytes must be a positive safe integer", { maxTableBytes });
     }
+    const tableLoading = options.tableLoading ?? "memory";
+    if (tableLoading !== "memory" && tableLoading !== "lazy") {
+      throw new WeiSQLError("INVALID_ARGUMENT", "tableLoading must be 'memory' or 'lazy'", { tableLoading });
+    }
     this.options = {
       maxTableBytes,
       verifyTableSchema: options.verifyTableSchema !== false,
+      tableLoading,
       ...(options.config === undefined ? {} : { config: options.config }),
     };
+  }
+
+  /** How tables are exposed: `memory` (default) or `lazy` views over extracted files. */
+  get tableLoading(): "memory" | "lazy" {
+    return this.options.tableLoading;
   }
 
   get capabilities(): Readonly<SqlAdapterCapabilities> {
@@ -100,8 +125,10 @@ export class DuckDbSqlAdapter implements SqlAdapter {
       if (this.options.verifyTableSchema) {
         for (const table of context.manifest.tables) await verifyTableSchema(this.connection, table);
       }
-      // Lock the boundary last: it is only meaningful once every table is in memory.
-      await this.connection.run("SET enable_external_access=false");
+      // Lock the boundary last: it is only meaningful once every table is exposed.
+      // In `lazy` mode external access must stay enabled for read_parquet, which is
+      // exactly why that mode is unsafe for untrusted SQL.
+      if (this.options.tableLoading === "memory") await this.connection.run("SET enable_external_access=false");
       await this.connection.run("SET lock_configuration=true");
       const version = await this.readEngineVersion(this.connection);
       this.capabilitiesValue = Object.freeze({
@@ -109,7 +136,10 @@ export class DuckDbSqlAdapter implements SqlAdapter {
         engineVersion: version,
         parameterBinding: true,
         parquet: true,
-        supportedFeatures: [...SUPPORTED_FEATURES],
+        supportedFeatures: [
+          ...SUPPORTED_FEATURES,
+          this.options.tableLoading === "memory" ? "external-access-disabled" : "external-file-access-enabled",
+        ],
         cancellation: "native" as const,
       });
       this.stateValue = "READY";
@@ -132,6 +162,18 @@ export class DuckDbSqlAdapter implements SqlAdapter {
     const signal = options?.signal;
     if (signal?.aborted) throw new WeiSQLError("QUERY_CANCELLED", "Query was cancelled before execution");
     const connection = this.connection!;
+
+    // Fast, mode-independent rejection for obvious writes. This only stabilises
+    // the error code: on a view `DELETE` fails during prepare ("can't delete from
+    // a view") before the statement type is known. The authoritative boundary is
+    // still the prepared statement's classification below.
+    const keyword = leadingKeyword(statement);
+    if (DENIED_KEYWORDS.has(keyword)) {
+      throw new WeiSQLError("SQL_UNSUPPORTED", "Only read-only statements (SELECT/EXPLAIN) are allowed", {
+        engine: "duckdb",
+        statementType: keyword,
+      });
+    }
 
     const prepared = await connection.prepare(statement).catch((cause: unknown) => {
       throw mapEngineError(cause, "prepare");
@@ -204,6 +246,18 @@ export class DuckDbSqlAdapter implements SqlAdapter {
     }
     const file = path.join(this.workDirectory!, `${tableName}.parquet`);
     await writeFile(file, bytes);
+    if (this.options.tableLoading === "lazy") {
+      // The view is re-read on every query, so the extracted file must outlive
+      // open(). It is deleted together with the work directory on close().
+      // DuckDB cannot prepare a view definition that takes a parameter
+      // ("Unexpected prepared parameter"), so the path is inlined as an escaped
+      // literal. It comes from mkdtemp() plus a Manifest-validated identifier.
+      this.retainedFiles.push(file);
+      await this.connection!.run(
+        `CREATE VIEW ${quoteIdentifier(tableName)} AS SELECT * FROM read_parquet('${file.replace(/'/g, "''")}')`,
+      );
+      return;
+    }
     try {
       await this.connection!.run(
         `CREATE TABLE ${quoteIdentifier(tableName)} AS SELECT * FROM read_parquet(?)`,
@@ -235,6 +289,7 @@ export class DuckDbSqlAdapter implements SqlAdapter {
     }
     this.connection = undefined;
     this.instance = undefined;
+    this.retainedFiles.length = 0;
     if (this.workDirectory !== undefined) {
       const directory = this.workDirectory;
       this.workDirectory = undefined;
@@ -257,6 +312,37 @@ function statementTypeName(type: number): string {
     if (value === type) return name;
   }
   return `UNKNOWN(${type})`;
+}
+
+const DENIED_KEYWORDS = new Set([
+  "INSERT", "UPDATE", "DELETE", "MERGE", "REPLACE",
+  "CREATE", "DROP", "ALTER", "TRUNCATE",
+  "COPY", "EXPORT", "IMPORT", "ATTACH", "DETACH",
+  "SET", "RESET", "PRAGMA", "CALL", "LOAD", "INSTALL",
+  "BEGIN", "COMMIT", "ROLLBACK", "VACUUM", "CHECKPOINT", "ANALYZE",
+]);
+
+/** First keyword after leading whitespace and SQL comments, upper-cased. */
+function leadingKeyword(statement: string): string {
+  let rest = statement;
+  for (;;) {
+    rest = rest.replace(/^\s+/, "");
+    if (rest.startsWith("--")) {
+      const newline = rest.indexOf("\n");
+      if (newline === -1) return "";
+      rest = rest.slice(newline + 1);
+      continue;
+    }
+    if (rest.startsWith("/*")) {
+      const end = rest.indexOf("*/");
+      if (end === -1) return "";
+      rest = rest.slice(end + 2);
+      continue;
+    }
+    break;
+  }
+  const match = /^[A-Za-z_]+/.exec(rest);
+  return match === null ? "" : match[0].toUpperCase();
 }
 
 function mapEngineError(cause: unknown, phase: string): WeiSQLError {

@@ -295,6 +295,50 @@ test("vector-first trades exactness for a bounded candidate window", async t => 
   assert.deepEqual(exact.map(hit => hit.id), ["doc-003"]);
 });
 
+test("lazy table loading keeps memory bounded but re-enables file access", async t => {
+  const manifest = await fixtureManifest();
+  const reader = new NodeFileResourceReader({ rootDirectory: FIXTURE });
+  t.after(() => reader.close().catch(() => undefined));
+
+  const before = await duckdbTempDirectories();
+  const adapter = createDuckDbAdapter({ tableLoading: "lazy" });
+  await adapter.open({ manifest, reader });
+  t.after(() => adapter.close().catch(() => undefined));
+
+  assert.equal(adapter.tableLoading, "lazy");
+  assert.ok(adapter.capabilities.supportedFeatures.includes("external-file-access-enabled"));
+  assert.ok(!adapter.capabilities.supportedFeatures.includes("external-access-disabled"));
+
+  // Same query results as the materialized mode.
+  const rows = await adapter.query("SELECT id FROM documents ORDER BY id");
+  assert.deepEqual(rows.map(row => row.id), ["doc-001", "doc-002", "doc-003"]);
+
+  // Read-only is still enforced by statement classification.
+  await assert.rejects(adapter.query("DELETE FROM documents"), { code: "SQL_UNSUPPORTED" });
+  await assert.rejects(adapter.query("CREATE TABLE extra(a INT)"), { code: "SQL_UNSUPPORTED" });
+
+  // The documented trade-off is real: with lazy views, external access must stay
+  // open, so a SELECT over an arbitrary path is allowed.
+  const external = path.join(REPO_ROOT, "examples", "source", "documents.parquet").replaceAll("\\", "/");
+  const leaked = await adapter.query(`SELECT count(*)::INTEGER AS c FROM read_parquet('${external}')`);
+  assert.equal(leaked[0].c, 3);
+
+  await adapter.close();
+  const after = await duckdbTempDirectories();
+  assert.deepEqual(after.filter(name => !before.includes(name)), [], "lazy mode must delete its extracted files on close");
+});
+
+test("materialized mode reports the closed external-access boundary", async t => {
+  const { adapter } = await openAdapter(t);
+  assert.equal(adapter.tableLoading, "memory");
+  assert.ok(adapter.capabilities.supportedFeatures.includes("external-access-disabled"));
+  assert.ok(!adapter.capabilities.supportedFeatures.includes("external-file-access-enabled"));
+});
+
+test("rejects an unknown table loading mode", () => {
+  assert.throws(() => createDuckDbAdapter({ tableLoading: "mmap" }), { code: "INVALID_ARGUMENT" });
+});
+
 test("exact-filter-first filters through real SQL before Top-K", async t => {
   const manifest = await fixtureManifest();
   const reader = new NodeFileResourceReader({ rootDirectory: FIXTURE });

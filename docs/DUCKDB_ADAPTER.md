@@ -32,19 +32,24 @@ const db = await open({
 
 任一步失败都会关闭连接、释放实例、删除临时目录，状态转为 `FAILED`。
 
-## 2. 为什么物化而不是建视图
+## 2. 表加载模式
 
-`CREATE VIEW ... AS SELECT * FROM read_parquet('...')` 更节省内存，但视图在每次查询时都要重新访问文件。一旦为了安全关闭外部文件访问，视图立刻失效（实测：`Permission Error: Cannot access file`）；而如果保留外部访问，用户 SQL 里的 `read_parquet('/etc/passwd')`、`read_csv_auto(...)` 就会成为任意文件读取通道。
+`CREATE VIEW ... AS SELECT * FROM read_parquet('...')` 更节省内存，但视图在每次查询时都要重新访问文件。一旦为了安全关闭外部文件访问，视图立刻失效（实测：`Permission Error: Cannot access file`）；而如果保留外部访问，用户 SQL 里的 `read_parquet('/etc/passwd')` 就会成为任意文件读取通道。两条路不能同时走。
 
-两条路只能选一条。V1 选择**安全边界优先**：
+V1 因此提供两种**显式**模式：
 
-| 方案 | 内存 | 外部文件访问 |
-| --- | --- | --- |
-| 视图 + 保留外部访问 | 低 | **开放，不可接受** |
-| 视图 + 关闭外部访问 | 低 | 视图不可用 |
-| 物化表 + 关闭外部访问 | 等于表数据量 | 关闭 |
+| `tableLoading` | 做法 | 内存 | 外部文件访问 | 适用场景 |
+| --- | --- | --- | --- | --- |
+| `memory`（默认） | `CREATE TABLE ... AS SELECT` | 约等于表数据量 | 关闭 | 任何 SQL，含不可信输入 |
+| `lazy` | 保留临时文件并建视图 | 受 row group 控制 | **开启** | SQL 由应用作者编写 |
 
-代价是内存占用与 `open()` 时的读取量。`maxTableBytes`（默认 256 MiB）在读取前拦截超大表。若未来需要低内存，可行方向是 DuckDB 的虚拟文件系统注册或分片表，两者都需要独立验证，目前未实现。
+```ts
+const adapter = createDuckDbAdapter({ tableLoading: "lazy" });
+```
+
+能力声明会如实反映模式：`memory` 输出 `external-access-disabled`，`lazy` 输出 `external-file-access-enabled`。`lazy` 仍然拒绝写入与 DDL（语句分类有效），但它**挡不住读取**，所以不能用于终端用户提供的 SQL。
+
+完整对比与实测依据见 [表加载模式](TABLE_LOADING_OPTIONS.md)。
 
 ## 3. 只读边界
 

@@ -39,4 +39,6 @@ export { candidateCapFor, exactFilterFirst, vectorFirst } from "./hybrid-executo
 export type { FilterExpression, HybridFilterInput, HybridFilterResult, VectorFirstInput, VectorFirstResult } from "./hybrid-executor.js";
 export { bm25Score, inverseDocumentFrequency, tokenize } from "./text-search.js";
 export type { Bm25Input, Bm25Options, Bm25TermStat, TokenizeOptions } from "./text-search.js";
+export { TextIndexReader } from "./text-index-reader.js";
+export type { TextHit, TextSearchOptions } from "./text-index-reader.js";
 export type * from "./types.js";

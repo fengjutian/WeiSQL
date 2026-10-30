@@ -124,6 +124,7 @@ interface TextIndexDescriptor {
   data: FileDescriptor;        // terms.jsonl
   termOffsets: FileDescriptor; // u64-le，数量 = termCount
   docLengths: FileDescriptor;  // u32-le，数量 = documentCount
+  idMap: IdMapDescriptor;      // 行 → 业务 ID，count 必须等于 documentCount
   k1?: number; // 默认 1.2
   b?: number;  // 默认 0.75，范围 [0, 1]
 }

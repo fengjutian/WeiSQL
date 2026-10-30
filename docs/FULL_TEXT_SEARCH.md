@@ -1,6 +1,6 @@
 # 全文检索设计（REQ-306）
 
-- 状态：设计已定；**核心评分与分词已实现，格式与 Runtime 接入待做**
+- 状态：**格式、校验、读取器与生成器均已实现**；Runtime `text.search()` 待接入
 - 目标：在不可变静态数据包上做关键词检索，不引入服务端、不依赖 SQL 引擎
 
 ## 1. 范围
@@ -19,8 +19,12 @@ V1 只做**单列、单字段**的 BM25 检索：
 text-index/
 ├── <name>.terms.jsonl      # 按词项升序，一行一个词项及其倒排表
 ├── <name>.terms.offsets    # UInt64 LE，词项起始偏移，数量 = 词项数
-└── <name>.doclengths.bin   # UInt32 LE，每行 = 该文档的词项总数
+├── <name>.doclengths.bin   # UInt32 LE，每行 = 该文档的词项总数
+├── <name>.ids.jsonl        # 行 → 业务 ID，形状与向量 ID Map 相同
+└── <name>.ids.offsets      # UInt64 LE，ID 行起始偏移
 ```
+
+ID Map 是必需的：全文索引只按行号打分，没有它就无法把结果回表成业务 ID。
 
 一行 `terms.jsonl` 的形状：
 
@@ -44,6 +48,7 @@ textIndexes?: Array<{
   data: FileDescriptor;          // terms.jsonl
   termOffsets: FileDescriptor;   // u64-le，数量 = termCount
   docLengths: FileDescriptor;    // u32-le，数量 = documentCount
+  idMap: IdMapDescriptor;        // 行 → 业务 ID，count 必须等于 documentCount
   k1?: number;  // 默认 1.2
   b?: number;   // 默认 0.75
 }>;
@@ -59,7 +64,9 @@ query → tokenize → 逐词项在 terms.jsonl 中定位 → 读取倒排表
       → row → 业务 ID（复用现有 ID Map 读取器）
 ```
 
-词项定位用二分：`terms.offsets` 提供每个词项的起始字节，读一次该位置的词项即可比较大小（词项行按字节序升序，与 JSON 字符串的 Unicode 码点序一致，前提是键名 `term` 固定在前——这一点由生成器保证）。定位一次 `O(log termCount)` 次 Range 读取；小包可直接整读 `terms.jsonl`。
+词项定位用二分：`terms.offsets` 提供每个词项的起始字节，读一次该位置的词项即可比较大小。**排序与比较都使用 JavaScript 默认字符串比较（UTF-16 码元序）**，由生成器与读取器共享同一规则；不要混用 UTF-8 字节序，两者在星光面字符上不一致。定位一次 `O(log termCount)` 次 Range 读取。
+
+每次查询还会完整读取 `docLengths`（每文档 4 字节）：BM25 需要每个候选的 `dl`。100 万文档时约 4 MB/查询，这是已记录的成本，不是隐藏开销。
 
 ## 4. 评分语义
 
@@ -96,6 +103,23 @@ score  = Σ idf(t) · tf·(k1+1) / (tf + k1·(1 - b + b·dl/avgdl))
 
 1. ✅ 分词与 BM25 评分核心（可独立测试，无格式依赖）
 2. ✅ Manifest `textIndexes` + 校验器 + Schema + L3 资源登记
-3. ⬜ 索引读取器（二分定位 + 倒排解码）
-4. Runtime `db.text.search()` 与能力声明
-5. 索引生成工具（读取 Parquet 文本列，写三个文件并回写 Manifest）
+3. ✅ 索引读取器（二分定位 + 倒排解码 + BM25 排序）
+4. ⬜ Runtime `text.search()` 与能力声明
+5. ✅ 索引生成工具（`tools/build-text-index.mjs`，读 Parquet 文本列并回写 Manifest）
+
+## 8. 端到端实测（fixture，3 篇文档）
+
+```bash
+node tools/build-text-index.mjs ./pkg --table documents --column title
+weisql validate ./pkg      # resources: 9 checked, 9 hashes verified
+```
+
+```
+dna      doc-001:1.023
+细胞      doc-003:1.813
+转录      doc-002:2.045
+结构      doc-001:2.045
+nothing  (none)
+```
+
+三件事由此得到验证：中文双字查询（`细胞`、`转录`）通过 CJK 单字倒排可以命中；稀有词得分高于常见词；不存在的词返回空而不是报错。这也说明「CJK 逐字」在当前数据规模上可用——但只有 3 篇文档，不能外推到长文本与大规模语料。

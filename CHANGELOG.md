@@ -23,6 +23,9 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - `buildPackage()` Builder: writes vectors, ID Map, real digests and Manifest,
   verifies the staged package, then publishes atomically.
 - `createExactVectorAdapter()` reference `VectorAdapter` implementation.
+- Full-text: `textIndexes` Manifest field, BM25 scoring, `tokenize()`, and the
+  `TextIndexReader` (binary term lookup, ID mapping, stable ranking). Runtime
+  `text.search()` is not wired yet.
 
 ### `@weisql/cli` 0.1.0
 
@@ -44,3 +47,5 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - Browser probe, playground example, cross-environment parity check.
 - Benchmark harness with exact and ANN (`--ann`) modes.
 - ANN index builder and release checks.
+- Text index builder (`tools/build-text-index.mjs`) reading the Parquet column and
+  updating the Manifest.

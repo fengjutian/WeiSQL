@@ -32,7 +32,7 @@ export interface VerifyManifestResourcesInput {
   options?: IntegrityOptions;
 }
 
-export type DeclaredResourceKind = "table" | "vector-data" | "id-map-data" | "id-map-offsets" | "index" | "text-data" | "text-offsets" | "text-lengths";
+export type DeclaredResourceKind = "table" | "vector-data" | "id-map-data" | "id-map-offsets" | "index" | "text-data" | "text-offsets" | "text-lengths" | "text-ids" | "text-id-offsets";
 
 export interface DeclaredResource {
   path: string;

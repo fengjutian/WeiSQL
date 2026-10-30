@@ -218,8 +218,9 @@ function textIndex(value: unknown, path: string, issues: Issue[]): TextIndexDesc
   const termOffsets = file(value.termOffsets, `${path}.termOffsets`, issues);
   const docLengths = file(value.docLengths, `${path}.docLengths`, issues);
   const idMap = idMapValue(value.idMap, `${path}.idMap`, issues);
-  if (idMap !== undefined && typeof value.documentCount === "number" && idMap.count !== value.documentCount) {
-    issue(issues, `${path}.idMap.count`, "must equal documentCount");
+  if (idMap !== undefined) {
+    if (typeof value.documentCount === "number" && idMap.count !== value.documentCount) issue(issues, `${path}.idMap.count`, "must equal documentCount");
+    if (BigInt(idMap.offsets.bytes) !== BigInt(idMap.count) * 8n) issue(issues, `${path}.idMap.offsets.bytes`, `must equal idMap.count × 8 (${BigInt(idMap.count) * 8n})`);
   }
 
   let k1: number | undefined;

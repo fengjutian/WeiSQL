@@ -22,6 +22,12 @@ function textIndex(overrides = {}) {
     data: { path: "text-index/documents.terms.jsonl", bytes: 512, sha256: SHA },
     termOffsets: { path: "text-index/documents.terms.offsets", bytes: 40, sha256: SHA },
     docLengths: { path: "text-index/documents.doclengths.bin", bytes: 12, sha256: SHA },
+    idMap: {
+      data: { path: "text-index/documents.ids.jsonl", format: "jsonl", bytes: 75, sha256: SHA },
+      offsets: { path: "text-index/documents.ids.offsets", format: "uint64-le", bytes: 24, sha256: SHA },
+      count: 3,
+      uniqueIds: true,
+    },
     ...overrides,
   };
 }
@@ -114,4 +120,28 @@ test("text index files participate in L3 resource enumeration", async () => {
   assert.ok(kinds.includes("text-data:text-index/documents.terms.jsonl"));
   assert.ok(kinds.includes("text-offsets:text-index/documents.terms.offsets"));
   assert.ok(kinds.includes("text-lengths:text-index/documents.doclengths.bin"));
+  assert.ok(kinds.includes("text-ids:text-index/documents.ids.jsonl"));
+  assert.ok(kinds.includes("text-id-offsets:text-index/documents.ids.offsets"));
+});
+
+test("text id map must agree with the document count", async () => {
+  const badCount = await manifestWith(textIndex({
+    idMap: {
+      data: { path: "text-index/documents.ids.jsonl", format: "jsonl", bytes: 75, sha256: SHA },
+      offsets: { path: "text-index/documents.ids.offsets", format: "uint64-le", bytes: 16, sha256: SHA },
+      count: 2,
+      uniqueIds: true,
+    },
+  }));
+  assert.throws(() => validateManifest(badCount), { code: "MANIFEST_INVALID" });
+
+  const badOffsets = await manifestWith(textIndex({
+    idMap: {
+      data: { path: "text-index/documents.ids.jsonl", format: "jsonl", bytes: 75, sha256: SHA },
+      offsets: { path: "text-index/documents.ids.offsets", format: "uint64-le", bytes: 40, sha256: SHA },
+      count: 3,
+      uniqueIds: true,
+    },
+  }));
+  assert.throws(() => validateManifest(badOffsets), { code: "MANIFEST_INVALID" });
 });

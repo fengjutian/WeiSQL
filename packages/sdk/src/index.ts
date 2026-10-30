@@ -37,4 +37,6 @@ export { businessIdKey, buildIdRowIndex, compileEqualityFilter, normalizeBusines
 export type { CompiledEqualityFilter } from "./vector-filter.js";
 export { candidateCapFor, exactFilterFirst, vectorFirst } from "./hybrid-executor.js";
 export type { FilterExpression, HybridFilterInput, HybridFilterResult, VectorFirstInput, VectorFirstResult } from "./hybrid-executor.js";
+export { bm25Score, inverseDocumentFrequency, tokenize } from "./text-search.js";
+export type { Bm25Input, Bm25Options, Bm25TermStat, TokenizeOptions } from "./text-search.js";
 export type * from "./types.js";

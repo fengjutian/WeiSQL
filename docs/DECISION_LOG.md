@@ -34,6 +34,22 @@
 - 决策：先实现 `manifest.json` + 数据分片 + 索引资源。`.wsql` 容器先写草案和原型，不在没有 Range/随机访问测试前冻结二进制协议。
 - 原因：容器格式过早冻结会限制按需加载、压缩和索引格式演进。
 
+## ADR-006：TypeScript SDK 为稳定入口，引擎通过 Adapter 接入
+
+- 状态：Accepted
+- 决策：应用只依赖 TypeScript SDK 的 `open`、`sql`、`vector.search`、`close` 和能力声明；DuckDB、USearch、Rust Core 及未来引擎通过 SQL/Vector Adapter 接入。
+- 原因：避免 Manifest 和公共 API 依赖某个引擎的内部类型，使浏览器与 Node.js 可以采用不同实现而保持公共语义稳定。
+- 约束：可替换是接口目标，不表示当前已经实现或验证多个引擎。Adapter 必须通过统一契约测试。
+- 规范：`SQL_ADAPTER_CONTRACT.md`、`VECTOR_ADAPTER_CONTRACT.md`。
+
+## ADR-007：向量原始数据使用专用 data 描述
+
+- 状态：Proposed，待 Schema、校验器、样例和兼容性测试同步后接受
+- 决策：Manifest 向量资源使用包含 `layout`、`count`、`bytes` 和 `sha256` 的 `data` 对象，不再用通用 `files[]` 表达 V1 原始连续 Float32 向量。
+- 原因：向量数据需要显式声明布局，并可校验 `count × dimension × 4` 与字节数的一致性。
+- 迁移影响：当前 JSON Schema、TypeScript 类型、校验器和样例仍使用 `vectors.files[]`，在迁移完成前不得把本决策描述为已实现。
+- 规范：`MANIFEST_SPEC_V1.md`。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

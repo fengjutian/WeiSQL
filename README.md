@@ -7,7 +7,11 @@
 ## 文档
 
 - `docs/TECHNICAL_SPEC_V1.md`：总体技术规范和架构。
+- `docs/ENGINEERING_ROADMAP.md`：工程设计补充、测试矩阵和 P0–P3 实施路线。
+- `docs/MANIFEST_SPEC_V1.md`：Manifest V1 字段、版本、向量数据与完整性规则。
 - `docs/MANIFEST_SCHEMA_V1.json`：Manifest JSON Schema 草案。
+- `docs/SQL_ADAPTER_CONTRACT.md`：SQL 引擎适配器生命周期、参数绑定与结果映射契约。
+- `docs/VECTOR_ADAPTER_CONTRACT.md`：向量引擎适配器距离、过滤、ID 与排序契约。
 - `docs/BENCHMARK_PROTOCOL_V1.md`：性能测试协议。
 - `docs/SDK_API_CONTRACT_V1.md`：TypeScript SDK 语义、错误码和安全边界。
 - `docs/DECISION_LOG.md`：架构决策及冻结条件。
@@ -30,5 +34,5 @@ cargo run --release --manifest-path crates/vector-benchmark/Cargo.toml -- 10000 
 
 - 当前没有实现 DuckDB、USearch、WASM、Netlify 适配器。
 - 当前没有实现 `.wsql` 二进制容器。
-- Manifest JSON Schema 的跨字段规则（例如路径唯一、`idColumn` 存在、字节数和 SHA-256 与真实文件一致）仍须在运行时校验器中实现。
+- Manifest 运行时校验器已覆盖路径唯一、表/列引用等主要跨字段规则；真实资源的字节数和 SHA-256 内容校验仍未实现。
 - 不要把样例里的 SHA-256 和字节数作为真实文件信息。

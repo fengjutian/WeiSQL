@@ -160,6 +160,7 @@ packages/sdk/              TypeScript SDK、资源层和向量基线
 - [SQL Adapter 契约](docs/SQL_ADAPTER_CONTRACT.md)
 - [Vector Adapter 契约](docs/VECTOR_ADAPTER_CONTRACT.md)
 - [ResourceReader 契约](docs/RESOURCE_READER_CONTRACT.md)
+- [浏览器与 Node.js Runtime 兼容性](docs/RUNTIME_COMPATIBILITY.md)
 - [端到端验收计划](docs/E2E_ACCEPTANCE_PLAN.md)
 - [基准测试协议](docs/BENCHMARK_PROTOCOL_V1.md)
 - [技术决策记录](docs/DECISION_LOG.md)

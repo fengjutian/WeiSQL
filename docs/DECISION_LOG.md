@@ -75,6 +75,13 @@
 - 约束：默认拒绝覆盖；暂存区与目标优先位于同一文件系统；输出路径必须执行真实路径 containment 并拒绝包外符号链接。
 - 规范：`MANIFEST_VALIDATOR_BUILDER_SPEC.md`。
 
+## ADR-013：不可变发布版本与入口指针
+
+- 状态：Accepted as deployment requirement
+- 决策：每次构建发布到新的不可变版本目录；本地或静态托管完成全部资源上传与验证后，最后切换 `current.json` 或等价入口。
+- 原因：防止新 Manifest 与旧资源混用，并支持缓存隔离和快速回滚。
+- 约束：Runtime 会话固定使用解析时的发布版本；缓存键包含发布身份和资源验证身份；不得原地修改已发布版本目录。
+
 ## ADR-009：向量源表与业务 ID 映射
 
 - 状态：Accepted for V1，待实现迁移

@@ -10,7 +10,7 @@ export interface USearchAdapterOptions {
   connectivity?: number;
   /** Candidate list during insertion; defaults to 128. */
   expansionAdd?: number;
-  /** Candidate list during search; defaults to 64. Recall depends on this. */
+  /** Candidate list during search; defaults to 512. Recall depends on this. */
   expansionSearch?: number;
   /** Rows added per batch while building; defaults to 4096. */
   buildBatchRows?: number;
@@ -53,7 +53,7 @@ interface CollectionIndex {
 export function createUSearchAdapter(options: USearchAdapterOptions = {}): VectorAdapter {
   const connectivity = positive(options.connectivity ?? 16, "connectivity");
   const expansionAdd = positive(options.expansionAdd ?? 128, "expansionAdd");
-  const expansionSearch = positive(options.expansionSearch ?? 64, "expansionSearch");
+  const expansionSearch = positive(options.expansionSearch ?? 512, "expansionSearch");
   const buildBatchRows = positive(options.buildBatchRows ?? 4096, "buildBatchRows");
 
   let state: "CREATED" | "READY" | "CLOSED" = "CREATED";

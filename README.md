@@ -2,7 +2,7 @@
 
 WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行时实验项目。数据集可以随应用发布到静态托管或 CDN，由浏览器或 Node.js 按需读取，无需单独部署数据库服务。
 
-项目采用 TypeScript + Rust：TypeScript 提供公开 SDK、Manifest 校验、资源读取、Runtime 编排和精确向量检索；Rust 提供用于对照的精确 Cosine 基线。DuckDB、DuckDB-Wasm 和 USearch 被设计为可替换 Adapter，当前只有 SQL 注入契约，仓库内没有任何引擎实现。
+项目采用 TypeScript + Rust：TypeScript 提供公开 SDK、Manifest 校验、资源读取、Runtime 编排、精确向量检索与 Adapter 注入；Rust 提供用于对照的精确 Cosine 基线。DuckDB（Node.js）与 USearch 已作为 Adapter 实现并接入，DuckDB-Wasm 尚未验证。
 
 > 当前状态：工程原型。Manifest V1 基础结构已冻结；L1/L2 校验、L3 资源完整性（尺寸 + SHA-256）、HTTP 与 Node 文件 Reader、Runtime 生命周期、TypeScript 精确向量检索、生成真实数据包的 Builder 首版，以及 Node.js DuckDB 只读 SQL Adapter 均已实现并有自动化测试。DuckDB-Wasm、ANN 和真实 CDN 部署仍在开发计划中。项目尚未发布 npm 包，也没有未经实测的性能承诺。
 
@@ -24,6 +24,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - Node.js DuckDB 只读 SQL Adapter（`@weisql/duckdb-adapter`）：真实 SQL 查询、参数绑定、语句级只读边界、L4 Parquet 模式校验与原生取消
 - 混合检索两策略：`exact-filter-first`（过滤先于 Top-K，结果严格）与 `vector-first`（有界候选窗口，诊断标注 `exact` 是否成立）
 - `VectorAdapter` 注入契约（`open({ vectorAdapter })`）与精确搜索参考实现；ANN 实现必须如实声明 `exactSearch: false`
+- USearch ANN Adapter（`@weisql/usearch-adapter`）：内存 HNSW 索引、三种度量映射、`diagnostics.exact: false` 如实标注
 - 真实浏览器验收探针（`npm run probe:browser`）：Chromium 中验证 HTTP Range、L3 校验、精确搜索与缓存命中
 - 跨环境对照（`npm run probe:parity`）：同一进程驱动 Node 与 Chromium，逐字段比较查询结果、`exact` 标记与错误码
 - 可复现的基准装置（`npm run bench`）：合成数据包 + 完整性闸门 + p50/p95、I/O 字节与峰值内存，结果见 [基准测量装置](docs/BENCHMARK_HARNESS.md)
@@ -39,7 +40,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 ## 尚未实现
 
 - DuckDB-Wasm（浏览器）SQL Adapter（Node.js 端已实现）
-- USearch 或其他 ANN Adapter（已验证可行，但默认参数召回不可接受，见 [ANN 可行性](docs/ANN_FEASIBILITY.md)）
+- USearch ANN 的持久化索引与真实数据集 Recall@K 评估（内存索引已实现）
 - Builder 的 CSV/JSON → Parquet 生成与类型推断
 - Parquet 内容级校验（L4，需要 SQL 引擎）
 - WASM 构建与 TypeScript/Rust 自动黄金数据对照
@@ -386,9 +387,10 @@ examples/source/           Builder 的不可变 Parquet 输入
 examples/fixture/          Builder 生成的真实数据包示例
 packages/sdk/              TypeScript SDK、资源层、Builder 和向量基线
 packages/duckdb-adapter/   Node.js DuckDB 只读 SQL Adapter
+packages/usearch-adapter/  USearch ANN VectorAdapter（内存索引）
 packages/cli/              `weisql validate` 数据包校验命令
 examples/playground/       浏览器端示例应用（向量检索演示）
-tools/                     源 Parquet 生成脚本
+tools/                     源 Parquet 生成、基准、浏览器探针与 ANN 探测脚本
 ```
 
 ## 主要文档
@@ -415,6 +417,7 @@ tools/                     源 Parquet 生成脚本
 - [基准测试协议](docs/BENCHMARK_PROTOCOL_V1.md)
 - [基准测量装置](docs/BENCHMARK_HARNESS.md)
 - [ANN 可行性探测](docs/ANN_FEASIBILITY.md)
+- [USearch Adapter](docs/USEARCH_ADAPTER.md)
 - [技术决策记录](docs/DECISION_LOG.md)
 
 ## 安全边界

@@ -47,6 +47,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - Node.js 20 或更高版本
 - npm
 - 可选：Rust stable，用于运行 Rust 基线
+- 可选：`@duckdb/node-api` 的平台预编译绑定，由 `npm install` 自动获取；SQL Adapter 测试需要它
 
 安装并验证 TypeScript 工程：
 

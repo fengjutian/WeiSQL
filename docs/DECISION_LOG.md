@@ -11,9 +11,10 @@
 
 ## ADR-002：复用 SQL 引擎，不自研完整 SQL
 
-- 状态：Accepted, subject to runtime validation
+- 状态：Accepted and validated on Node.js（`@weisql/duckdb-adapter`：DuckDB 2.0 + `@duckdb/node-api`）；DuckDB-Wasm 仍未验证
 - 决策：优先评估 DuckDB；浏览器评估 DuckDB-Wasm，Node.js 使用官方支持的 Node 运行方式。
-- 待验证：包体积、WASM 内存、Parquet 读取、参数绑定、浏览器与 Node 的 SQL 能力差异、许可和发布方式。
+- 已验证（Node.js）：Parquet 读取、参数绑定、语句级只读、原生中断、结果类型映射、许可（MIT）。
+- 待验证：包体积、WASM 内存、浏览器与 Node 的 SQL 能力差异、DuckDB-Wasm 发布方式。
 
 ## ADR-003：向量引擎优先验证 USearch
 
@@ -124,6 +125,17 @@
 - 决策三：SHA-256 自行实现为增量 `Sha256` 类，不依赖 `node:crypto` 或 WebCrypto。理由：浏览器 WebCrypto 无流式 API，加载 `node:crypto` 会破坏浏览器主包；纯函数实现可用 `node:crypto` 对照测试证明正确性。
 - 决策四：Builder 在暂存目录完成写入、重新读取、L1/L2/L3 复验后才原子重命名发布；`overwrite` 先把旧目录改名保留，成功后才删除，失败则回滚。未提供 `rowIds` 时主键交叉校验只产生 `id-membership-unverified` 警告，不伪造通过。
 - 后果：`data/*.parquet` 的内容正确性仍属 L4，需 SQL 引擎或独立 Parquet reader 验证；当前测试用 `hyparquet`（devDependency）读取三条记录作为独立证据。
+
+## ADR-017：DuckDB Adapter 用语句分类做只读边界，并接受内存物化
+
+- 状态：Accepted and implemented（Node.js 首版）
+- 决策一：Adapter 作为独立包 `@weisql/duckdb-adapter`，通过 `open({ sqlAdapter })` 注入。SDK 保持零引擎依赖，浏览器构建不会被 Node 原生绑定污染。
+- 决策二：只读边界建立在 DuckDB 解析后的 `StatementType` 上——只执行 `SELECT` 与 `EXPLAIN`。原因：关键字过滤可被 `WITH ... DELETE`、注释与大小写变体绕过，而语句分类来自同一个解析器，无法伪装。同时 `prepare()` 天然拒绝多语句输入。
+- 决策三：表在 `open()` 时以 `CREATE TABLE ... AS SELECT * FROM read_parquet(?)` 物化进 `:memory:`，而不是建视图。实测：视图在 `enable_external_access=false` 后立即因 `Permission Error` 失效；若保留外部访问，用户 SQL 的 `read_parquet('/etc/passwd')` 就是任意文件读取通道。两个目标不可兼得，V1 选择安全边界。
+- 决策四：代价显式化。内存成本约等于表数据量，由 `maxTableBytes`（默认 256 MiB）在读取前拦截；这是已记录的限制，不是遗漏。
+- 决策五：用 `DESCRIBE` 做 L4 模式校验（列名 + 物理类型），不比对可空性，因为 `read_parquet` 不保留 `NOT NULL` 约束。
+- 决策六：取消使用 `connection.interrupt()`，因此能力声明为 `native` 而非 `best-effort`；测试验证中断后可继续使用同一连接。
+- 后果：`DECIMAL` 由驱动转 `number`（>15 位有效数字丢精度），`INTERVAL`/`UNION`/`BIT` 未专门映射——均为已记录限制。大表内存与大包体积尚未实测，不得对外声明性能结论。
 
 ## 明确禁止的未经验证声明
 

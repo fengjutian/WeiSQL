@@ -89,8 +89,8 @@ Builder 必须写入实际字节数与 SHA-256，不得保留占位值，并验�
 4. ~~实现 `HttpResourceReader` 与 Range 契约测试；~~（首版已完成）
 5. ~~生成三条记录的真实 Parquet fixture；~~（`examples/source/documents.parquet` + `examples/fixture`，由 Builder 生成并可复现）
 6. ~~将 TypeScript 分块精确搜索基线接入 Indexed ID Map 与公开 Runtime；~~（已完成，`examples/fixture` 上 `verifyChecksums: "all"` + `vector.search()` 有测试覆盖）
-7. 完成包含真实 SQL Adapter 的 Node.js 端到端测试（**当前瓶颈**：尚无 DuckDB 实现，Parquet 仅由测试用独立 reader 读取）；
-8. 接入 DuckDB-Wasm 并执行 Netlify/CDN 验收；
+7. ~~完成包含真实 SQL Adapter 的 Node.js 端到端测试；~~（已完成：`@weisql/duckdb-adapter`，覆盖 SQL 查询、参数绑定、只读拒绝与业务 ID 关联）
+8. 接入 DuckDB-Wasm 并执行 Netlify/CDN 验收（**当前瓶颈**：浏览器侧尚无任何已验证的引擎路径，Node 结论不能外推）；
 9. 从 100k 开始性能测试，再逐步扩大规模。
 
 在完整链路通过前，不宣称 DuckDB、WASM、Netlify 或百万级向量能力已经完成验证。

@@ -71,7 +71,7 @@ await db.vector.search("document_embeddings", new Float32Array([1, 0]), { topK: 
 await db.close();
 ```
 
-`sql()` 需要注入实现了 `SqlAdapter` 的引擎适配器；本包只定义契约，不包含 DuckDB 或 DuckDB-Wasm 实现。
+`sql()` 需要注入实现了 `SqlAdapter` 的引擎适配器；本包只定义契约，不包含 DuckDB 或 DuckDB-Wasm 实现。Node.js 端可直接使用独立包 `@weisql/duckdb-adapter`（`createDuckDbAdapter()`）。
 
 打开时可要求 L3 校验：
 

@@ -1,0 +1,13 @@
+# Data package bytes are the contract: never convert line endings or treat the
+# files as text. The Manifest declares exact byte counts and SHA-256 values, so a
+# CRLF rewrite on checkout would make every fixture fail L3 verification.
+
+.gitattributes text eol=lf
+
+examples/fixture/** -text
+examples/source/** -text
+
+# Explicit binary markers for tooling that inspects attributes.
+*.parquet binary
+*.f32 binary
+*.offsets binary

@@ -8,9 +8,9 @@
   "properties": {
     "format": { "const": "weisql" },
     "formatVersion": { "const": "1.0.0" },
-    "datasetId": { "type": "string", "minLength": 1, "maxLength": 128 },
-    "tables": { "type": "array", "items": { "$ref": "#/$defs/table" } },
-    "vectorCollections": { "type": "array", "items": { "$ref": "#/$defs/vectorCollection" } },
+    "datasetId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "tables": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/table" } },
+    "vectorCollections": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/vectorCollection" } },
     "metadata": {
       "type": "object", "additionalProperties": false,
       "properties": {
@@ -24,12 +24,12 @@
     "path": { "type": "string", "minLength": 1, "maxLength": 1024, "pattern": "^[A-Za-z0-9._/-]+$" },
     "file": {
       "type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256"],
-      "properties": { "path": { "$ref": "#/$defs/path" }, "bytes": { "type": "integer", "minimum": 0 }, "sha256": { "$ref": "#/$defs/sha256" } }
+      "properties": { "path": { "$ref": "#/$defs/path" }, "bytes": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }, "sha256": { "$ref": "#/$defs/sha256" } }
     },
     "column": {
       "type": "object", "additionalProperties": false, "required": ["name", "type", "nullable"],
       "properties": {
-        "name": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+        "name": { "type": "string", "maxLength": 128, "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
         "type": { "enum": ["string", "int32", "int64", "float32", "float64", "boolean", "timestamp", "date", "json"] },
         "nullable": { "type": "boolean" }
       }
@@ -37,15 +37,15 @@
     "table": {
       "type": "object", "additionalProperties": false, "required": ["name", "file", "format", "columns", "primaryKey"],
       "properties": {
-        "name": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" }, "file": { "$ref": "#/$defs/file" },
-        "format": { "const": "parquet" }, "columns": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/column" } },
-        "primaryKey": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+        "name": { "type": "string", "maxLength": 128, "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" }, "file": { "$ref": "#/$defs/file" },
+        "format": { "const": "parquet" }, "columns": { "type": "array", "minItems": 1, "maxItems": 10000, "items": { "$ref": "#/$defs/column" } },
+        "primaryKey": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" } }
       }
     },
     "formattedFile": {
       "type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256", "format"],
       "properties": {
-        "path": { "$ref": "#/$defs/path" }, "bytes": { "type": "integer", "minimum": 0 }, "sha256": { "$ref": "#/$defs/sha256" },
+        "path": { "$ref": "#/$defs/path" }, "bytes": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }, "sha256": { "$ref": "#/$defs/sha256" },
         "format": { "enum": ["jsonl", "uint64-le"] }
       }
     },
@@ -53,15 +53,15 @@
       "type": "object", "additionalProperties": false, "required": ["data", "offsets", "count", "uniqueIds"],
       "properties": {
         "data": { "$ref": "#/$defs/formattedFile" }, "offsets": { "$ref": "#/$defs/formattedFile" },
-        "count": { "type": "integer", "minimum": 0 }, "uniqueIds": { "type": "boolean" }
+        "count": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }, "uniqueIds": { "type": "boolean" }
       }
     },
     "vectorCollection": {
       "type": "object", "additionalProperties": false,
       "required": ["name", "tableName", "idColumn", "count", "dimension", "metric", "encoding", "data", "idMap"],
       "properties": {
-        "name": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" }, "tableName": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
-        "idColumn": { "type": "string", "minLength": 1 }, "count": { "type": "integer", "minimum": 0 }, "dimension": { "type": "integer", "minimum": 1 },
+        "name": { "type": "string", "maxLength": 128, "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" }, "tableName": { "type": "string", "maxLength": 128, "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+        "idColumn": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" }, "count": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }, "dimension": { "type": "integer", "minimum": 1, "maximum": 65536 },
         "metric": { "enum": ["cosine", "l2", "ip"] }, "encoding": { "const": "f32-le-row-major" },
         "data": { "$ref": "#/$defs/file" }, "idMap": { "$ref": "#/$defs/idMap" },
         "index": {

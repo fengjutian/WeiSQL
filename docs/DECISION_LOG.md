@@ -82,6 +82,14 @@
 - 原因：防止新 Manifest 与旧资源混用，并支持缓存隔离和快速回滚。
 - 约束：Runtime 会话固定使用解析时的发布版本；缓存键包含发布身份和资源验证身份；不得原地修改已发布版本目录。
 
+## ADR-014：V1 使用单一稳定错误码体系
+
+- 状态：Accepted
+- 决策：Builder、Runtime、ResourceReader 和 Adapter 共用 `WeiSQLErrorCode`；同义草案错误码不进入公共 API。
+- 统一映射：文件大小、摘要和内容损坏归入 `RESOURCE_INTEGRITY_FAILED`；取消归入 `QUERY_CANCELLED`；不安全路径归入 `PATH_INVALID`。
+- 原因：避免不同包和运行时要求调用方处理多套同义错误。
+- 规范：`PUBLIC_TYPES_AND_ERRORS_V1.md`。
+
 ## ADR-009：向量源表与业务 ID 映射
 
 - 状态：Accepted for V1，待实现迁移
@@ -98,6 +106,15 @@
 - 规范：`RESOURCE_READER_CONTRACT.md`。
 - 实现门槛：至少完成 Node 文件与 HTTP 两个实现的契约测试；HTTP 必须严格验证 `206`、`Content-Range` 和实际长度。
 - 当前进度：`HttpResourceReader` 首版及注入 Fetch 的契约测试已完成；Node 文件实现与真实 CDN 验收待完成。
+
+## ADR-015：评估带哨兵的 ID Map 边界偏移
+
+- 状态：Proposed，不适用于 Manifest `1.0.0`
+- 当前 V1：偏移文件保存 `count` 个记录起始位置，大小为 `count × 8`；最后一条记录以 `idMap.data.bytes` 作为结束位置，空集合偏移文件为零字节。
+- 提案：未来格式保存 `count + 1` 个边界值，大小为 `(count + 1) × 8`；第一项为 0，最后一项等于 JSONL 字节数，空集合保存一个 0。
+- 收益：每条记录的 Range 可直接计算，尾边界也能在偏移文件内部验证。
+- 兼容性：两种字节布局无法可靠自动区分，属于数据格式破坏性变更，不能在 V1 中静默替换。
+- 接受条件：启用新的格式版本，并原子更新 Schema、类型、Builder、Reader、fixtures、迁移说明和跨运行时测试。接受前不得生成或宣称支持哨兵布局。
 
 ## 明确禁止的未经验证声明
 

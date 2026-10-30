@@ -4,6 +4,7 @@ import type { ColumnDescriptor, FileDescriptor, TableDescriptor, VectorCollectio
 
 interface Issue { path: string; message: string }
 const identifier = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const datasetIdentifier = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const digest = /^[0-9a-f]{64}$/i;
 const scalarTypes = new Set(["string", "int32", "int64", "float32", "float64", "boolean", "timestamp", "date", "json"]);
 const metrics = new Set(["cosine", "l2", "ip"]);
@@ -19,12 +20,19 @@ export function validateManifest(input: unknown): WeiSQLManifest {
     issue(issues, "$.formatVersion", "must equal '1.0.0'");
   }
   text(input.datasetId, "$.datasetId", issues, 1, 128);
+  if (typeof input.datasetId === "string" && !datasetIdentifier.test(input.datasetId)) issue(issues, "$.datasetId", "must be a valid dataset identifier");
   const tables: TableDescriptor[] = [];
   if (!Array.isArray(input.tables)) issue(issues, "$.tables", "must be an array");
-  else input.tables.forEach((value, index) => { const parsed = table(value, `$.tables[${index}]`, issues); if (parsed) tables.push(parsed); });
+  else {
+    if (input.tables.length > 10_000) issue(issues, "$.tables", "must contain at most 10000 items");
+    input.tables.forEach((value, index) => { const parsed = table(value, `$.tables[${index}]`, issues); if (parsed) tables.push(parsed); });
+  }
   const vectors: VectorCollectionDescriptor[] = [];
   if (!Array.isArray(input.vectorCollections)) issue(issues, "$.vectorCollections", "must be an array");
-  else input.vectorCollections.forEach((value, index) => { const parsed = vector(value, `$.vectorCollections[${index}]`, issues); if (parsed) vectors.push(parsed); });
+  else {
+    if (input.vectorCollections.length > 10_000) issue(issues, "$.vectorCollections", "must contain at most 10000 items");
+    input.vectorCollections.forEach((value, index) => { const parsed = vector(value, `$.vectorCollections[${index}]`, issues); if (parsed) vectors.push(parsed); });
+  }
   metadata(input.metadata, issues);
 
   unique(tables.map(item => item.name), "$.tables", "table name", issues);
@@ -72,10 +80,17 @@ function table(value: unknown, path: string, issues: Issue[]): TableDescriptor |
   if (value.format !== "parquet") issue(issues, `${path}.format`, "must equal 'parquet'");
   const columns: ColumnDescriptor[] = [];
   if (!Array.isArray(value.columns) || value.columns.length === 0) issue(issues, `${path}.columns`, "must be a non-empty array");
-  else value.columns.forEach((item, index) => { const parsed = column(item, `${path}.columns[${index}]`, issues); if (parsed) columns.push(parsed); });
+  else {
+    if (value.columns.length > 10_000) issue(issues, `${path}.columns`, "must contain at most 10000 items");
+    value.columns.forEach((item, index) => { const parsed = column(item, `${path}.columns[${index}]`, issues); if (parsed) columns.push(parsed); });
+  }
   unique(columns.map(item => item.name), `${path}.columns`, "column name", issues);
   const primaryKey = stringArray(value.primaryKey, `${path}.primaryKey`, issues, true);
-  if (primaryKey) for (let i = 0; i < primaryKey.length; i++) if (!columns.some(item => item.name === primaryKey[i])) issue(issues, `${path}.primaryKey[${i}]`, "must reference a declared column");
+  if (primaryKey) for (let i = 0; i < primaryKey.length; i++) {
+    const primaryColumn = columns.find(item => item.name === primaryKey[i]);
+    if (!primaryColumn) issue(issues, `${path}.primaryKey[${i}]`, "must reference a declared column");
+    else if (primaryColumn.nullable) issue(issues, `${path}.primaryKey[${i}]`, "must reference a non-nullable column");
+  }
   if (typeof value.name !== "string" || !descriptor || !primaryKey) return;
   return { name: value.name, file: descriptor, format: "parquet", columns, primaryKey };
 }
@@ -94,6 +109,7 @@ function vector(value: unknown, path: string, issues: Issue[]): VectorCollection
   allowed(value, ["name", "tableName", "idColumn", "count", "dimension", "metric", "encoding", "data", "idMap", "index"], path, issues);
   name(value.name, `${path}.name`, issues); name(value.tableName, `${path}.tableName`, issues); name(value.idColumn, `${path}.idColumn`, issues);
   integer(value.count, `${path}.count`, issues, 0); integer(value.dimension, `${path}.dimension`, issues, 1);
+  if (typeof value.dimension === "number" && value.dimension > 65_536) issue(issues, `${path}.dimension`, "must be <= 65536");
   if (typeof value.metric !== "string" || !metrics.has(value.metric)) issue(issues, `${path}.metric`, "is not a supported metric");
   if (value.encoding !== "f32-le-row-major") issue(issues, `${path}.encoding`, "must equal 'f32-le-row-major'");
   const data = file(value.data, `${path}.data`, issues);
@@ -152,7 +168,7 @@ function metadata(value: unknown, issues: Issue[]): void {
 function record(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
 function allowed(value: Record<string, unknown>, keys: readonly string[], path: string, issues: Issue[]): void { for (const key of Object.keys(value)) if (!keys.includes(key)) issue(issues, `${path}.${key}`, "is not allowed"); }
 function text(value: unknown, path: string, issues: Issue[], min = 1, max = Number.MAX_SAFE_INTEGER): void { if (typeof value !== "string" || value.length < min || value.length > max) issue(issues, path, `must be a string with length ${min}..${max}`); }
-function name(value: unknown, path: string, issues: Issue[]): void { if (typeof value !== "string" || !identifier.test(value)) issue(issues, path, "must be a valid identifier"); }
+function name(value: unknown, path: string, issues: Issue[]): void { if (typeof value !== "string" || value.length > 128 || !identifier.test(value)) issue(issues, path, "must be a valid identifier with length 1..128"); }
 function integer(value: unknown, path: string, issues: Issue[], min: number): void { if (typeof value !== "number" || !Number.isSafeInteger(value) || value < min) issue(issues, path, `must be a safe integer >= ${min}`); }
 function stringArray(value: unknown, path: string, issues: Issue[], nonEmpty: boolean): string[] | undefined { if (!Array.isArray(value) || (nonEmpty && value.length === 0)) { issue(issues, path, nonEmpty ? "must be a non-empty array" : "must be an array"); return; } const result: string[] = []; value.forEach((item, index) => { text(item, `${path}[${index}]`, issues); if (typeof item === "string") result.push(item); }); unique(result, path, "value", issues); return result; }
 function unique(values: readonly string[], path: string, label: string, issues: Issue[]): void { const seen = new Set<string>(); values.forEach((value, index) => { if (seen.has(value)) issue(issues, `${path}[${index}]`, `duplicate ${label}: ${value}`); seen.add(value); }); }

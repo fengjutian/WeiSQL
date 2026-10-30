@@ -65,6 +65,8 @@ export interface VectorAdapter {
 
 Adapter 如果使用返回相似度、平方 L2 或其他方向的底层 API，必须在边界处转换。不能把引擎原始分数直接暴露为公共 `distance`。
 
+精确与 ANN 必须可辨识：`exactSearch` 能力只描述真实精确实现；ANN 不得因为返回 Top-K 就标记为精确。索引缺失后的精确回退必须由显式策略启用，并在结果诊断或能力报告中记录实际后端。
+
 ## 4. 输入约束
 
 - `topK` 必须是大于 0 的安全整数；

@@ -40,10 +40,11 @@ export async function exactVectorSearch(input: ExactVectorSearchInput): Promise<
     if (block.startRow !== expectedStartRow || !Number.isSafeInteger(block.count) || block.count <= 0 || block.startRow + block.count > collectionCount || block.values.length !== block.count * dimension) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Vector blocks are incomplete, overlapping or out of order", { expectedStart: expectedStartRow, blockStart: block.startRow, count: block.count });
     for (let localRow = 0; localRow < block.count; localRow++) {
       checkCancelled(search.signal);
+      const row = block.startRow + localRow;
+      if (search.isAllowed !== undefined && !search.isAllowed(row)) continue;
       const offset = localRow * dimension;
       const distance = vectorDistance(query, block.values.subarray(offset, offset + dimension), search.metric);
       if (!Number.isFinite(distance)) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Distance calculation returned a non-finite value", { row: block.startRow + localRow });
-      const row = block.startRow + localRow;
       best.offer({ row, id: row, distance });
     }
     expectedStartRow += block.count;

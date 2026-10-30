@@ -25,6 +25,15 @@ export interface ExactSearchOptions {
   metric: VectorMetric;
   blockSize?: number;
   signal?: AbortSignal;
+  /**
+   * Optional restriction applied while scanning, not after Top-K.
+   *
+   * Filtering after Top-K would return fewer than K results even when more
+   * matching rows exist, and it could not claim `exact`. The predicate is
+   * evaluated per row, so a bitmap-backed implementation can be added later
+   * without changing this contract.
+   */
+  isAllowed?: (row: number) => boolean;
 }
 
 export interface IdMapReader {

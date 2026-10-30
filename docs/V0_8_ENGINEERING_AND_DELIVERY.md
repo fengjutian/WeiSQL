@@ -110,7 +110,7 @@ Adaptive 策略、BM25 与 RRF 不属于 V1 基础闭环。
 | Manifest V1 与路径校验 | 必须 | 已实现 L1/L2 |
 | Node 与 HTTP Reader | 必须 | 首版已实现 |
 | 精确向量检索与 ID Map | 必须 | 已接入公开 Runtime |
-| 只读 SQL | 必须 | Adapter 接口已接线，DuckDB 实现待完成 |
+| 只读 SQL | 必须 | Node.js DuckDB 首版已完成；DuckDB-Wasm 待实现 |
 | 基础 Hybrid 两策略 | 必须 | 语义已定义，执行器待完成 |
 | Range/LRU 缓存 | 基础实现 | Range 已完成，LRU 待完成 |
 | Builder 与真实 fixture | 必须 | 首版已完成：`buildPackage()` + `examples/fixture`；CSV/JSON 推断未实现 |
@@ -125,7 +125,7 @@ Adaptive 策略、BM25 与 RRF 不属于 V1 基础闭环。
 最短关键路径为：
 
 1. ~~Builder 生成三记录真实 Parquet、Float32、JSONL、偏移和正式摘要~~（首版已完成，见 `examples/fixture`）；
-2. 实现 Node DuckDB 只读 Adapter 及契约测试；
+2. ~~实现 Node DuckDB 只读 Adapter 及契约测试~~（首版已完成，见 `packages/duckdb-adapter`）；
 3. 完成 Manifest → SQL → Exact Vector → ID 关联的 Node 端到端测试；
 4. 实现结构化等值过滤与 `vector-first`；
 5. 增加业务 ID 到向量行的反向映射，再实现 `exact-filter-first`；

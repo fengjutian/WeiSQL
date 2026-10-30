@@ -5,11 +5,11 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspace @weisql/sdk",
-    "test": "npm run test --workspace @weisql/sdk",
-    "test:watch": "npm run test:watch --workspace @weisql/sdk",
-    "typecheck": "npm run typecheck --workspace @weisql/sdk",
-    "fixture": "npm run build && node examples/build-fixture.mjs",
+    "build": "npm run build --workspace @weisql/sdk && npm run build --workspace @weisql/duckdb-adapter",
+    "test": "npm run build && npm run test --workspace @weisql/sdk && npm run test --workspace @weisql/duckdb-adapter",
+    "test:watch": "npm run build && npm run test:watch --workspace @weisql/sdk",
+    "typecheck": "npm run typecheck --workspace @weisql/sdk && npm run typecheck --workspace @weisql/duckdb-adapter",
+    "fixture": "npm run build --workspace @weisql/sdk && node examples/build-fixture.mjs",
     "source:parquet": "python tools/make-source-parquet.py"
   },
   "devDependencies": {

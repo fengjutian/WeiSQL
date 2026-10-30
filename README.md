@@ -4,7 +4,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 
 项目采用 TypeScript + Rust：TypeScript 提供公开 SDK、Manifest 校验、资源读取、Runtime 编排和精确向量检索；Rust 提供用于对照的精确 Cosine 基线。DuckDB、DuckDB-Wasm 和 USearch 被设计为可替换 Adapter，当前只有 SQL 注入契约，仓库内没有任何引擎实现。
 
-> 当前状态：工程原型。Manifest V1 基础结构已冻结；L1/L2 校验、L3 资源完整性（尺寸 + SHA-256）、HTTP 与 Node 文件 Reader、Runtime 生命周期、TypeScript 精确向量检索，以及生成真实数据包的 Builder 首版均已实现并有自动化测试。SQL 引擎、ANN、WASM 和真实 CDN 部署仍在开发计划中。项目尚未发布 npm 包，也没有未经实测的性能承诺。
+> 当前状态：工程原型。Manifest V1 基础结构已冻结；L1/L2 校验、L3 资源完整性（尺寸 + SHA-256）、HTTP 与 Node 文件 Reader、Runtime 生命周期、TypeScript 精确向量检索、生成真实数据包的 Builder 首版，以及 Node.js DuckDB 只读 SQL Adapter 均已实现并有自动化测试。DuckDB-Wasm、ANN 和真实 CDN 部署仍在开发计划中。项目尚未发布 npm 包，也没有未经实测的性能承诺。
 
 ## 已实现
 
@@ -20,6 +20,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - L3 资源完整性：`verifyChecksums` 的 `manifest`（尺寸）与 `all`（增量 SHA-256 + ID Map 内容）两种模式
 - 零依赖增量 SHA-256，浏览器与 Node.js 同一实现
 - `buildPackage()` Builder：接收已有 Parquet，生成 Float32、ID Map、真实摘要与 Manifest，暂存区自检后原子发布
+- Node.js DuckDB 只读 SQL Adapter（`@weisql/duckdb-adapter`）：真实 SQL 查询、参数绑定、语句级只读边界、L4 Parquet 模式校验与原生取消
 - 已接入公开 `vector.search()` 的端到端精确搜索
 - Float32 little-endian 向量分块读取
 - Cosine、L2、IP 统一距离语义
@@ -30,7 +31,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 
 ## 尚未实现
 
-- DuckDB / DuckDB-Wasm SQL Adapter 实现（当前只有注入契约，没有引擎）
+- DuckDB-Wasm（浏览器）SQL Adapter（Node.js 端已实现）
 - USearch 或其他 ANN Adapter
 - Builder 的 CSV/JSON → Parquet 生成与类型推断
 - Parquet 内容级校验（L4，需要 SQL 引擎）
@@ -223,6 +224,38 @@ await db.close();
 
 未注入 Reader 时返回 `INDEX_NOT_FOUND`，未注入 `sqlAdapter` 时 `sql()` 返回 `SQL_UNSUPPORTED`，两者都不会返回模拟数据。
 
+## SQL 查询
+
+Node.js 端通过独立包 `@weisql/duckdb-adapter` 接入真实 DuckDB，SDK 本身仍然零引擎依赖：
+
+```ts
+import { open, NodeFileResourceReader } from "@weisql/sdk";
+import { createDuckDbAdapter } from "@weisql/duckdb-adapter";
+
+const db = await open({
+  manifestUrl: "https://example.test/datasets/demo/manifest.json",
+  resourceReader: new NodeFileResourceReader({ rootDirectory: "./demo" }),
+  sqlAdapter: createDuckDbAdapter(),
+});
+
+const rows = await db.sql(
+  "select id, title from documents where category = ? order by id",
+  ["genetics"],
+);
+```
+
+边界与取舍：
+
+- **只读由引擎的语句分类保证**：只执行 `SELECT` 与 `EXPLAIN` 预处理语句，`INSERT`/`UPDATE`/`DELETE`/`COPY`/`CREATE`/`ALTER`/`SET`/`CALL` 一律返回 `SQL_UNSUPPORTED`。不依赖关键字过滤，`WITH ... DELETE` 同样被拒绝。
+- **单语句**：`prepare()` 直接拒绝多语句输入，一次调用无法夹带第二条语句。
+- **外部文件访问关闭**：`open()` 最后设置 `enable_external_access=false` 与 `lock_configuration=true`，因此用户 SQL 里的 `read_parquet('/etc/passwd')` 会被拒绝。
+- **表会被物化进内存**：为满足上一条边界，Adapter 用 `CREATE TABLE ... AS SELECT` 把 Parquet 载入内存库，而不是保留需要查询期文件访问的视图。内存成本约等于表数据量，由 `maxTableBytes`（默认 256 MiB）兜底。
+- **L4 校验**：表载入后按 Manifest 的列名与类型比对 `DESCRIBE` 结果，不一致返回 `RESOURCE_INTEGRITY_FAILED`；可用 `verifyTableSchema: false` 关闭。
+- **取消是原生的**：通过 `connection.interrupt()` 中断执行中的查询，能力声明为 `cancellation: "native"`。
+- **已知限制**：`DECIMAL` 由驱动转换为 `number`，超过 15 位有效数字会丢精度；可空性不在 L4 比对范围内（`read_parquet` 不保留 `NOT NULL` 约束）。
+
+详见 [DuckDB Adapter](docs/DUCKDB_ADAPTER.md)。
+
 ## 仓库结构
 
 ```text
@@ -232,6 +265,7 @@ examples/manifest/         Manifest 正例与安全负例
 examples/source/           Builder 的不可变 Parquet 输入
 examples/fixture/          Builder 生成的真实数据包示例
 packages/sdk/              TypeScript SDK、资源层、Builder 和向量基线
+packages/duckdb-adapter/   Node.js DuckDB 只读 SQL Adapter
 tools/                     源 Parquet 生成脚本
 ```
 
@@ -244,6 +278,7 @@ tools/                     源 Parquet 生成脚本
 - [SDK API 契约](docs/SDK_API_CONTRACT_V1.md)
 - [V1 公共类型与错误契约](docs/PUBLIC_TYPES_AND_ERRORS_V1.md)
 - [SQL Adapter 契约](docs/SQL_ADAPTER_CONTRACT.md)
+- [DuckDB Adapter](docs/DUCKDB_ADAPTER.md)
 - [Vector Adapter 契约](docs/VECTOR_ADAPTER_CONTRACT.md)
 - [ResourceReader 契约](docs/RESOURCE_READER_CONTRACT.md)
 - [资源完整性校验规范](docs/RESOURCE_INTEGRITY_SPEC.md)
@@ -271,11 +306,11 @@ tools/                     源 Parquet 生成脚本
 
 1. ~~实现 Builder 和真实三记录 fixture~~（首版已完成，`examples/fixture`）
 2. ~~实现 L3 文件长度与 SHA-256 校验~~（已完成，`verifyChecksums`）
-3. 接入 Node.js DuckDB Adapter
-4. 完成 SQL + 精确向量搜索端到端测试
+3. ~~接入 Node.js DuckDB Adapter~~（已完成，`packages/duckdb-adapter`）
+4. ~~完成 SQL + 精确向量搜索端到端测试~~（已完成，见适配器测试）
 5. 验证 DuckDB-Wasm 和静态 CDN
 6. 在正确性基线稳定后接入 ANN 并运行性能协议
 
-第 3 步是当前瓶颈：没有真实 SQL 引擎，`documents.parquet` 只能由测试用独立 Parquet reader 读取，SQL ↔ 向量业务 ID 关联尚未在真实引擎上验证。
+第 5 步是当前瓶颈：浏览器侧还没有任何已验证的引擎路径，Node 端的结论不能外推到 WASM。
 
 在真实测试报告完成前，不对百万级向量延迟、浏览器内存、ANN 召回率或 CDN 随机访问效率作产品承诺。

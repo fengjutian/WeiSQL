@@ -1,0 +1,32 @@
+{
+  "format": "weisql-ai",
+  "formatVersion": "1.0.0",
+  "datasetId": "demo-docs",
+  "createdAt": "2026-10-30T00:00:00Z",
+  "tables": [
+    {
+      "name": "records",
+      "schema": [
+        { "name": "id", "type": "utf8", "nullable": false },
+        { "name": "title", "type": "utf8", "nullable": false },
+        { "name": "category", "type": "utf8", "nullable": true }
+      ],
+      "primaryKey": ["id"],
+      "files": [
+        {
+          "path": "records/part-00000.parquet",
+          "format": "parquet",
+          "rows": 3,
+          "bytes": 1234,
+          "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        }
+      ]
+    }
+  ],
+  "features": {
+    "sql": true,
+    "vectorSearch": false,
+    "fullTextSearch": false,
+    "hybridSearch": false
+  }
+}

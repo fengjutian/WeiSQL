@@ -1,0 +1,19 @@
+{
+  "format": "weisql-ai",
+  "formatVersion": "1.0.0",
+  "datasetId": "bad-demo",
+  "tables": [
+    {
+      "name": "records",
+      "schema": [{ "name": "id", "type": "utf8", "nullable": false }],
+      "files": [
+        {
+          "path": "../secrets/private.parquet",
+          "format": "parquet",
+          "bytes": 10,
+          "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        }
+      ]
+    }
+  ]
+}

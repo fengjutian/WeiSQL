@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/weisql-ai/manifest-v1.schema.json",
+  "title": "WeiSQL AI Manifest V1 (Draft)",
+  "description": "Draft schema; replace example.invalid with a project-controlled schema URI before publishing.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "formatVersion", "datasetId", "tables"],
+  "properties": {
+    "format": { "const": "weisql-ai" },
+    "formatVersion": { "type": "string", "pattern": "^1\\.\\d+\\.\\d+$" },
+    "datasetId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "metadata": { "type": "object", "additionalProperties": true },
+    "tables": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "schema", "files"],
+        "properties": {
+          "name": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+          "schema": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "type", "nullable"],
+              "properties": {
+                "name": { "type": "string", "minLength": 1 },
+                "type": { "enum": ["utf8", "int32", "int64", "float32", "float64", "boolean", "binary", "timestamp"] },
+                "nullable": { "type": "boolean" }
+              }
+            }
+          },
+          "primaryKey": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+          "files": { "$ref": "#/$defs/files" }
+        }
+      }
+    },
+    "vectors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "sourceTable", "idColumn", "dimension", "elementType", "metric", "files"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "sourceTable": { "type": "string", "minLength": 1 },
+          "idColumn": { "type": "string", "minLength": 1 },
+          "dimension": { "type": "integer", "minimum": 1 },
+          "elementType": { "const": "float32" },
+          "metric": { "enum": ["cosine", "l2", "ip"] },
+          "normalization": { "enum": ["unit", "not-required-by-format", "unknown"] },
+          "files": { "$ref": "#/$defs/files" },
+          "index": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["engine", "path"],
+            "properties": {
+              "engine": { "type": "string", "minLength": 1 },
+              "engineVersion": { "type": "string" },
+              "path": { "$ref": "#/$defs/path" },
+              "sha256": { "$ref": "#/$defs/sha256" }
+            }
+          }
+        }
+      }
+    },
+    "features": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sql": { "type": "boolean" },
+        "vectorSearch": { "type": "boolean" },
+        "fullTextSearch": { "type": "boolean" },
+        "hybridSearch": { "type": "boolean" }
+      }
+    }
+  },
+  "$defs": {
+    "path": { "type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$" },
+    "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "format", "bytes", "sha256"],
+        "properties": {
+          "path": { "$ref": "#/$defs/path" },
+          "format": { "type": "string", "minLength": 1 },
+          "rows": { "type": "integer", "minimum": 0 },
+          "bytes": { "type": "integer", "minimum": 0 },
+          "sha256": { "$ref": "#/$defs/sha256" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,40 @@
+# Rust build artifacts
+target/
+**/target/
+
+# Rust compiler backup files
+**/*.rs.bk
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Editors and IDEs
+.idea/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.swp
+*.swo
+*~
+
+# Operating system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Test and coverage output
+coverage/
+*.profraw
+*.profdata
+

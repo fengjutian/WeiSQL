@@ -1,0 +1,10 @@
+[package]
+name = "weisql-vector-benchmark"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Correctness-first exact vector search baseline for WeiSQL AI"
+
+[dependencies]
+
+[dev-dependencies]

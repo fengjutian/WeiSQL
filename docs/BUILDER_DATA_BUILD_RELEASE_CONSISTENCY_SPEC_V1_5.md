@@ -8,6 +8,19 @@
 
 本文定义目标行为、数据格式、构建状态机、校验规则和验收标准。示例代码和配置属于设计参考，尚不代表已在真实环境中编译或通过测试。
 
+### 与当前仓库的差异
+
+Builder 的**核心链路已实现**（`buildPackage()`，`packages/sdk/src/builder.ts`），但与本文的目标存在出入：
+
+| 本文的设计 | 当前仓库的实际状态 |
+| --- | --- |
+| 输入 JSONL → 生成 Parquet → 构建索引 的完整链路 | **未实现**。V1 Builder 只消费**已存在的 Parquet**，不负责 CSV/JSON 推断与生成 |
+| 构建向量索引 | 未实现。Manifest 的 `index` 字段缺 connectivity / expansion 等构建参数，无法复现同一索引 |
+| 构建状态机 | 已实现：`CREATED → VALIDATING → BUILDING → VERIFYING → PUBLISHING → PUBLISHED`，失败进入 `FAILED` 并清理暂存区 |
+| 发布前自检 | 已实现：暂存区重新读取做 L1/L2/L3 自检；未提供 `rowIds` 时如实报告 `id-membership-unverified` 警告而非假装通过 |
+| 原子发布与覆盖保护 | 已实现：默认拒绝覆盖已有目录；`overwrite: true` 时先移走旧目录，成功才删除，失败则回滚 |
+| 生成真实摘要与字节数 | 已实现：真实 SHA-256 与字节数，非占位值 |
+
 ## 1. 设计目标与范围
 
 ### 1.1 核心目标

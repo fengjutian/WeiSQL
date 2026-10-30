@@ -72,6 +72,10 @@
         "termOffsets": { "$ref": "#/$defs/file" },
         "docLengths": { "$ref": "#/$defs/file" },
         "idMap": { "$ref": "#/$defs/idMap" },
+        "documents": {
+          "type": "object", "additionalProperties": false, "required": ["data", "offsets"],
+          "properties": { "data": { "$ref": "#/$defs/formattedFile" }, "offsets": { "$ref": "#/$defs/formattedFile" } }
+        },
         "k1": { "type": "number", "exclusiveMinimum": 0 },
         "b": { "type": "number", "minimum": 0, "maximum": 1 }
       }

@@ -40,6 +40,11 @@ export interface TextIndexDescriptor {  name: string;
   docLengths: FileDescriptor;
   /** Row → business ID, same shape as the vector ID Map. */
   idMap: IdMapDescriptor;
+  /**
+   * Optional row → original document text, so retrieval can assemble context
+   * without a Parquet reader. Stored as JSONL plus UInt64 offsets.
+   */
+  documents?: { data: FileDescriptor & { format: "jsonl" }; offsets: FileDescriptor & { format: "uint64-le" } };
   k1?: number;
   b?: number;
 }
@@ -77,6 +82,8 @@ export interface WeiSQLCapabilities {
   textSearch: boolean;
   /** Reciprocal-rank fusion across vector and text sources. */
   fusionSearch: boolean;
+  /** Evidence assembly over fused results, requires a text index with documents. */
+  ragSearch: boolean;
   resourceRange: boolean;
 }
 export type RuntimeState = "OPENING" | "READY" | "CLOSING" | "CLOSED" | "FAILED";
@@ -123,5 +130,34 @@ export interface HybridFusionHit {
   vector?: { row: number; distance: number };
   text?: { row: number; score: number };
   diagnostics?: { backend: "rrf"; k: number; elapsedMs?: number };
+}
+export interface RagSearchOptions {
+  topK?: number;
+  /** RRF constant; defaults to 60. */
+  k?: number;
+  /** Character budget for assembled evidence; defaults to 4000. */
+  maxCharacters?: number;
+  vector?: HybridVectorSource;
+  /** Required: RAG needs document text, which only a text index carries. */
+  text?: HybridTextSource;
+  signal?: AbortSignal;
+}
+export interface RagEvidence {
+  id: string | number;
+  text: string;
+  /** 1-based position in the fused ranking. */
+  rank: number;
+  characters: number;
+  /** True when this fragment was cut to fit the character budget. */
+  truncated: boolean;
+  ranks: Readonly<Record<string, number>>;
+}
+export interface RagResult {
+  evidences: readonly RagEvidence[];
+  usedCharacters: number;
+  truncated: boolean;
+  /** Fused hits that were left out: no text, or the budget was already spent. */
+  droppedHits: number;
+  diagnostics: { backend: "rrf"; k: number; maxCharacters: number; elapsedMs?: number };
 }
 

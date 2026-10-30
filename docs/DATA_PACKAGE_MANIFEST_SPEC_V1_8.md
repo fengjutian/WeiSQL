@@ -6,6 +6,19 @@
 
 V1.8 定义 WeiSQL 数据包的稳定格式，使数据包可以被独立构建、验证、发布、缓存和读取，而不依赖某个特定 SQL 引擎或向量索引引擎的内部结构。
 
+### 与当前仓库的差异
+
+本文是**规范草案**。Manifest V1 的实际冻结形态以 [`MANIFEST_SPEC_V1.md`](MANIFEST_SPEC_V1.md) 与 [`MANIFEST_SCHEMA_V1.json`](MANIFEST_SCHEMA_V1.json) 为准——那两份已由实现与测试验证。已知出入：
+
+| 本文的设计 | 当前仓库的实际状态 |
+| --- | --- |
+| `formatVersion` 示例写作 `"1.0"` | 实现要求 `"1.0.0"`（严格相等，否则 `FORMAT_VERSION_UNSUPPORTED`） |
+| 文档版本号 V1.8 与数据包格式版本是两套编号 | 正确：文档版本不写入 Manifest，`formatVersion` 只描述数据包格式 |
+| 向量索引的完整描述（含构建参数） | 未实现。Manifest `index` 字段目前只有 `{engine, version, file}`，缺 connectivity / expansion 等参数，因此无法复现同一索引 |
+| 全文索引字段 | 已新增 `textIndexes`，见 [`FULL_TEXT_SEARCH.md`](FULL_TEXT_SEARCH.md) |
+
+本文关于**分层原则**（数据层 / 索引层 / 描述层）与**路径安全**的部分已落地；字段级细节以 [`MANIFEST_SPEC_V1.md`](MANIFEST_SPEC_V1.md) 为准。
+
 本规范遵循五项原则：
 
 1. Manifest 是唯一入口：Runtime 从 Manifest 发现数据文件和功能能力。

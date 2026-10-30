@@ -32,7 +32,7 @@ export interface VerifyManifestResourcesInput {
   options?: IntegrityOptions;
 }
 
-export type DeclaredResourceKind = "table" | "vector-data" | "id-map-data" | "id-map-offsets" | "index" | "text-data" | "text-offsets" | "text-lengths" | "text-ids" | "text-id-offsets";
+export type DeclaredResourceKind = "table" | "vector-data" | "id-map-data" | "id-map-offsets" | "index" | "text-data" | "text-offsets" | "text-lengths" | "text-ids" | "text-id-offsets" | "text-documents" | "text-document-offsets";
 
 export interface DeclaredResource {
   path: string;
@@ -127,6 +127,10 @@ export function declaredResources(manifest: Readonly<WeiSQLManifest>): DeclaredR
     add("text-lengths", text.name, text.docLengths);
     add("text-ids", text.name, text.idMap.data);
     add("text-id-offsets", text.name, text.idMap.offsets);
+    if (text.documents) {
+      add("text-documents", text.name, text.documents.data);
+      add("text-document-offsets", text.name, text.documents.offsets);
+    }
   }
   return [...seen.values()];
 }

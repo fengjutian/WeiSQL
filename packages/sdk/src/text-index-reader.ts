@@ -129,6 +129,70 @@ export class TextIndexReader {
     this.closed = true;
   }
 
+  /**
+   * Reads the original text of the given rows.
+   *
+   * Only available when the Manifest declares `documents`. Returns a map so
+   * callers can keep their own ordering; missing rows are simply absent.
+   */
+  async getDocuments(rows: readonly number[], options?: { signal?: AbortSignal }): Promise<Map<number, string>> {
+    this.ensureOpen();
+    const documents = this.descriptor.documents;
+    if (documents === undefined) {
+      throw new WeiSQLError("INVALID_ARGUMENT", "This text index does not declare documents", { index: this.descriptor.name });
+    }
+    const targets = [...new Set(rows)].filter(row => Number.isSafeInteger(row) && row >= 0 && row < this.descriptor.documentCount).sort((left, right) => left - right);
+    const result = new Map<number, string>();
+    if (targets.length === 0) return result;
+    const signalOption = options?.signal === undefined ? {} : { signal: options.signal };
+
+    const lowest = targets[0]!;
+    const highestNeeded = Math.min(targets[targets.length - 1]! + 1, this.descriptor.documentCount - 1);
+    const windowBytes = await this.reader.readRange(
+      documents.offsets.path,
+      { start: lowest * 8, end: (highestNeeded + 1) * 8 },
+      signalOption,
+    );
+    if (windowBytes.byteLength !== (highestNeeded - lowest + 1) * 8) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Document offset window has the wrong length", { expected: (highestNeeded - lowest + 1) * 8, actual: windowBytes.byteLength });
+    }
+    const window = new DataView(windowBytes.buffer, windowBytes.byteOffset, windowBytes.byteLength);
+    const offsetAt = (row: number): number => {
+      const index = row - lowest;
+      if (index < 0 || index * 8 + 8 > windowBytes.byteLength) {
+        throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Document offset is outside the loaded window", { row });
+      }
+      const value = window.getBigUint64(index * 8, true);
+      if (value > BigInt(Number.MAX_SAFE_INTEGER)) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Document offset exceeds the safe integer range", { row });
+      return Number(value);
+    };
+
+    for (const row of targets) {
+      this.ensureOpen();
+      if (options?.signal?.aborted) throw new WeiSQLError("QUERY_CANCELLED", "Reading documents was cancelled");
+      const start = offsetAt(row);
+      const end = row + 1 < this.descriptor.documentCount ? offsetAt(row + 1) : documents.data.bytes;
+      if (end <= start) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Document offsets are not strictly increasing", { row, start, end });
+      const bytes = await this.reader.readRange(documents.data.path, { start, end }, signalOption);
+      if (bytes.byteLength !== end - start) {
+        throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Document record byte length mismatch", { row, expected: end - start, actual: bytes.byteLength });
+      }
+      let text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      if (text.endsWith("\n")) text = text.slice(0, -1);
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch (cause) {
+        throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Document record is not valid JSON", { row, cause: String(cause) });
+      }
+      const record = parsed as { row?: unknown; text?: unknown };
+      if (record.row !== row) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Document row does not match its offset", { expected: row, actual: record.row });
+      if (typeof record.text !== "string") throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Document record has no text", { row });
+      result.set(row, record.text);
+    }
+    return result;
+  }
+
   private ensureOpen(): void {
     if (this.closed) throw new WeiSQLError("DATABASE_CLOSED", "Text index reader has been closed");
   }

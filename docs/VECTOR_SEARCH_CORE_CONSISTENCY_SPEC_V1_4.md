@@ -22,6 +22,20 @@ HNSW / WASM / Rust
 
 状态说明：本文是正式工程设计规范草案，代码与性能指标仍需实际实现、编译和基准测试验证。
 
+### 与当前仓库的差异
+
+本文是**设计规范**，核心算法已实现并有自动化测试，但与本文描述存在出入：
+
+| 本文的设计 | 当前仓库的实际状态 |
+| --- | --- |
+| Rust Core 作为向量计算主实现 | Rust 仅作 `crates/vector-benchmark` 对照基线；实际计算在 TypeScript 侧 |
+| WASM 构建与 TypeScript/Rust 黄金数据对照 | 未实现；两侧各有单元测试，但没有跨实现的自动黄金数据比对 |
+| 距离语义与 Top-K 稳定排序 | 已实现：Cosine / L2 / IP 统一为「越小越相似」，距离相同的行按行号升序稳定排序 |
+| 向量读取方式 | `VectorBlockReader` 用 DataView **显式小端**解码 Float32，不依赖宿主字节序 |
+| ANN 作为首版目标 | 首版是精确搜索；ANN 通过 `@weisql/usearch-adapter` 注入，且必须如实声明 `exactSearch: false` |
+
+详细链路见 [`EXACT_VECTOR_BASELINE.md`](EXACT_VECTOR_BASELINE.md)。
+
 ## 一、设计目标与范围
 
 WeiSQL AI 的向量搜索模块负责从静态数据包中读取向量，计算查询向量与数据向量之间的距离，返回 Top-K 结果，并通过 ID 映射与 SQL 表建立关联。

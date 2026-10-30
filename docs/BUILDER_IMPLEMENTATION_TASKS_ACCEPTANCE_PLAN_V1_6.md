@@ -10,6 +10,22 @@
 
 目前以下内容是实施计划，不代表代码已创建、命令已运行或测试已通过。
 
+### 与当前仓库的差异
+
+本文是**实施计划草案**，任务清单未按本文执行。实际落地情况：
+
+| 本文计划的任务 | 当前状态 |
+| --- | --- |
+| 交付物 A：Builder CLI | 部分实现。`buildPackage()` 是 SDK API，**未做成独立 CLI**；只有 `weisql validate` 一个校验子命令 |
+| JSONL 规范化 → 生成 Parquet | 未实现。`examples/source/documents.parquet` 由 `tools/make-source-parquet.py`（依赖 pyarrow）生成，属于不可变输入 |
+| 构建向量索引 | 未实现（Manifest `index` 字段缺 connectivity / expansion 等构建参数） |
+| 生成 Manifest + 完整验证 + 发布 | 已实现：真实 Float32、ID Map、真实 SHA-256 与字节数，暂存区自检后原子发布，失败清理暂存区 |
+| 交付物 C：可验证 Runtime | 已实现：`open()` → `sql()` / `vector.search()` / `text.search()` 全链路可跑 |
+| 主键交叉校验 | 部分实现：未提供 `rowIds` 时如实报告 `id-membership-unverified` 警告，不假装已校验 |
+| 独立的 Builder 包 | 未采用。`buildPackage()` 在 `@weisql/sdk` 内 |
+
+本文的**验收门槛**思路已被实际采纳：退出码即闸门（`weisql validate` 返回 0/1/2）、发布前静态检查（`npm run release:check`）。
+
 ## 1. V1 首版交付目标
 
 交付物 A：Builder CLI

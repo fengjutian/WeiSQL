@@ -8,6 +8,25 @@ WeiSQL AI 同时涉及 SQL 引擎、向量索引、二进制数据、HTTP Range�
 
 本规范建立五层质量保障体系：
 
+### 与当前仓库的差异
+
+本文是**设计规范**，五层体系尚未按本文的工具链落地。当前进度以实现为准：
+
+| 本文的设计 | 当前仓库的实际状态 |
+| --- | --- |
+| Vitest 作为主测试框架 | 未采用。使用 Node.js 内置 `node --test`，零测试框架依赖 |
+| ESLint + Prettier 静态规则 | 未接入。当前只有 `tsc --noEmit` 类型检查 |
+| `fast-check` 属性测试、`API Extractor` API 报告 | 未接入 |
+| GitHub Actions 编排 L0–L5 门禁 | **仓库没有 `.github/` 目录**。门禁脚本已具备但未接入自动化 |
+| `packages/testing` 公共测试工具包 | 未采用。测试代码内聚在各包的 `test/` 目录 |
+| Playwright 浏览器集成 | 使用 `playwright-core` 驱动本机 Chromium 的手写探针（`tools/browser-probe`），未引入测试框架 |
+| 跨环境一致性测试 | **已实现**：`npm run probe:parity` 逐字段比对 Node 与 Chromium 的查询结果、`exact` 标记与错误码 |
+| 损坏数据包与故障注入 | **已实现**：损坏内容、截断资源、缺失文件、非法 JSON 各有独立用例 |
+| 性能与内存基准 | **已实现**：`npm run bench` 给出 p50/p95、I/O 字节与峰值内存，`--ann` 额外给出 Recall@K 对照 |
+| 发布前产物检查 | **已实现**：`npm run release:check` 校验版本形状、workspace 依赖范围、`files` 清单与 dist 产物 |
+
+已落地的部分覆盖本文 L1–L5 中的大部分场景，但**没有任何一层由 CI 自动触发**——这是本文与仓库现状最大的差距。
+
 ### L1
 
 静态质量

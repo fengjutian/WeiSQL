@@ -22,6 +22,20 @@ Node.js / Browser
 
 待测试验证
 
+### 与当前仓库的差异
+
+本文是**设计规范**。资源读取层已实现并有自动化测试，**上面「实现状态：待测试验证」已过时**。实际落地情况：
+
+| 本文的设计 | 当前仓库的实际状态 |
+| --- | --- |
+| `packages/resource-reader/` 独立包 | 内置于 `@weisql/sdk`（`http-resource-reader.ts`、`node-file-resource-reader.ts`、`cached-resource-reader.ts`） |
+| 缓存作为独立组件 | 实现为 `CachedResourceReader` **装饰器**，`open({ cache })` 自动套在 Reader 外层（见 ADR-019） |
+| 完整性校验内嵌于读取路径 | 独立为 `verifyChecksums`，在 **任何 Adapter 接触资源之前**执行，分 `none` / `manifest` / `all` 三级 |
+| 生命周期与取消语义 | 已实现：幂等 `close()`、取消所有权归调用方、仅当全部等待者取消才中断底层读取 |
+| 本地文件 / 静态 CDN 两种部署模式 | 都已实现，但真实 CDN（Netlify）尚未做真实验收 |
+
+以 [`RESOURCE_READER_CONTRACT.md`](RESOURCE_READER_CONTRACT.md) 与 [`RESOURCE_INTEGRITY_SPEC.md`](RESOURCE_INTEGRITY_SPEC.md) 为准，那两份已由实现与测试验证。
+
 ## 一、资源读取层的设计目标
 
 WeiSQL AI 的资源读取层负责从本地目录或 HTTP 静态资源中读取数据，为 SQL 引擎、向量搜索引擎和混合检索提供统一的字节访问接口。

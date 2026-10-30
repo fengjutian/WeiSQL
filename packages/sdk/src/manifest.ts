@@ -65,6 +65,10 @@ export function validateManifest(input: unknown): WeiSQLManifest {
     register(item.docLengths, `${path}.docLengths`);
     register(item.idMap.data, `${path}.idMap.data`);
     register(item.idMap.offsets, `${path}.idMap.offsets`);
+    if (item.documents) {
+      register(item.documents.data, `${path}.documents.data`);
+      register(item.documents.offsets, `${path}.documents.offsets`);
+    }
   });
 
   const tableByName = new Map(tables.map(value => [value.name, value]));
@@ -204,7 +208,7 @@ function indexParams(value: unknown, path: string, issues: Issue[]): Readonly<Re
  */
 function textIndex(value: unknown, path: string, issues: Issue[]): TextIndexDescriptor | undefined {
   if (!record(value)) { issue(issues, path, "must be an object"); return; }
-  allowed(value, ["name", "tableName", "column", "idColumn", "documentCount", "termCount", "averageDocumentLength", "data", "termOffsets", "docLengths", "idMap", "k1", "b"], path, issues);
+  allowed(value, ["name", "tableName", "column", "idColumn", "documentCount", "termCount", "averageDocumentLength", "data", "termOffsets", "docLengths", "idMap", "documents", "k1", "b"], path, issues);
   name(value.name, `${path}.name`, issues);
   name(value.tableName, `${path}.tableName`, issues);
   name(value.column, `${path}.column`, issues);
@@ -221,6 +225,23 @@ function textIndex(value: unknown, path: string, issues: Issue[]): TextIndexDesc
   if (idMap !== undefined) {
     if (typeof value.documentCount === "number" && idMap.count !== value.documentCount) issue(issues, `${path}.idMap.count`, "must equal documentCount");
     if (BigInt(idMap.offsets.bytes) !== BigInt(idMap.count) * 8n) issue(issues, `${path}.idMap.offsets.bytes`, `must equal idMap.count × 8 (${BigInt(idMap.count) * 8n})`);
+  }
+  let documents: TextIndexDescriptor["documents"];
+  if (value.documents !== undefined) {
+    if (!record(value.documents)) { issue(issues, `${path}.documents`, "must be an object"); }
+    else {
+      allowed(value.documents, ["data", "offsets"], `${path}.documents`, issues);
+      const data = formattedFile(value.documents.data, `${path}.documents.data`, issues);
+      const offsets = formattedFile(value.documents.offsets, `${path}.documents.offsets`, issues);
+      if (data !== undefined && data.format !== "jsonl") issue(issues, `${path}.documents.data.format`, "must equal 'jsonl'");
+      if (offsets !== undefined && offsets.format !== "uint64-le") issue(issues, `${path}.documents.offsets.format`, "must equal 'uint64-le'");
+      if (typeof value.documentCount === "number" && offsets !== undefined && BigInt(offsets.bytes) !== BigInt(value.documentCount) * 8n) {
+        issue(issues, `${path}.documents.offsets.bytes`, `must equal documentCount × 8 (${BigInt(value.documentCount) * 8n})`);
+      }
+      if (data !== undefined && offsets !== undefined && data.format === "jsonl" && offsets.format === "uint64-le") {
+        documents = { data: data as NonNullable<TextIndexDescriptor["documents"]>["data"], offsets: offsets as NonNullable<TextIndexDescriptor["documents"]>["offsets"] };
+      }
+    }
   }
 
   let k1: number | undefined;
@@ -254,6 +275,7 @@ function textIndex(value: unknown, path: string, issues: Issue[]): TextIndexDesc
     termOffsets,
     docLengths,
     idMap,
+    ...(documents === undefined ? {} : { documents }),
     ...(k1 === undefined ? {} : { k1 }),
     ...(b === undefined ? {} : { b }),
   };

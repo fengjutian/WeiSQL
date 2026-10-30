@@ -296,6 +296,15 @@
 - 决策五：生成器放在 `tools/` 而不是 SDK Builder，因为它需要读 Parquet（`hyparquet` 是 dev 依赖）。Builder 的数据源边界仍是「已有 Parquet + 内存向量」，不为文本索引破例。
 - 后果：fixture 上端到端验证通过（`细胞 → doc-003`、`转录 → doc-002`），`weisql validate` 把 5 个文本索引文件一并纳入 L3（9 个资源）。仅 3 篇文档，不能外推长文本或大规模语料的中文检索质量。
 
+## ADR-034：全文检索接入 Runtime，能力按 Manifest 声明与 Reader 双重判定
+
+- 状态：Accepted and implemented（REQ-306 完成）
+- 决策一：`text.search()` 作为 `WeiSQLDatabase` 的独立命名空间，不塞进 `vector.search`。两者返回类型不同（`score` 越大越好 vs `distance` 越小越好），合并成一个方法必然要调用方自己判断方向。
+- 决策二：`capabilities().textSearch` 只有在「存在 ResourceReader」且「Manifest 声明了 textIndexes」时才为 `true`。只满足一个条件时搜索仍会 `INDEX_NOT_FOUND`，能力声明不能比实际接线更乐观。
+- 决策三：`TextIndexReader` 按索引名懒创建并缓存，`close()` 时统一关闭；重复检索不重复打开资源。未知索引名返回 `INDEX_NOT_FOUND`，不静默返回空数组。
+- 决策四：`text.search` 默认 `topK = 10`，与向量检索一致；空查询经分词后为空结果，不报错——空查询不是错误，只是没有词项。
+- 后果：`capabilities()` 形状发生变化（新增 `textSearch`），属于公开 API 增量；已有测试与浏览器探针同步更新。REQ-307 的 RRF 融合现在具备两种排序来源，但融合本身尚未实现。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

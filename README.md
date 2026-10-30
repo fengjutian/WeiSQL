@@ -30,7 +30,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - 可复现的基准装置（`npm run bench`）：合成数据包 + 完整性闸门 + p50/p95、I/O 字节与峰值内存；`--ann` 同时给出 Recall@K 对照，结果见 [基准测量装置](docs/BENCHMARK_HARNESS.md)
 - `weisql validate` 校验命令（`@weisql/cli`）：L1/L2/L3 逐级校验、`--json` 输出与 CI 友好退出码
 - 发布前静态检查（`npm run release:check`）：版本形状、workspace 依赖范围、`files` 清单、dist 产物与 README 齐备性
-- 全文检索：Manifest `textIndexes`、倒排索引读取器（二分定位 + BM25 排序）、索引生成工具；Unicode 分词（CJK 按字），详见 [全文检索设计](docs/FULL_TEXT_SEARCH.md)
+- 全文检索：Manifest `textIndexes`、倒排索引读取器（二分定位 + BM25）、生成工具，以及公开 `db.text.search()`；Unicode 分词（CJK 按字），详见 [全文检索设计](docs/FULL_TEXT_SEARCH.md)
 - 已接入公开 `vector.search()` 的端到端精确搜索
 - Float32 little-endian 向量分块读取
 - Cosine、L2、IP 统一距离语义
@@ -48,7 +48,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - WASM 构建与 TypeScript/Rust 自动黄金数据对照
 - Netlify/CDN 的真实 CORS、Range 和缓存验收
 - `.wsql` 单文件容器
-- `text.search()` 的 Runtime 接入、RRF 融合与 RAG 集成层
+- RRF 融合排序与 RAG 集成层
 
 ## 快速开始
 

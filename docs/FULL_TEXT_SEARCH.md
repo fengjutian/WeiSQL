@@ -1,6 +1,6 @@
 # 全文检索设计（REQ-306）
 
-- 状态：**格式、校验、读取器与生成器均已实现**；Runtime `text.search()` 待接入
+- 状态：**格式、校验、读取器、生成器与 Runtime 接入均已实现**
 - 目标：在不可变静态数据包上做关键词检索，不引入服务端、不依赖 SQL 引擎
 
 ## 1. 范围
@@ -104,8 +104,20 @@ score  = Σ idf(t) · tf·(k1+1) / (tf + k1·(1 - b + b·dl/avgdl))
 1. ✅ 分词与 BM25 评分核心（可独立测试，无格式依赖）
 2. ✅ Manifest `textIndexes` + 校验器 + Schema + L3 资源登记
 3. ✅ 索引读取器（二分定位 + 倒排解码 + BM25 排序）
-4. ⬜ Runtime `text.search()` 与能力声明
+4. ✅ Runtime `text.search()` 与 `capabilities().textSearch`
 5. ✅ 索引生成工具（`tools/build-text-index.mjs`，读 Parquet 文本列并回写 Manifest）
+
+公开用法：
+
+```ts
+const db = await open({ manifest, resourceReader });
+db.capabilities().textSearch;                      // 仅当 Manifest 声明了 textIndexes 且存在 Reader
+
+const hits = await db.text.search("documents_text", "dna", { topK: 5 });
+// [{ row: 0, id: "doc-001", score: 1.023, diagnostics: { backend: "text-bm25" } }]
+```
+
+`score` **越大越相关**，与 `vector.search` 的距离方向相反；两者不能直接比较大小，融合排序必须用 RRF（REQ-307）。
 
 ## 8. 端到端实测（fixture，3 篇文档）
 

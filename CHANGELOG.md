@@ -23,9 +23,9 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - `buildPackage()` Builder: writes vectors, ID Map, real digests and Manifest,
   verifies the staged package, then publishes atomically.
 - `createExactVectorAdapter()` reference `VectorAdapter` implementation.
-- Full-text: `textIndexes` Manifest field, BM25 scoring, `tokenize()`, and the
-  `TextIndexReader` (binary term lookup, ID mapping, stable ranking). Runtime
-  `text.search()` is not wired yet.
+- Full-text: `textIndexes` Manifest field, BM25 scoring, `tokenize()`,
+  `TextIndexReader` and the public `db.text.search()` (higher score = better,
+  the opposite of vector distance).
 
 ### `@weisql/cli` 0.1.0
 

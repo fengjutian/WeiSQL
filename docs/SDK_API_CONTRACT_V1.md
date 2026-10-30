@@ -32,12 +32,27 @@ export interface WeiSQLDatabase {
       options?: VectorSearchOptions,
     ): Promise<readonly VectorHit[]>;
   };
+  text: {
+    search(
+      indexName: string,
+      query: string,
+      options?: TextSearchOptions,
+    ): Promise<readonly TextHit[]>;
+  };
   capabilities(): Readonly<WeiSQLCapabilities>;
   close(): Promise<void>;
 }
 
 export type SQLValue = string | number | bigint | boolean | null | Uint8Array | Date;
 export interface QueryOptions { signal?: AbortSignal; }
+export interface TextSearchOptions { topK?: number; signal?: AbortSignal; }
+export interface TextHit {
+  row: number;
+  id: string | number;
+  /** BM25 relevance: higher is better, the opposite of `VectorHit.distance`. */
+  score: number;
+  diagnostics?: { backend: string; elapsedMs?: number };
+}
 export interface VectorSearchOptions {
   topK?: number;
   /** Field → scalar equality, AND semantics; V1 implements `exact-filter-first`. */
@@ -72,10 +87,15 @@ export interface VectorHit {
 DuckDB is an adapter, not the public API contract. The public SDK should avoid leaking DuckDB-specific connection, relation or extension types. Browser and Node adapters may have different supported SQL functions; expose a capability report rather than promising complete parity.
 
 ```ts
+// Actual V1 shape: booleans describing this instance's wiring. Engine details
+// (engine name, metrics, persistedIndex) live on the adapter's own capabilities.
 interface WeiSQLCapabilities {
-  sql: { engine: string; parquet: boolean; parameterBinding: boolean };
-  vector: { engine: string; metrics: readonly ("cosine" | "l2" | "ip")[]; persistedIndex: boolean };
-  runtime: "browser-wasm" | "node-native";
+  sql: boolean;
+  vectorExactSearch: boolean;
+  vectorAnnSearch: boolean;
+  hybridSearch: boolean;
+  textSearch: boolean;
+  resourceRange: boolean;
 }
 ```
 

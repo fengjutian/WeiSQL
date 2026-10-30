@@ -1,0 +1,74 @@
+{
+  "format": "weisql",
+  "formatVersion": "1.0.0",
+  "datasetId": "demo-documents",
+  "tables": [
+    {
+      "name": "documents",
+      "file": {
+        "path": "data/documents.parquet",
+        "bytes": 832,
+        "sha256": "c1c93b539dc7a7db3c542ae7841b53ed3114910b90f88f57e30b4e23e12c6ab0"
+      },
+      "format": "parquet",
+      "columns": [
+        {
+          "name": "id",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "category",
+          "type": "string",
+          "nullable": false
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ]
+    }
+  ],
+  "vectorCollections": [
+    {
+      "name": "document_embeddings",
+      "tableName": "documents",
+      "idColumn": "id",
+      "count": 3,
+      "dimension": 2,
+      "metric": "cosine",
+      "encoding": "f32-le-row-major",
+      "data": {
+        "path": "vectors/document_embeddings.f32",
+        "bytes": 24,
+        "sha256": "fc61b7819b5d81c32de1c4b26e27931a9d8e2ce05b41a4c7be9856db5706770f"
+      },
+      "idMap": {
+        "data": {
+          "path": "vectors/document_embeddings.id-map.jsonl",
+          "bytes": 75,
+          "sha256": "d991304ff54a612ffaa90449d716437aeae5a1bdeff284e020eeef0967e81554",
+          "format": "jsonl"
+        },
+        "offsets": {
+          "path": "vectors/document_embeddings.id-map.offsets",
+          "bytes": 24,
+          "sha256": "1b4e15f2817371022e098726f0d1f925c14d0749993ee97432cdbdddf5e712ef",
+          "format": "uint64-le"
+        },
+        "count": 3,
+        "uniqueIds": true
+      }
+    }
+  ],
+  "metadata": {
+    "title": "WeiSQL AI E2E fixture",
+    "description": "Three documents with 2-dimensional cosine embeddings",
+    "createdAt": "2026-10-30T00:00:00Z",
+    "builderVersion": "weisql-builder/0.1.0"
+  }
+}

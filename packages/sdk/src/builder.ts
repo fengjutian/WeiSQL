@@ -172,9 +172,13 @@ async function validateOptions(options: BuildPackageOptions, outputDirectory: st
   }
   await assertPublishTarget(outputDirectory, options.overwrite === true);
 
+  // `Array.isArray` narrows readonly arrays to `any[]`, so restore the element types.
+  const tableInputs: readonly BuilderTableInput[] = options.tables;
+  const collectionInputs: readonly BuilderVectorInput[] = options.vectorCollections;
+
   const tables: NormalizedTable[] = [];
   const tableNames = new Set<string>();
-  for (const table of options.tables) {
+  for (const table of tableInputs) {
     if (tableNames.has(table.name)) throw new WeiSQLError("INVALID_ARGUMENT", "Duplicate table name", { table: table.name });
     tableNames.add(table.name);
     if (table.columns.length === 0) throw new WeiSQLError("INVALID_ARGUMENT", "Table must declare at least one column", { table: table.name });
@@ -194,7 +198,7 @@ async function validateOptions(options: BuildPackageOptions, outputDirectory: st
 
   const vectors: NormalizedVector[] = [];
   const vectorNames = new Set<string>();
-  for (const collection of options.vectorCollections) {
+  for (const collection of collectionInputs) {
     if (vectorNames.has(collection.name)) throw new WeiSQLError("INVALID_ARGUMENT", "Duplicate vector collection name", { collection: collection.name });
     vectorNames.add(collection.name);
     const table = tables.find(item => item.name === collection.tableName);
@@ -467,10 +471,12 @@ async function describeFile(rootDirectory: string, relativePath: string): Promis
 }
 
 async function publish(stagingDirectory: string, outputDirectory: string, overwrite: boolean): Promise<void> {
-  if (!overwrite) {
+  const existing = await stat(outputDirectory).catch(() => undefined);
+  if (existing === undefined) {
     await renameAtomically(stagingDirectory, outputDirectory);
     return;
   }
+  if (!overwrite) throw new WeiSQLError("INVALID_ARGUMENT", "Output directory already exists; pass overwrite to replace it", { outputDirectory });
   const backup = `${outputDirectory}.old-${randomUUID()}`;
   await rename(outputDirectory, backup);
   try {

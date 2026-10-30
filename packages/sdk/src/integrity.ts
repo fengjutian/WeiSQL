@@ -173,7 +173,7 @@ function validateCollections(manifest: Readonly<WeiSQLManifest>, retained: Map<s
 /** Validates ID Map V1 offsets and JSONL records exactly as `RESOURCE_INTEGRITY_SPEC.md` requires. */
 export function validateIdMapContent(collection: Readonly<VectorCollectionDescriptor>, offsets: Uint8Array, data: Uint8Array): void {
   const count = collection.count;
-  const fail = (message: string, details: Readonly<Record<string, unknown>>): never => {
+  const fail = (message: string, details: Readonly<Record<string, unknown>> = {}): never => {
     throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", message, { collection: collection.name, ...details });
   };
   if (offsets.byteLength !== count * 8) fail("ID Map offsets must be count × 8 bytes", { expected: count * 8, actual: offsets.byteLength });

@@ -349,8 +349,8 @@ class Database implements WeiSQLDatabase {
    *
    * The Runtime keeps validation and the filter→row-set resolution, so an ANN
    * adapter never needs SQL access and can never silently widen a filter. Filters
-   * require `exactSearch: true`, because post-filtering an approximate candidate
-   * list cannot be presented as the filtered nearest K.
+   * require `exactSearch: true`, or `postFiltering: true` for an adapter that
+   * explicitly accepts incomplete filtered results.
    */
   private async searchWithAdapter(
     vector: WeiSQLManifest["vectorCollections"][number],
@@ -362,8 +362,8 @@ class Database implements WeiSQLDatabase {
   ): Promise<readonly VectorHit[]> {
     const adapter = this.vectorAdapter!;
     if (filter !== undefined) {
-      if (!adapter.capabilities.exactSearch) {
-        throw new WeiSQLError("SQL_UNSUPPORTED", "Filtering requires an exact vector adapter", { engine: adapter.capabilities.engine });
+      if (!adapter.capabilities.exactSearch && !adapter.capabilities.postFiltering) {
+        throw new WeiSQLError("SQL_UNSUPPORTED", "Filtering requires an exact vector adapter or an adapter with post-filtering", { engine: adapter.capabilities.engine });
       }
       if (strategy === "vector-first") {
         throw new WeiSQLError("SQL_UNSUPPORTED", "vector-first is only available on the built-in exact pipeline", { engine: adapter.capabilities.engine });
@@ -371,13 +371,19 @@ class Database implements WeiSQLDatabase {
     }
     const query = queryVector instanceof Float32Array ? queryVector : Float32Array.from(queryVector);
     const allowedRows = filter === undefined ? undefined : await this.resolveAllowedRows(vector, filter, options?.signal);
-    return adapter.search({
+    const hits = await adapter.search({
       vector,
       query,
       topK,
       ...(allowedRows === undefined ? {} : { allowedRows }),
       ...(options?.signal === undefined ? {} : { signal: options.signal }),
     });
+    if (allowedRows !== undefined && hits.some(hit => !allowedRows.has(hit.row))) {
+      // An adapter that returns rows outside the filter has broken the contract;
+      // returning them would silently widen the result set.
+      throw new WeiSQLError("INTERNAL_ERROR", "Vector adapter returned rows outside the requested filter", { engine: adapter.capabilities.engine });
+    }
+    return hits;
   }
 
   /** Resolves the V1 equality filter into a row set for adapters to honour. */

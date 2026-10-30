@@ -20,6 +20,12 @@ export interface VectorAdapterCapabilities {
   metrics: readonly VectorMetric[];
   persistedIndex: boolean;
   metadataFiltering: boolean;
+  /**
+   * Honours `allowedRows` by post-filtering an approximate candidate window.
+   * Results are incomplete by construction: the filtered nearest K may be
+   * missing and fewer than topK hits may be returned.
+   */
+  postFiltering: boolean;
   exactSearch: boolean;
   cancellation: "native" | "best-effort" | "unsupported";
 }
@@ -95,7 +101,8 @@ Adapter 如果使用返回相似度、平方 L2 或其他方向的底层 API，�
 V1 过滤对象表示字段与标量值的精确相等条件，多个字段之间使用逻辑 AND。`null` 表示匹配空值，不表示忽略字段。
 
 - `metadataFiltering: true` 仅在实现符合上述语义时声明；
-- 不支持过滤时返回 `SQL_UNSUPPORTED` 或后续冻结的专用稳定错误，不能静默忽略；
+- `postFiltering: true` 表示「愿意接受后过滤的近似结果」：Runtime 允许把 `allowedRows` 交给它，但结果**不保证完整**——真正的过滤后 Top-K 可能缺失，返回数量也可能少于 topK。声明此能力必须让每条命中带 `diagnostics.postFiltered = true`；
+- 两者都为 false 时返回 `SQL_UNSUPPORTED` 或后续冻结的专用稳定错误，不能静默忽略；
 - ANN-then-filter 可能返回少于 `topK`，必须在能力或诊断中说明；
 - 精确回退只能由显式策略启用，不能因为索引不可用而无提示切换。
 

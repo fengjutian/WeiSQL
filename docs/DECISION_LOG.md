@@ -325,6 +325,16 @@
 - 决策五：超出预算的文档被截断并标记 `truncated: true`；没有正文或预算已耗尽的命中计入 `droppedHits`，不静默丢弃。
 - 后果：`capabilities()` 第三次扩展（`ragSearch`），测试与契约同步更新。端到端实测：`dna` → `DNA 结构`（6 字符），预算 3 时返回 `DNA` 且 `truncated: true`。`documents` 会显著增大包体积（等于文本列大小），生成器必须显式构建，不给默认值。
 
+## ADR-037：ANN 过滤只提供显式后过滤，且必须自曝不完整
+
+- 状态：Accepted and implemented
+- 决策一：默认仍然**拒绝**过滤（`filtering: "reject"`）。近似候选列表做后过滤，无法给出「过滤后的真实 Top-K」，这不是实现难度问题，是语义问题。
+- 决策二：新增 `postFiltering` 能力位与 `filtering: "post-filter"` 选项，只有适配器显式声明时才允许带 `allowedRows`。默认值不变，已有行为不会悄悄变宽松。
+- 决策三：后过滤必须扩大候选窗口并逐步翻倍，直到凑够 topK 或遍历完整个集合；返回数量可以少于 topK，且每条命中必须带 `diagnostics.postFiltered = true` 与 `candidatesScanned`。调用方据此知道结果不完整。
+- 决策四：Runtime 在适配器返回后**复核**每一行是否属于 `allowedRows`；越界行抛 `INTERNAL_ERROR`。适配器违反契约时宁可失败，也不能静默扩大结果集。
+- 决策五：`hybridSearch` 能力仍要求 `exactSearch`，后过滤不会让过滤语义变成精确；`vector-first` 对 ANN 仍然拒绝。
+- 后果：ANN + 过滤从「明确不支持」变为「显式可选、可观测、不保证完整」。`capabilities.postFiltering` 进入公开契约；`metadataFiltering` 仍为 `false`，因为后过滤不满足 V1 过滤语义。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

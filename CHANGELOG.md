@@ -45,6 +45,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 
 - HNSW `VectorAdapter` with measured metric mapping and honest `exact: false`.
 - Persisted index loading (`index.params`) and in-memory build fallback.
+- Optional post-filtering mode (`filtering: "post-filter"`) that honours row
+  filters by widening the candidate window and marks results incomplete.
 
 ### Tooling (not published)
 

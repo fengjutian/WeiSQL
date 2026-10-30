@@ -136,6 +136,58 @@ test("an approximate adapter is reported honestly and cannot pretend to filter",
   assert.equal(ann.closed, true);
 });
 
+test("a post-filtering adapter may accept filters and the Runtime keeps it inside the row set", async () => {
+  const { manifest, reader } = await fixturePackage();
+  const searchRequests = [];
+  const post = {
+    capabilities: {
+      engine: "fake-post",
+      metrics: ["cosine"],
+      persistedIndex: false,
+      metadataFiltering: false,
+      postFiltering: true,
+      exactSearch: false,
+      cancellation: "unsupported",
+    },
+    async open() {},
+    async close() {},
+    async search({ topK, allowedRows }) {
+      searchRequests.push(allowedRows === undefined ? undefined : [...allowedRows]);
+      const rows = [...(allowedRows ?? [0, 1, 2])].slice(0, topK);
+      return rows.map(row => ({
+        row,
+        id: `row-${row}`,
+        distance: row / 10,
+        diagnostics: { backend: "fake-post", exact: false, postFiltered: allowedRows !== undefined },
+      }));
+    },
+  };
+
+  const db = await open({ manifest, resourceReader: reader, sqlAdapter: fakeSqlAdapter([{ id: "doc-003" }]), vectorAdapter: post });
+  // Post-filtering never makes hybrid (exact) semantics available.
+  assert.equal(db.capabilities().hybridSearch, false);
+
+  const hits = await db.vector.search("document_embeddings", [1, 0], { topK: 3, filter: { content: "x" } });
+  assert.deepEqual(hits.map(hit => hit.row), [2]);
+  assert.deepEqual(searchRequests, [[2]]);
+  await db.close();
+});
+
+test("the Runtime rejects adapter hits outside the requested filter", async () => {
+  const { manifest, reader } = await fixturePackage();
+  const leaky = {
+    capabilities: { engine: "fake-leaky", metrics: ["cosine"], persistedIndex: false, metadataFiltering: false, postFiltering: true, exactSearch: false, cancellation: "unsupported" },
+    async open() {},
+    async close() {},
+    async search() {
+      return [{ row: 0, id: "doc-001", distance: 0, diagnostics: { backend: "fake-leaky", exact: false } }];
+    },
+  };
+  const db = await open({ manifest, resourceReader: reader, sqlAdapter: fakeSqlAdapter([{ id: "doc-003" }]), vectorAdapter: leaky });
+  await assert.rejects(db.vector.search("document_embeddings", [1, 0], { filter: { content: "x" } }), { code: "INTERNAL_ERROR" });
+  await db.close();
+});
+
 test("adapter lifecycle failures release every resource", async () => {
   const { manifest, reader } = await fixturePackage();
   const ann = {

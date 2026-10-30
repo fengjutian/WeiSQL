@@ -73,7 +73,7 @@ export interface VectorSearchOptions {
   strategy?: HybridStrategy;
   vectorFirst?: VectorFirstOptions;
 }
-export interface VectorHit { row: number; id: string | number; distance: number; metadata?: Readonly<Record<string, unknown>>; diagnostics?: { backend: string; elapsedMs?: number; exact?: boolean; strategy?: HybridStrategy; filteredCandidates?: number; candidatesScanned?: number; candidateCap?: number } }
+export interface VectorHit { row: number; id: string | number; distance: number; metadata?: Readonly<Record<string, unknown>>; diagnostics?: { backend: string; elapsedMs?: number; exact?: boolean; strategy?: HybridStrategy; postFiltered?: boolean; filteredCandidates?: number; candidatesScanned?: number; candidateCap?: number } }
 export interface WeiSQLCapabilities {
   sql: boolean;
   vectorExactSearch: boolean;

@@ -13,6 +13,13 @@ export interface VectorAdapterCapabilities {
   persistedIndex: boolean;
   /** Adapter implements the V1 equality-filter semantics itself. */
   metadataFiltering: boolean;
+  /**
+   * Adapter honours `allowedRows` by post-filtering an approximate candidate
+   * window. Results are **incomplete by construction**: the true filtered nearest
+   * K may be missing, and fewer than `topK` hits may be returned. Callers must
+   * opt in and must surface the caveat.
+   */
+  postFiltering: boolean;
   /** True only for a real brute-force scan; ANN adapters must report false. */
   exactSearch: boolean;
   cancellation: "native" | "best-effort" | "unsupported";
@@ -74,6 +81,7 @@ export function createExactVectorAdapter(options: ExactVectorAdapterOptions = {}
     metrics: ["cosine", "l2", "ip"] as const,
     persistedIndex: false,
     metadataFiltering: false,
+    postFiltering: false,
     exactSearch: true,
     cancellation: "best-effort" as const,
   });

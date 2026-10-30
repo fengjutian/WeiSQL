@@ -101,6 +101,38 @@ test("refuses a filtered row set instead of post-filtering", async () => {
   await adapter.close();
 });
 
+test("post-filter mode honours a row set and marks the result as incomplete", async () => {
+  const { manifest, reader } = await fixture();
+  const adapter = createUSearchAdapter({ filtering: "post-filter" });
+  assert.equal(adapter.capabilities.postFiltering, true);
+  assert.equal(adapter.capabilities.metadataFiltering, false);
+  await adapter.open({ manifest, reader });
+  const vector = manifest.vectorCollections[0];
+
+  const hits = await adapter.search({ vector, query: new Float32Array([1, 0]), topK: 3, allowedRows: new Set([2]) });
+  assert.deepEqual(hits.map(hit => hit.id), ["doc-003"]);
+  assert.equal(hits[0].diagnostics.postFiltered, true);
+  assert.equal(hits[0].diagnostics.filteredCandidates, 1);
+  assert.ok(hits[0].diagnostics.candidatesScanned >= 1);
+
+  // Fewer than topK is allowed: post-filtering cannot guarantee a full result.
+  const short = await adapter.search({ vector, query: new Float32Array([1, 0]), topK: 2, allowedRows: new Set([2]) });
+  assert.equal(short.length, 1);
+
+  const empty = await adapter.search({ vector, query: new Float32Array([1, 0]), topK: 3, allowedRows: new Set() });
+  assert.deepEqual(empty, []);
+
+  // Unfiltered searches keep working and omit the post-filter diagnostics.
+  const plain = await adapter.search({ vector, query: new Float32Array([1, 0]), topK: 1 });
+  assert.equal(plain[0].diagnostics.postFiltered, undefined);
+  await adapter.close();
+});
+
+test("rejects an unknown filtering mode", () => {
+  assert.throws(() => createUSearchAdapter({ filtering: "smart" }), { code: "INVALID_ARGUMENT" });
+  assert.throws(() => createUSearchAdapter({ filtering: "post-filter", filterOversample: 0 }), { code: "INVALID_ARGUMENT" });
+});
+
 test("Runtime wires the ANN adapter and hides hybrid capabilities", async () => {
   const { manifest, reader } = await fixture();
   const db = await open({ manifest, resourceReader: reader, vectorAdapter: createUSearchAdapter() });

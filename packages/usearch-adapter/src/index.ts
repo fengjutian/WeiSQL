@@ -18,6 +18,17 @@ export interface USearchAdapterOptions {
   expansionSearch?: number;
   /** Rows added per batch while building; defaults to 4096. */
   buildBatchRows?: number;
+  /**
+   * How filtered queries are handled:
+   * - `"reject"` (default): throw `SQL_UNSUPPORTED`. Post-filtering an
+   *   approximate candidate list cannot produce the filtered nearest K.
+   * - `"post-filter"`: widen the candidate window until enough allowed rows are
+   *   found, then return them. Results are **incomplete by construction** and
+   *   carry `diagnostics.postFiltered = true`.
+   */
+  filtering?: "reject" | "post-filter";
+  /** Candidate multiplier for post-filtering; defaults to 8. */
+  filterOversample?: number;
 }
 
 /**
@@ -62,6 +73,11 @@ export function createUSearchAdapter(options: USearchAdapterOptions = {}): Vecto
   const expansionAdd = positive(options.expansionAdd ?? 128, "expansionAdd");
   const expansionSearch = positive(options.expansionSearch ?? 512, "expansionSearch");
   const buildBatchRows = positive(options.buildBatchRows ?? 4096, "buildBatchRows");
+  const filtering = options.filtering ?? "reject";
+  if (filtering !== "reject" && filtering !== "post-filter") {
+    throw new WeiSQLError("INVALID_ARGUMENT", "filtering must be 'reject' or 'post-filter'", { filtering });
+  }
+  const filterOversample = positive(options.filterOversample ?? 8, "filterOversample");
 
   let state: "CREATED" | "READY" | "CLOSED" = "CREATED";
   let manifest: Readonly<WeiSQLManifest> | undefined;
@@ -74,6 +90,7 @@ export function createUSearchAdapter(options: USearchAdapterOptions = {}): Vecto
     metrics: ["cosine", "l2", "ip"] as const,
     persistedIndex: true,
     metadataFiltering: false,
+    postFiltering: filtering === "post-filter",
     exactSearch: false,
     cancellation: "unsupported" as const,
   });
@@ -180,8 +197,9 @@ export function createUSearchAdapter(options: USearchAdapterOptions = {}): Vecto
     },
     async search(request: VectorAdapterSearchRequest): Promise<readonly VectorHit[]> {
       if (state !== "READY") throw new WeiSQLError("DATABASE_CLOSED", "USearch adapter is not ready", { state });
-      if (request.allowedRows !== undefined) {
-        throw new WeiSQLError("SQL_UNSUPPORTED", "An approximate adapter cannot honour a filtered row set", { engine: capabilities.engine });
+      const allowed = request.allowedRows;
+      if (allowed !== undefined && filtering !== "post-filter") {
+        throw new WeiSQLError("SQL_UNSUPPORTED", "This adapter is configured to reject filtered row sets", { engine: capabilities.engine });
       }
       if (manifest === undefined || reader === undefined) throw new WeiSQLError("INTERNAL_ERROR", "USearch adapter was not opened");
       const { vector, query, topK, signal } = request;
@@ -197,8 +215,38 @@ export function createUSearchAdapter(options: USearchAdapterOptions = {}): Vecto
         indexes.set(vector.name, entry);
       }
 
-      const matches = entry.index.search(query, Math.min(topK, entry.count), 0);
-      const rows = Array.from(matches.keys, key => Number(key));
+      // HNSW can only return a prefix of its ranking, so a filtered query widens
+      // the candidate window until enough allowed rows are found or the whole
+      // collection has been considered. Completeness is still not guaranteed.
+      let candidates = Math.min(topK, entry.count);
+      if (allowed !== undefined) candidates = Math.min(entry.count, Math.max(topK, topK * filterOversample));
+      let rows: number[] = [];
+      let distances: number[] = [];
+      for (;;) {
+        const matches = entry.index.search(query, candidates, 0);
+        const allRows = Array.from(matches.keys, key => Number(key));
+        const allDistances = Array.from(matches.distances, value => Number(value));
+        if (allowed === undefined) {
+          rows = allRows.slice(0, topK);
+          distances = allDistances.slice(0, topK);
+          break;
+        }
+        const kept: number[] = [];
+        const keptDistances: number[] = [];
+        for (let position = 0; position < allRows.length; position++) {
+          const row = allRows[position]!;
+          if (!allowed.has(row)) continue;
+          kept.push(row);
+          keptDistances.push(allDistances[position]!);
+          if (kept.length === topK) break;
+        }
+        rows = kept;
+        distances = keptDistances;
+        if (kept.length >= topK || candidates >= entry.count) break;
+        if (signal?.aborted) throw new WeiSQLError("QUERY_CANCELLED", "Search was cancelled");
+        candidates = Math.min(entry.count, candidates * 2);
+      }
+
       const idMap = new IndexedIdMapReader(reader, {
         dataPath: vector.idMap.data.path,
         offsetsPath: vector.idMap.offsets.path,
@@ -217,10 +265,11 @@ export function createUSearchAdapter(options: USearchAdapterOptions = {}): Vecto
       return rows.map((row, position) => ({
         row,
         id: ids[position]!,
-        distance: correct(Number(matches.distances[position])),
+        distance: correct(distances[position]!),
         diagnostics: {
           backend: "usearch-hnsw",
           exact: false,
+          ...(allowed === undefined ? {} : { postFiltered: true, candidatesScanned: candidates, filteredCandidates: rows.length }),
           ...(elapsedMs === undefined ? {} : { elapsedMs }),
         },
       }));

@@ -102,7 +102,7 @@ interface RuntimeResourceOptions {
 | Node 文件 Reader 与路径安全测试 | 已实现 |
 | 精确搜索和 Top-K 对照测试 | 已实现 |
 | Indexed ID Map 随机读取 | 已实现 |
-| 有界 LRU 与请求合并 | 待实现 |
+| 有界 LRU 与请求合并 | 已实现（`CachedResourceReader`） |
 | 流式 SHA-256 Integrity 层 | 待实现 |
 | 真实 Netlify/CDN 验收 | 待实施 |
 | DuckDB-Wasm 最小静态演示 | 待实施 |

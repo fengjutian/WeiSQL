@@ -10,6 +10,8 @@ export type { AdapterOpenOptions, ByteRange, ResourceMetadata, ResourceReader, R
 export type { SqlAdapter, SqlAdapterCapabilities, SqlAdapterOpenContext } from "./sql-adapter.js";
 export { HttpResourceReader } from "./http-resource-reader.js";
 export type { HttpResourceReaderOptions } from "./http-resource-reader.js";
+export { CachedResourceReader } from "./cached-resource-reader.js";
+export type { CachedResourceReaderOptions, CacheStats } from "./cached-resource-reader.js";
 export { NodeFileResourceReader } from "./node-file-resource-reader.js";
 export type { NodeFileResourceReaderOptions } from "./node-file-resource-reader.js";
 export { declaredResources, validateIdMapContent, verifyManifestResources } from "./integrity.js";

@@ -14,6 +14,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - 向量及 UInt64 偏移文件字节数公式校验
 - 浏览器兼容的 `HttpResourceReader`
 - Node.js `NodeFileResourceReader`：包根 containment、符号链接逃逸防护和精确范围读取
+- 有界 LRU 缓存与并发请求合并（`CachedResourceReader`），含发布版本隔离、取消所有权和命中统计
 - 严格 HTTP Range、`Content-Range`、响应长度、取消和生命周期处理
 - `open()` 双 Manifest 来源、`capabilities()`、只读 `state` 和幂等 `close()`
 - 引擎无关的 `SqlAdapter` 注入边界（`open({ sqlAdapter })`）
@@ -139,6 +140,25 @@ await reader.close();
 ```
 
 Range 使用左闭右开区间 `[start, end)`。服务端必须正确返回 `206 Partial Content` 和匹配的 `Content-Range`；返回 `200` 的整文件响应不会被误当成局部数据。
+
+### 缓存与并发
+
+`CachedResourceReader` 是装饰器，`open({ cache })` 会自动套上它：
+
+```ts
+const db = await open({
+  manifestUrl: "https://example.test/datasets/demo/manifest.json",
+  resourceReader: new HttpResourceReader({ baseUrl: "https://example.test/datasets/demo/" }),
+  cache: { maxCacheBytes: 32 * 1024 * 1024, maxEntryBytes: 1024 * 1024, maxConcurrentReads: 8 },
+});
+```
+
+- 缓存键为「发布版本身份 + 路径 + 起止」；`setPublicationVersion()` 换版本即清空，避免新旧发布混用。
+- 按实际字节数做有界 LRU 淘汰，单条上限 `maxEntryBytes`，超过则直接绕过缓存。
+- 相同键的并发请求合并成一次底层读取；**只有全部等待者都取消**才中断底层，单个调用方取消不影响其他人。
+- 失败、短读、被取消的读取都不会进入缓存。
+- 命中返回副本：调用方改动返回值不会污染缓存。
+- `stats()` 提供 `hits / misses / coalesced / bypasses / evictions / entries / cachedBytes / bytesRead`，用于基准报告。
 
 ## 精确向量搜索基线
 

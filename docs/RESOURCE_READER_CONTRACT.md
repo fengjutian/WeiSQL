@@ -104,6 +104,10 @@ SDK 已实现 `HttpResourceReader` 首版，包括完整读取、严格 Range �
 
 SDK 还已实现 `NodeFileResourceReader` 首版，包括真实路径 containment、符号链接逃逸防护、文件类型检查、精确范围读取、完整读取上限、取消和幂等关闭。
 
+SDK 还实现了 `CachedResourceReader` 装饰器：按「发布版本身份 + 路径 + 起止」缓存 Range，按实际字节数执行有界 LRU 淘汰，合并相同键的并发请求，并且只在**全部等待者**取消后才中断底层读取。失败、短读和超过 `maxEntryBytes` 的范围不会被缓存。`open({ cache })` 会自动为传入的 Reader 套上这一层，默认预算 32 MiB。
+
+仍未实现：流式 SHA-256 与缓存协同（当前 L3 校验会逐块读取并占用缓存条目）、跨进程或持久化缓存、真实 CDN 下的缓存命中率实测。
+
 仍待完成：
 
 - `HEAD` 不可用时的受控回退策略；

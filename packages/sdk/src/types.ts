@@ -51,8 +51,18 @@ export interface WeiSQLCapabilities {
   resourceRange: boolean;
 }
 export type RuntimeState = "OPENING" | "READY" | "CLOSING" | "CLOSED" | "FAILED";
+export interface CacheOptions {
+  /** Total bytes the cache may retain; defaults to 32 MiB. */
+  maxCacheBytes?: number;
+  /** Ranges larger than this are not cached; defaults to 1 MiB. */
+  maxEntryBytes?: number;
+  /** Concurrent underlying reads; defaults to 8. */
+  maxConcurrentReads?: number;
+  /** Publication identity used in cache keys; defaults to the dataset ID. */
+  version?: string;
+}
 export interface OpenOptions {
   manifestUrl?: string; manifest?: unknown; mode?: "readonly"; verifyChecksums?: "none" | "manifest" | "all";
-  fetch?: typeof globalThis.fetch; resourceReader?: ResourceReader; sqlAdapter?: SqlAdapter; signal?: AbortSignal;
+  fetch?: typeof globalThis.fetch; resourceReader?: ResourceReader; sqlAdapter?: SqlAdapter; cache?: CacheOptions; signal?: AbortSignal;
 }
 

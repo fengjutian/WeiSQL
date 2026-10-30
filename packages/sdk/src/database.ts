@@ -1,4 +1,5 @@
 import { WeiSQLError } from "./errors.js";
+import { CachedResourceReader } from "./cached-resource-reader.js";
 import { exactVectorSearch } from "./exact-vector-search.js";
 import { verifyManifestResources } from "./integrity.js";
 import { IndexedIdMapReader } from "./indexed-id-map-reader.js";
@@ -217,15 +218,28 @@ async function prepare(manifest: WeiSQLManifest, options: OpenOptions): Promise<
   if (mode !== "none" && mode !== "manifest" && mode !== "all") {
     throw new WeiSQLError("INVALID_ARGUMENT", "verifyChecksums must be 'none', 'manifest' or 'all'", { mode });
   }
-  if (mode !== "none") {
-    if (!options.resourceReader) throw new WeiSQLError("INVALID_ARGUMENT", "verifyChecksums requires a resourceReader", { mode });
-    await verifyManifestResources({
-      manifest,
-      reader: options.resourceReader,
-      options: { mode, ...(options.signal === undefined ? {} : { signal: options.signal }) },
-    });
+  let reader = options.resourceReader;
+  if (reader !== undefined && options.cache !== undefined) {
+    reader = new CachedResourceReader({ reader, version: manifest.datasetId, ...options.cache });
   }
-  return Database.create(manifest, options.resourceReader, options.sqlAdapter, options.signal);
+  let handedOff = false;
+  try {
+    if (mode !== "none") {
+      if (reader === undefined) throw new WeiSQLError("INVALID_ARGUMENT", "verifyChecksums requires a resourceReader", { mode });
+      await verifyManifestResources({
+        manifest,
+        reader,
+        options: { mode, ...(options.signal === undefined ? {} : { signal: options.signal }) },
+      });
+    }
+    handedOff = true;
+    return await Database.create(manifest, reader, options.sqlAdapter, options.signal);
+  } catch (cause) {
+    // The Runtime owns the reader; a failed open must not leak it. Once
+    // Database.create is reached it performs its own cleanup.
+    if (!handedOff && reader !== undefined) await reader.close().catch(() => undefined);
+    throw cause;
+  }
 }
 
 function aborted(signal?: AbortSignal): void { if (signal?.aborted) throw new WeiSQLError("QUERY_CANCELLED", "Operation was cancelled"); }

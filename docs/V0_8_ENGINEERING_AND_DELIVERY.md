@@ -112,7 +112,7 @@ Adaptive 策略、BM25 与 RRF 不属于 V1 基础闭环。
 | 精确向量检索与 ID Map | 必须 | 已接入公开 Runtime |
 | 只读 SQL | 必须 | Node.js DuckDB 首版已完成；DuckDB-Wasm 待实现 |
 | 基础 Hybrid 两策略 | 必须 | 两策略均已实现；`vector-first` 仅在窗口覆盖全集时声明 `exact` |
-| Range/LRU 缓存 | 基础实现 | Range 已完成，LRU 待完成 |
+| Range/LRU 缓存 | 基础实现 | Range 与有界 LRU、请求合并、命中统计均已实现 |
 | Builder 与真实 fixture | 必须 | 首版已完成：`buildPackage()` + `examples/fixture`；CSV/JSON 推断未实现 |
 | Playground/静态部署 | 必须 | 待完成 |
 | USearch ANN | 实验或后置 | 未实现 |

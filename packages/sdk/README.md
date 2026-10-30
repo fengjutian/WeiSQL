@@ -9,6 +9,7 @@ WeiSQL AI 的只读 TypeScript SDK。当前版本提供：
 - 稳定的 `WeiSQLError` 错误码。
 - `HttpResourceReader`：浏览器兼容的完整读取、严格 HTTP Range、元数据和取消支持。
 - `NodeFileResourceReader`：Node.js 文件读取，`realpath` 包根 containment、符号链接逃逸防护和精确范围读取。
+- `CachedResourceReader`：有界 LRU、并发请求合并、发布版本隔离与命中统计；`open({ cache })` 自动套用。
 - `VectorBlockReader` 与 `exactVectorSearch()`：分块 Float32 解码及 Cosine/L2/IP 正确性基线。
 - `IndexedIdMapReader` 与 `TopKMaxHeap`：JSONL/UInt64 偏移随机访问和 `O(N log K)` 候选维护。
 - `verifyManifestResources()`：L3 完整性（`manifest` 校验长度、`all` 增量 SHA-256 + ID Map 内容），可脱离 `open()` 单独使用。

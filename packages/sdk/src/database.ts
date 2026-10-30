@@ -7,6 +7,8 @@ import { validateManifest } from "./manifest.js";
 import type { ResourceReader } from "./resource-reader.js";
 import type { SqlAdapter } from "./sql-adapter.js";
 import type { HybridStrategy, OpenOptions, QueryOptions, RuntimeState, SQLValue, VectorHit, VectorSearchOptions, WeiSQLCapabilities, WeiSQLManifest } from "./types.js";
+import type { TextHit, TextSearchOptions } from "./text-index-reader.js";
+import { TextIndexReader } from "./text-index-reader.js";
 import type { VectorAdapter } from "./vector-adapter.js";
 import { VectorBlockReader } from "./vector-block-reader.js";
 import { candidateCapFor, exactFilterFirst, vectorFirst } from "./hybrid-executor.js";
@@ -16,6 +18,7 @@ export interface WeiSQLDatabase {
   readonly state: RuntimeState;
   sql<T extends Record<string, unknown> = Record<string, unknown>>(query: string, params?: readonly SQLValue[], options?: QueryOptions): Promise<readonly T[]>;
   readonly vector: { search(vectorName: string, queryVector: Float32Array | readonly number[], options?: VectorSearchOptions): Promise<readonly VectorHit[]> };
+  readonly text: { search(indexName: string, query: string, options?: TextSearchOptions): Promise<readonly TextHit[]> };
   capabilities(): Readonly<WeiSQLCapabilities>;
   close(): Promise<void>;
 }
@@ -25,6 +28,8 @@ class Database implements WeiSQLDatabase {
   private closePromise: Promise<void> | undefined;
   readonly manifest: Readonly<WeiSQLManifest>;
   readonly vector;
+  readonly text;
+  private readonly textReaders = new Map<string, TextIndexReader>();
   private constructor(
     manifest: WeiSQLManifest,
     private readonly reader?: ResourceReader,
@@ -33,6 +38,7 @@ class Database implements WeiSQLDatabase {
   ) {
     this.manifest = manifest;
     this.vector = { search: this.search.bind(this) };
+    this.text = { search: this.textSearch.bind(this) };
   }
   static async create(
     manifest: WeiSQLManifest,
@@ -61,6 +67,24 @@ class Database implements WeiSQLDatabase {
     this.ensureOpen(); aborted(options?.signal);
     if (!this.sqlAdapter) throw new WeiSQLError("SQL_UNSUPPORTED", "No SQL adapter is configured");
     return this.sqlAdapter.query<T>(query, params, options);
+  }
+
+  /** BM25 text search over a Manifest-declared `textIndexes` entry. */
+  private async textSearch(indexName: string, query: string, options?: TextSearchOptions): Promise<readonly TextHit[]> {
+    this.ensureOpen(); aborted(options?.signal);
+    if (typeof query !== "string") throw new WeiSQLError("INVALID_ARGUMENT", "Text query must be a string");
+    const descriptor = (this.manifest.textIndexes ?? []).find(item => item.name === indexName);
+    if (descriptor === undefined) throw new WeiSQLError("INDEX_NOT_FOUND", `Unknown text index '${indexName}'`, { index: indexName });
+    if (!this.reader) throw new WeiSQLError("INDEX_NOT_FOUND", "No resource reader is configured");
+    let index = this.textReaders.get(indexName);
+    if (index === undefined) {
+      index = new TextIndexReader(this.reader, descriptor);
+      this.textReaders.set(indexName, index);
+    }
+    return index.search(query, {
+      topK: options?.topK ?? 10,
+      ...(options?.signal === undefined ? {} : { signal: options.signal }),
+    });
   }
   private async search(vectorName: string, queryVector: Float32Array | readonly number[], options?: VectorSearchOptions): Promise<readonly VectorHit[]> {
     this.ensureOpen(); aborted(options?.signal);
@@ -254,6 +278,7 @@ class Database implements WeiSQLDatabase {
       vectorExactSearch: exact,
       vectorAnnSearch: adapter !== undefined && !adapter.capabilities.exactSearch,
       hybridSearch: this.reader !== undefined && this.sqlAdapter !== undefined && (adapter === undefined || adapter.capabilities.exactSearch),
+      textSearch: this.reader !== undefined && (this.manifest.textIndexes?.length ?? 0) > 0,
       resourceRange: this.reader !== undefined,
     });
   }
@@ -267,6 +292,8 @@ class Database implements WeiSQLDatabase {
   private async finishClose(): Promise<void> { try { await this.releaseResources(); } finally { this.runtimeState = "CLOSED"; } }
   private async releaseResources(): Promise<void> {
     const pending: Promise<void>[] = [];
+    for (const index of this.textReaders.values()) pending.push(index.close());
+    this.textReaders.clear();
     if (this.vectorAdapter) pending.push(this.vectorAdapter.close());
     if (this.sqlAdapter) pending.push(this.sqlAdapter.close());
     if (this.reader) pending.push(this.reader.close());

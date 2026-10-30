@@ -75,6 +75,7 @@ export interface WeiSQLCapabilities {
   vectorExactSearch: boolean;
   vectorAnnSearch: boolean;
   hybridSearch: boolean;
+  textSearch: boolean;
   resourceRange: boolean;
 }
 export type RuntimeState = "OPENING" | "READY" | "CLOSING" | "CLOSED" | "FAILED";

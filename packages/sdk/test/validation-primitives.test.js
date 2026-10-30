@@ -1,6 +1,26 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { expectedVectorBytes, validateByteRange, validateResourcePath, validateVectorBytes } from "../dist/index.js";
+import { expectedVectorBytes, validateByteRange, validateResourcePath, validateVectorBytes, WeiSQLError } from "../dist/index.js";
+
+test("WeiSQLError supports stable codes, details, causes, and the legacy constructor", () => {
+  const cause = new TypeError("low-level failure");
+  const error = new WeiSQLError({
+    code: "RESOURCE_READ_FAILED",
+    message: "Resource could not be read",
+    details: { path: "data/documents.parquet" },
+    cause,
+  });
+  assert.equal(error.name, "WeiSQLError");
+  assert.equal(error.code, "RESOURCE_READ_FAILED");
+  assert.deepEqual(error.details, { path: "data/documents.parquet" });
+  assert.equal(error.cause, cause);
+  assert.ok(error instanceof Error);
+  assert.ok(error instanceof WeiSQLError);
+
+  const legacy = new WeiSQLError("PATH_INVALID", "Unsafe path", { path: "../secret" });
+  assert.equal(legacy.code, "PATH_INVALID");
+  assert.deepEqual(legacy.details, { path: "../secret" });
+});
 
 test("calculates uncompressed Float32 vector bytes without numeric overflow", () => {
   assert.equal(expectedVectorBytes(100_000, 768), 307_200_000);
@@ -23,7 +43,8 @@ test("rejects unsafe and ambiguous resource paths", () => {
   const invalid = [
     "../secret.txt", "/etc/passwd", "C:/secret.txt", "data\\secret.txt",
     "data//file", "./data/file", "data/%2e%2e/secret", "https://example.test/file",
-    "data/vector%20file", " data/file", "data/file ", "data/\0file", `data/${"a".repeat(1024)}`
+    "data/vector%20file", "data/file?download=1", "data/file#fragment", " data/file", "data/file ",
+    "data/\0file", `data/${"a".repeat(1024)}`
   ];
   for (const path of invalid) assert.throws(() => validateResourcePath(path), { code: "PATH_INVALID" }, path);
 });

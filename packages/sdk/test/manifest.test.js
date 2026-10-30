@@ -26,6 +26,12 @@ test("rejects unsupported major versions", async () => {
   assert.throws(() => validateManifest(value), { code: "FORMAT_VERSION_UNSUPPORTED" });
 });
 
+test("rejects non-object and structurally incomplete manifests with stable errors", () => {
+  for (const value of [null, [], "weisql", 1, {}, { format: "weisql" }]) {
+    assert.throws(() => validateManifest(value), { code: "MANIFEST_INVALID" });
+  }
+});
+
 test("rejects duplicate resource paths", async () => {
   const value = await readJson("valid-minimal.json");
   value.vectorCollections[0].data.path = value.tables[0].file.path;
@@ -69,6 +75,8 @@ test("validates frozen V1 cross-field constraints", async () => {
     value => { value.vectorCollections[0].idMap.offsets.bytes = 16; },
     value => { value.vectorCollections[0].count = 1.5; },
     value => { value.vectorCollections[0].dimension = 65_537; },
+    value => { value.vectorCollections[0].metric = "manhattan"; },
+    value => { value.vectorCollections[0].encoding = "float32-le-row-major"; },
     value => { value.vectorCollections[0].data.bytes = 1.5; },
     value => { value.vectorCollections[0].idMap = null; },
     value => { value.extra = true; },

@@ -16,7 +16,7 @@ export function decodeUint64LE(bytes: Uint8Array, offset: number): bigint {
 export function parseIdMapLine(bytes: Uint8Array): { row: number; id: string | number } {
   let value: unknown;
   try { value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); }
-  catch (cause) { throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Invalid ID map JSON or UTF-8", { cause: String(cause) }); }
+  catch (cause) { throw new WeiSQLError({ code: "RESOURCE_INTEGRITY_FAILED", message: "Invalid ID map JSON or UTF-8", cause }); }
   if (!isRecord(value) || !Number.isSafeInteger(value.row) || (value.row as number) < 0) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Invalid ID map row");
   const id = value.id;
   if ((typeof id !== "string" || id.length === 0) && (typeof id !== "number" || !Number.isSafeInteger(id))) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Invalid ID map business ID", { row: value.row });

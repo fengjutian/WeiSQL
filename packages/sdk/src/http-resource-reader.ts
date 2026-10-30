@@ -19,7 +19,7 @@ export class HttpResourceReader implements ResourceReader {
   constructor(options: HttpResourceReaderOptions) {
     let baseUrl: URL;
     try { baseUrl = new URL(options.baseUrl.endsWith("/") ? options.baseUrl : `${options.baseUrl}/`); }
-    catch (cause) { throw new WeiSQLError("INVALID_ARGUMENT", "baseUrl must be a valid absolute URL", { cause: String(cause) }); }
+    catch (cause) { throw new WeiSQLError({ code: "INVALID_ARGUMENT", message: "baseUrl must be a valid absolute URL", cause }); }
     if (baseUrl.protocol !== "http:" && baseUrl.protocol !== "https:") {
       throw new WeiSQLError("INVALID_ARGUMENT", "baseUrl must use HTTP or HTTPS");
     }
@@ -105,7 +105,7 @@ export class HttpResourceReader implements ResourceReader {
     try { return await this.fetcher(url, { ...init, credentials: this.credentials }); }
     catch (cause) {
       if (isAbort(cause, init.signal)) throw new WeiSQLError("QUERY_CANCELLED", "Resource request was cancelled", { path });
-      throw new WeiSQLError("RESOURCE_READ_FAILED", "Network request failed", { path, cause: String(cause) });
+      throw new WeiSQLError({ code: "RESOURCE_READ_FAILED", message: "Network request failed", details: { path }, cause });
     }
   }
 

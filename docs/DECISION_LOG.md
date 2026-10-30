@@ -67,6 +67,14 @@
 - 兼容性：此前 `weisql-ai`、`tables[].files`、`vectors[]` 结构不属于冻结 V1。
 - 实现：正式 Schema、TypeScript 类型、运行时校验器、样例和测试已原子迁移；L3/L4 校验与 Builder 待实现。
 
+## ADR-012：Builder 使用暂存构建与原子发布
+
+- 状态：Accepted as implementation requirement
+- 决策：Builder 只在私有临时目录生成资源，完成 Manifest L1/L2 和资源 L3 复验后，才将完整目录原子发布为不可变版本。
+- 原因：防止失败构建、逐文件覆盖或并发读取暴露半成品数据包。
+- 约束：默认拒绝覆盖；暂存区与目标优先位于同一文件系统；输出路径必须执行真实路径 containment 并拒绝包外符号链接。
+- 规范：`MANIFEST_VALIDATOR_BUILDER_SPEC.md`。
+
 ## ADR-009：向量源表与业务 ID 映射
 
 - 状态：Accepted for V1，待实现迁移

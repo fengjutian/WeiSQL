@@ -155,6 +155,7 @@ packages/sdk/              TypeScript SDK、资源层和向量基线
 - [总体技术规范](docs/TECHNICAL_SPEC_V1.md)
 - [工程路线图](docs/ENGINEERING_ROADMAP.md)
 - [Manifest V1](docs/MANIFEST_SPEC_V1.md)
+- [Manifest Validator 与 Builder 工程规范](docs/MANIFEST_VALIDATOR_BUILDER_SPEC.md)
 - [SDK API 契约](docs/SDK_API_CONTRACT_V1.md)
 - [SQL Adapter 契约](docs/SQL_ADAPTER_CONTRACT.md)
 - [Vector Adapter 契约](docs/VECTOR_ADAPTER_CONTRACT.md)

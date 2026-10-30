@@ -1,16 +1,18 @@
 # WeiSQL AI TypeScript SDK API 契约（V1 草案）
 
-状态：设计草案；API 名称可在首个实现发布前调整。这里定义语义和错误边界，不代表 npm 包已实现。
+状态：精确向量最小 Runtime 已实现；SQL Adapter、ANN 与 Hybrid 待实现。API 名称仍可在首个稳定版本前调整。
 
 ## 1. 生命周期
 
 ```ts
 export interface OpenOptions {
-  /** URL of manifest.json; browser requires HTTP(S) or a supported local runtime source. */
-  manifestUrl: string;
+  /** Exactly one Manifest source must be provided. */
+  manifestUrl?: string;
+  manifest?: unknown;
   mode?: "readonly"; // V1 only
   verifyChecksums?: "none" | "manifest" | "all";
   fetch?: typeof globalThis.fetch;
+  resourceReader?: ResourceReader;
   signal?: AbortSignal;
 }
 
@@ -28,6 +30,7 @@ export interface WeiSQLDatabase {
       options?: VectorSearchOptions,
     ): Promise<readonly VectorHit[]>;
   };
+  capabilities(): Readonly<WeiSQLCapabilities>;
   close(): Promise<void>;
 }
 
@@ -40,12 +43,15 @@ export interface VectorSearchOptions {
   signal?: AbortSignal;
 }
 export interface VectorHit {
+  row: number;
   id: string | number;
   distance: number;
   metadata?: Readonly<Record<string, unknown>>;
   diagnostics?: { backend: string; elapsedMs?: number };
 }
 ```
+
+当前 `resourceReader` 注入后，SDK 使用 Manifest 的原始 Float32 与 Indexed ID Map 执行 TypeScript 精确搜索。未注入 Reader 时向量调用返回 `INDEX_NOT_FOUND`。数据库拥有注入 Reader 的生命周期，并在 `close()` 时关闭它。
 
 ## 2. Required semantics
 

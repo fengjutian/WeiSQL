@@ -74,11 +74,21 @@ test("IndexedIdMapReader batch-reads middle and final records", async () => {
   const resource = new MultiResourceReader(resources);
   const reader = new IndexedIdMapReader(resource, { dataPath: "ids.jsonl", offsetsPath: "ids.offsets", count: 4, dataBytes: fixture.data.byteLength, offsetsBytes: fixture.offsets.byteLength });
   assert.deepEqual(await reader.getIds(1, 2), [42, "doc-2"]);
-  assert.deepEqual(await reader.getIds(3, 10), ["doc-3"]);
-  assert.equal(resource.calls.length, 4); // one offsets + one JSONL range per request
+  assert.deepEqual(await reader.getIds(3, 1), ["doc-3"]);
+  assert.deepEqual(await reader.getIdsByRows([3, 0, 2, 0]), ["doc-3", "doc-0", "doc-2", "doc-0"]);
+  assert.equal(resource.calls.length, 8); // two direct reads plus two contiguous groups for random rows
   assert.deepEqual(resource.calls[0], { path: "ids.offsets", range: { start: 8, end: 32 } });
   await reader.close(); await reader.close();
   await assert.rejects(reader.getIds(0, 1), { code: "DATABASE_CLOSED" });
+});
+
+test("IndexedIdMapReader enforces descriptor size and batch limits", async () => {
+  const fixture = idMapFixture([{ row: 0, id: "a" }, { row: 1, id: "b" }, { row: 2, id: "c" }]);
+  const resource = new MultiResourceReader({ data: fixture.data, offsets: fixture.offsets });
+  assert.throws(() => new IndexedIdMapReader(resource, { dataPath: "data", offsetsPath: "offsets", count: 3, dataBytes: fixture.data.byteLength, offsetsBytes: 8 }), { code: "INVALID_ARGUMENT" });
+  const reader = new IndexedIdMapReader(resource, { dataPath: "data", offsetsPath: "offsets", count: 3, dataBytes: fixture.data.byteLength, offsetsBytes: fixture.offsets.byteLength }, { maxBatchRows: 2 });
+  await assert.rejects(reader.getIds(0, 3), { code: "INVALID_ARGUMENT" });
+  assert.deepEqual(await reader.getIds(3, 0), []);
 });
 
 test("exact search integrates vector ranges, indexed IDs and heap Top-K", async () => {

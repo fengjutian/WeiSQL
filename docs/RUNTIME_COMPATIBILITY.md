@@ -1,6 +1,6 @@
 # 浏览器与 Node.js Runtime 兼容性规范
 
-- 状态：接口基线；Node 文件 Reader、缓存层与真实部署测试待实现
+- 状态：接口基线；Node 文件 Reader 与 HTTP Reader 首版已实现；缓存层与真实部署测试待实现
 - 适用范围：相同 WeiSQL 多文件数据包在浏览器和 Node.js 中的读取语义
 
 ## 1. 统一边界
@@ -26,7 +26,7 @@
 | 元数据 | stat/fstat | HEAD/响应头 |
 | 取消 | 平台能力或 best-effort | AbortSignal |
 | 缓存 | 应用级块缓存 | HTTP 缓存 + 应用级块缓存 |
-| 当前状态 | 待实现 | 首版已实现并有模拟 Fetch 测试 |
+| 当前状态 | 首版已实现并有自动化测试 | 首版已实现并有模拟 Fetch 测试 |
 
 ## 3. Node.js 要求
 

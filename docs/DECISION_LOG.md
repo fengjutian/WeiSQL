@@ -139,11 +139,13 @@
 
 ## ADR-018：混合检索先过滤后精确扫描，并接受 O(N) 反向索引
 
-- 状态：Accepted and implemented（`exact-filter-first`）；`vector-first` 未实现
+- 状态：Accepted and implemented（两策略）；`vector-first` 的近似性以诊断标注，不做保证
 - 决策一：`filter` 在 Top-K **之前**生效。先用 SQL 求出满足条件的完整业务 ID 集合，映射为向量行，再让精确扫描只考虑这些行。反向做法（先取 Top-K 再丢弃不匹配项）在过滤子集较小时会少返回结果，也无法诚实地声明 `exact: true`，因此不采用。
-- 决策二：Hybrid 逻辑放在独立 `hybrid-executor.ts`，Runtime 只负责注入依赖与诊断，遵守 V0.8 §4「不进入 Runtime 主类硬编码」。`vector-first` 与自适应策略留待需要成本模型时再引入独立执行器。
+- 决策二：Hybrid 逻辑放在独立 `hybrid-executor.ts`，Runtime 只负责注入依赖与诊断，遵守 V0.8 §4「不进入 Runtime 主类硬编码」。
 - 决策三：过滤器只接受 Manifest 白名单中的列，值按列类型校验并全部参数绑定；未知列、类型不匹配在进入引擎前拒绝。`date`/`timestamp`/`json` 的等值过滤在 V1 明确不支持并报错，避免猜测格式导致静默零匹配。
-- 决策四：接受反向映射的 O(N) 成本。V1 没有持久化 `business ID → 向量行` 索引，每次过滤查询扫描完整 ID Map；该成本写入文档与诊断（`filteredCandidates`），不包装成性能保证。
+- 决策四：接受反向映射的 O(N) 成本。V1 没有持久化 `business ID → 向量行` 索引，`exact-filter-first` 每次扫描完整 ID Map；该成本写入文档与诊断（`filteredCandidates`），不包装成性能保证。
+- 决策五：`vector-first` 先取有界候选窗口再过滤，因此结果只是「候选窗口内的最近 K」。仅当窗口覆盖整个集合时才置 `exact: true`（靠穷尽而非靠构造），并报告 `candidatesScanned` / `filteredCandidates` / `candidateCap`。窗口参数（`initialCandidates`、`expansionStep`、`maxCandidates`）显式可配，默认值写在类型注释里。
+- 决策六：`vector-first` 省掉的是全量 ID Map 扫描，不是向量扫描——V1 无 ANN 索引，向量仍需全量过一遍。它的价值在于为后续 ANN 提供正确形状，不宣称性能优势。
 - 后果：`capabilities().hybridSearch` 仅在同时存在 Reader 与 SQL Adapter 时为 `true`；ANN 路径未接入，不能声称混合检索在近似索引上有效。
 
 ## 明确禁止的未经验证声明

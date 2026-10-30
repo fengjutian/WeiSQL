@@ -25,8 +25,24 @@ export interface WeiSQLManifest {
 }
 export type SQLValue = string | number | bigint | boolean | null | Uint8Array | Date;
 export interface QueryOptions { signal?: AbortSignal }
-export interface VectorSearchOptions { topK?: number; filter?: Readonly<Record<string, string | number | boolean | null>>; signal?: AbortSignal }
-export interface VectorHit { row: number; id: string | number; distance: number; metadata?: Readonly<Record<string, unknown>>; diagnostics?: { backend: string; elapsedMs?: number; exact?: boolean; strategy?: "exact" | "exact-filter-first"; filteredCandidates?: number } }
+export interface VectorFirstOptions {
+  /** Candidate window before the first expansion; defaults to `topK × 4`. */
+  initialCandidates?: number;
+  /** Added per expansion round; defaults to `topK × 4`. */
+  expansionStep?: number;
+  /** Hard cap on the candidate window; defaults to 10000. */
+  maxCandidates?: number;
+}
+export type HybridStrategy = "exact-filter-first" | "vector-first";
+export interface VectorSearchOptions {
+  topK?: number;
+  filter?: Readonly<Record<string, string | number | boolean | null>>;
+  signal?: AbortSignal;
+  /** Requires `filter`. Defaults to `exact-filter-first`. */
+  strategy?: HybridStrategy;
+  vectorFirst?: VectorFirstOptions;
+}
+export interface VectorHit { row: number; id: string | number; distance: number; metadata?: Readonly<Record<string, unknown>>; diagnostics?: { backend: string; elapsedMs?: number; exact?: boolean; strategy?: HybridStrategy; filteredCandidates?: number; candidatesScanned?: number; candidateCap?: number } }
 export interface WeiSQLCapabilities {
   sql: boolean;
   vectorExactSearch: boolean;

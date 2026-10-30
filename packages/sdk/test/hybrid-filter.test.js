@@ -70,6 +70,68 @@ test("exact-filter-first restricts the scan instead of trimming Top-K", async ()
   await db.close();
 });
 
+test("vector-first reports an honest cap when the window cannot reach a match", async () => {
+  const { manifest, reader } = await fixturePackage();
+  // Only doc-003 (distance 1.0) matches, and the window is capped at one row.
+  const db = await open({ manifest, resourceReader: reader, sqlAdapter: fakeSqlAdapter([{ id: "doc-003" }]) });
+  const hits = await db.vector.search("document_embeddings", [1, 0], {
+    topK: 1,
+    filter: { content: "x" },
+    strategy: "vector-first",
+    vectorFirst: { initialCandidates: 1, expansionStep: 1, maxCandidates: 1 },
+  });
+  assert.deepEqual(hits, []);
+  await db.close();
+});
+
+test("vector-first expands the window until it finds the match", async () => {
+  const { manifest, reader } = await fixturePackage();
+  const db = await open({ manifest, resourceReader: reader, sqlAdapter: fakeSqlAdapter([{ id: "doc-003" }]) });
+  const hits = await db.vector.search("document_embeddings", [1, 0], {
+    topK: 1,
+    filter: { content: "x" },
+    strategy: "vector-first",
+    vectorFirst: { initialCandidates: 1, expansionStep: 1, maxCandidates: 8 },
+  });
+  assert.deepEqual(hits.map(hit => hit.id), ["doc-003"]);
+  assert.equal(hits[0].diagnostics.strategy, "vector-first");
+  assert.equal(hits[0].diagnostics.candidatesScanned, 3);
+  assert.equal(hits[0].diagnostics.filteredCandidates, 1);
+  // The window covered all three rows, so the result is exact by exhaustion.
+  assert.equal(hits[0].diagnostics.exact, true);
+  await db.close();
+});
+
+test("vector-first refuses to claim exactness while the window is closed", async () => {
+  const { manifest, reader } = await fixturePackage();
+  const db = await open({ manifest, resourceReader: reader, sqlAdapter: fakeSqlAdapter([{ id: "doc-002" }]) });
+  const hits = await db.vector.search("document_embeddings", [1, 0], {
+    topK: 1,
+    filter: { content: "x" },
+    strategy: "vector-first",
+    vectorFirst: { initialCandidates: 1, expansionStep: 1, maxCandidates: 2 },
+  });
+  assert.deepEqual(hits.map(hit => hit.id), ["doc-002"]);
+  assert.equal(hits[0].diagnostics.exact, false);
+  assert.equal(hits[0].diagnostics.candidatesScanned, 2);
+  await db.close();
+});
+
+test("hybrid option validation rejects missing filters and impossible caps", async () => {
+  const { manifest, reader } = await fixturePackage();
+  const db = await open({ manifest, resourceReader: reader, sqlAdapter: fakeSqlAdapter([]) });
+  await assert.rejects(db.vector.search("document_embeddings", [1, 0], { strategy: "vector-first" }), { code: "INVALID_ARGUMENT" });
+  await assert.rejects(
+    db.vector.search("document_embeddings", [1, 0], { topK: 3, filter: { content: "x" }, strategy: "vector-first", vectorFirst: { maxCandidates: 2 } }),
+    { code: "INVALID_ARGUMENT" },
+  );
+  await assert.rejects(
+    db.vector.search("document_embeddings", [1, 0], { filter: { content: "x" }, strategy: "vector-first", vectorFirst: { expansionStep: 0 } }),
+    { code: "INVALID_ARGUMENT" },
+  );
+  await db.close();
+});
+
 test("filtered search returns fewer hits when the filter matches nothing", async () => {
   const { manifest, reader } = await fixturePackage();
   const db = await open({ manifest, resourceReader: reader, sqlAdapter: fakeSqlAdapter([]) });

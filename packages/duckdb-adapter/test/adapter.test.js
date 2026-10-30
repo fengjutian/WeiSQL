@@ -255,6 +255,46 @@ test("Runtime + DuckDB adapter run the documented SQL/vector end to end", async 
   assert.equal(adapter.state, "CLOSED");
 });
 
+test("vector-first trades exactness for a bounded candidate window", async t => {
+  const manifest = await fixtureManifest();
+  const reader = new NodeFileResourceReader({ rootDirectory: FIXTURE });
+  const db = await open({ manifest, resourceReader: reader, sqlAdapter: createDuckDbAdapter() });
+  t.after(() => db.close().catch(() => undefined));
+
+  // Default window (topK × 4) exceeds the 3-row collection: exhaustive, so exact.
+  const exhaustive = await db.vector.search("document_embeddings", [1, 0], {
+    topK: 1,
+    filter: { category: "metabolism" },
+    strategy: "vector-first",
+  });
+  assert.deepEqual(exhaustive.map(hit => hit.id), ["doc-003"]);
+  assert.equal(exhaustive[0].diagnostics.exact, true);
+  assert.equal(exhaustive[0].diagnostics.candidatesScanned, 3);
+
+  // A two-row window sees doc-001 and doc-002, both genetics: two hits, not exact.
+  const bounded = await db.vector.search("document_embeddings", [1, 0], {
+    topK: 2,
+    filter: { category: "genetics" },
+    strategy: "vector-first",
+    vectorFirst: { initialCandidates: 2, expansionStep: 1, maxCandidates: 2 },
+  });
+  assert.deepEqual(bounded.map(hit => hit.id), ["doc-001", "doc-002"]);
+  assert.equal(bounded[0].diagnostics.exact, false);
+  assert.equal(bounded[0].diagnostics.candidatesScanned, 2);
+  assert.equal(bounded[0].diagnostics.candidateCap, 2);
+
+  // A one-row window never reaches the only matching row, while the exact
+  // strategy still does.
+  assert.deepEqual(await db.vector.search("document_embeddings", [1, 0], {
+    topK: 1,
+    filter: { category: "metabolism" },
+    strategy: "vector-first",
+    vectorFirst: { initialCandidates: 1, expansionStep: 1, maxCandidates: 1 },
+  }), []);
+  const exact = await db.vector.search("document_embeddings", [1, 0], { topK: 1, filter: { category: "metabolism" } });
+  assert.deepEqual(exact.map(hit => hit.id), ["doc-003"]);
+});
+
 test("exact-filter-first filters through real SQL before Top-K", async t => {
   const manifest = await fixtureManifest();
   const reader = new NodeFileResourceReader({ rootDirectory: FIXTURE });

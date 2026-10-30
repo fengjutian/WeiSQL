@@ -7,7 +7,7 @@ import type { ResourceReader } from "./resource-reader.js";
 import type { SqlAdapter } from "./sql-adapter.js";
 import type { OpenOptions, QueryOptions, RuntimeState, SQLValue, VectorHit, VectorSearchOptions, WeiSQLCapabilities, WeiSQLManifest } from "./types.js";
 import { VectorBlockReader } from "./vector-block-reader.js";
-import { exactFilterFirst } from "./hybrid-executor.js";
+import { candidateCapFor, exactFilterFirst, vectorFirst } from "./hybrid-executor.js";
 
 export interface WeiSQLDatabase {
   readonly manifest: Readonly<WeiSQLManifest>;
@@ -57,7 +57,11 @@ class Database implements WeiSQLDatabase {
     for (let i = 0; i < queryVector.length; i++) if (!Number.isFinite(queryVector[i])) throw new WeiSQLError("VECTOR_INVALID_VALUE", "Query vector contains a non-finite value", { position: i });
     if (vector.metric === "cosine" && !queryVector.some(value => value !== 0)) throw new WeiSQLError("VECTOR_INVALID_VALUE", "Cosine distance is undefined for a zero query vector");
     const filter = options?.filter;
-    if (filter !== undefined && !this.sqlAdapter) throw new WeiSQLError("SQL_UNSUPPORTED", "Vector filtering requires a SQL or metadata-filtering adapter", { strategy: "exact-filter-first" });
+    const strategy = options?.strategy ?? "exact-filter-first";
+    if (options?.strategy !== undefined && filter === undefined) {
+      throw new WeiSQLError("INVALID_ARGUMENT", "A hybrid strategy requires a filter", { strategy });
+    }
+    if (filter !== undefined && !this.sqlAdapter) throw new WeiSQLError("SQL_UNSUPPORTED", "Vector filtering requires a SQL or metadata-filtering adapter", { strategy });
     if (!this.reader) throw new WeiSQLError("INDEX_NOT_FOUND", "No vector resource reader is configured");
     const started = performance.now();
     const idMap = new IndexedIdMapReader(this.reader, {
@@ -67,26 +71,32 @@ class Database implements WeiSQLDatabase {
       dataBytes: vector.idMap.data.bytes,
       offsetsBytes: vector.idMap.offsets.bytes,
     });
+    const reader = new VectorBlockReader(this.reader, { path: vector.data.path, count: vector.count, dimension: vector.dimension, bytes: vector.data.bytes });
+    const query = queryVector instanceof Float32Array ? queryVector : Float32Array.from(queryVector);
+    const signalOption = options?.signal === undefined ? {} : { signal: options.signal };
     try {
+      if (filter !== undefined && strategy === "vector-first") {
+        return await this.vectorFirstSearch({ vector, reader, idMap, query, topK, filter, options, started });
+      }
       const allowed = filter === undefined ? undefined : (await exactFilterFirst({
         manifest: this.manifest,
         sqlAdapter: this.sqlAdapter!,
         idMap,
         vector,
         filter,
-        ...(options?.signal ? { signal: options.signal } : {}),
+        ...signalOption,
       })).allowedRows;
       if (allowed !== undefined && allowed.size === 0) return [];
       const hits = await exactVectorSearch({
-        reader: new VectorBlockReader(this.reader, { path: vector.data.path, count: vector.count, dimension: vector.dimension, bytes: vector.data.bytes }),
+        reader,
         idMap,
-        query: queryVector instanceof Float32Array ? queryVector : Float32Array.from(queryVector),
+        query,
         collectionCount: vector.count,
         dimension: vector.dimension,
         search: {
           topK,
           metric: vector.metric,
-          ...(options?.signal ? { signal: options.signal } : {}),
+          ...signalOption,
           ...(allowed === undefined ? {} : { isAllowed: (row: number) => allowed.has(row) }),
         },
       });
@@ -101,6 +111,59 @@ class Database implements WeiSQLDatabase {
     } finally {
       await idMap.close();
     }
+  }
+
+  /**
+   * `vector-first`: scan a bounded candidate window exactly, then keep the hits
+   * the SQL filter accepts. Results are not guaranteed to be the filtered top-K
+   * unless the window reached the whole collection, which the diagnostics state.
+   */
+  private async vectorFirstSearch(input: {
+    vector: WeiSQLManifest["vectorCollections"][number];
+    reader: VectorBlockReader;
+    idMap: IndexedIdMapReader;
+    query: Float32Array;
+    topK: number;
+    filter: NonNullable<VectorSearchOptions["filter"]>;
+    options: VectorSearchOptions | undefined;
+    started: number;
+  }): Promise<readonly VectorHit[]> {
+    const { vector, reader, idMap, query, topK, filter, options, started } = input;
+    const candidateCap = candidateCapFor(options?.vectorFirst?.maxCandidates, topK, vector.count);
+    const candidates = await exactVectorSearch({
+      reader,
+      idMap,
+      query,
+      collectionCount: vector.count,
+      dimension: vector.dimension,
+      search: { topK: candidateCap, metric: vector.metric, ...(options?.signal === undefined ? {} : { signal: options.signal }) },
+    });
+    const plan = await vectorFirst({
+      manifest: this.manifest,
+      sqlAdapter: this.sqlAdapter!,
+      vector,
+      filter,
+      candidates: candidates.map(hit => ({ id: hit.id })),
+      topK,
+      ...(options?.signal === undefined ? {} : { signal: options.signal }),
+      ...(options?.vectorFirst === undefined ? {} : options.vectorFirst),
+    });
+    const elapsedMs = performance.now() - started;
+    return plan.matchedIndexes.map(index => {
+      const hit = candidates[index]!;
+      return {
+        ...hit,
+        diagnostics: {
+          backend: "typescript-exact+sql-filter",
+          exact: plan.exact,
+          strategy: "vector-first" as const,
+          candidatesScanned: plan.candidatesScanned,
+          filteredCandidates: plan.filteredCandidates,
+          candidateCap: plan.candidateCap,
+          elapsedMs,
+        },
+      };
+    });
   }
 
   capabilities(): Readonly<WeiSQLCapabilities> {

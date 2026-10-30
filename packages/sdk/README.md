@@ -14,7 +14,7 @@ WeiSQL AI 的只读 TypeScript SDK。当前版本提供：
 - `verifyManifestResources()`：L3 完整性（`manifest` 校验长度、`all` 增量 SHA-256 + ID Map 内容），可脱离 `open()` 单独使用。
 - `Sha256` / `sha256Hex()`：零依赖增量 SHA-256，浏览器与 Node.js 共用。
 - `buildPackage()`：Builder 首版，从已有 Parquet、向量和业务 ID 生成完整数据包并自检后原子发布。
-- `vector.search(..., { filter })`：`exact-filter-first` 混合检索，过滤先于 Top-K，结果可声明 `exact`。
+- `vector.search(..., { filter, strategy })`：`exact-filter-first`（过滤先于 Top-K，可声明 `exact`）与 `vector-first`（有界候选窗口，诊断如实标注 `exact`）。
 
 注入 `resourceReader` 后，`vector.search()` 执行完整闭环（Range 读取 → Float32 解码
 → 距离扫描 → Top-K → Indexed ID Map → 业务 ID），诊断中标记 `exact: true`。

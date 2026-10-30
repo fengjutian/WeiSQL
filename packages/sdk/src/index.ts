@@ -31,4 +31,6 @@ export { groupRows } from "./row-groups.js";
 export type { RowGroup } from "./row-groups.js";
 export { businessIdKey, buildIdRowIndex, compileEqualityFilter, normalizeBusinessId } from "./vector-filter.js";
 export type { CompiledEqualityFilter } from "./vector-filter.js";
+export { candidateCapFor, exactFilterFirst, vectorFirst } from "./hybrid-executor.js";
+export type { FilterExpression, HybridFilterInput, HybridFilterResult, VectorFirstInput, VectorFirstResult } from "./hybrid-executor.js";
 export type * from "./types.js";

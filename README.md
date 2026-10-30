@@ -261,6 +261,10 @@ npm run playground     # http://127.0.0.1:8099/playground/
 
 自动化验收：`npm run probe:playground` 在真实 Chromium 中打开页面，断言初始结果为 `doc-001..doc-003`，再点击第三个预设并断言 `doc-003` 排到第一。
 
+![WeiSQL Playground](docs/assets/playground.png)
+
+截图由 `node tools/browser-probe/screenshot.mjs docs/assets/playground.png` 生成。
+
 ## 资源完整性校验
 
 `open()` 的 `verifyChecksums` 有三种策略，语义与 `RESOURCE_INTEGRITY_SPEC.md` 一致：

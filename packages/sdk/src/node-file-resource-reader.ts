@@ -121,6 +121,6 @@ export class NodeFileResourceReader implements ResourceReader {
 
 function mapFileError(cause: unknown, message: string, resourcePath: string): WeiSQLError {
   const code = typeof cause === "object" && cause !== null && "code" in cause ? String(cause.code) : undefined;
-  if (code === "ENOENT" || code === "ENOTDIR") return new WeiSQLError("RESOURCE_NOT_FOUND", message, { path: resourcePath, cause: code });
-  return new WeiSQLError("RESOURCE_READ_FAILED", message, { path: resourcePath, cause: String(cause) });
+  if (code === "ENOENT" || code === "ENOTDIR") return new WeiSQLError({ code: "RESOURCE_NOT_FOUND", message, details: { path: resourcePath, systemCode: code }, cause });
+  return new WeiSQLError({ code: "RESOURCE_READ_FAILED", message, details: { path: resourcePath }, cause });
 }

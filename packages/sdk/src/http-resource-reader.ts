@@ -7,13 +7,21 @@ export interface HttpResourceReaderOptions {
   baseUrl: string;
   fetch?: typeof globalThis.fetch;
   credentials?: RequestCredentials;
+  /** Maximum bytes accepted by read(); defaults to 64 MiB. */
+  maxReadBytes?: number;
+  /** Maximum bytes accepted by one readRange(); defaults to 64 MiB. */
+  maxRangeBytes?: number;
 }
+
+const DEFAULT_MAX_RESPONSE_BYTES = 64 * 1024 * 1024;
 
 /** Browser-safe HTTP resource reader with strict Range response validation. */
 export class HttpResourceReader implements ResourceReader {
   private readonly baseUrl: URL;
   private readonly fetcher: typeof globalThis.fetch;
   private readonly credentials: RequestCredentials;
+  private readonly maxReadBytes: number;
+  private readonly maxRangeBytes: number;
   private closed = false;
 
   constructor(options: HttpResourceReaderOptions) {
@@ -33,6 +41,8 @@ export class HttpResourceReader implements ResourceReader {
     if (!fetcher) throw new WeiSQLError("INVALID_ARGUMENT", "No fetch implementation is available");
     this.fetcher = fetcher.bind(globalThis);
     this.credentials = options.credentials ?? "same-origin";
+    this.maxReadBytes = responseBudget(options.maxReadBytes, "maxReadBytes");
+    this.maxRangeBytes = responseBudget(options.maxRangeBytes, "maxRangeBytes");
   }
 
   async read(path: string, options?: ResourceReadOptions): Promise<Uint8Array> {
@@ -40,7 +50,12 @@ export class HttpResourceReader implements ResourceReader {
     const response = await this.request(path, { method: "GET", ...signalInit(options?.signal) });
     this.ensureFinalUrl(path, response);
     if (!response.ok) this.throwHttp(path, response.status, "Resource request");
-    return new Uint8Array(await response.arrayBuffer());
+    validateContentLength(response, path, this.maxReadBytes);
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength > this.maxReadBytes) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Resource exceeds the configured full-read limit", { path, actual: bytes.byteLength, maxReadBytes: this.maxReadBytes });
+    }
+    return bytes;
   }
 
   async readRange(path: string, range: ByteRange, options?: ResourceReadOptions): Promise<Uint8Array> {
@@ -48,6 +63,9 @@ export class HttpResourceReader implements ResourceReader {
     validateByteRange(range);
     if (range.start === range.end) return new Uint8Array();
     const expectedLength = range.end - range.start;
+    if (expectedLength > this.maxRangeBytes) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Requested range exceeds the configured range-read limit", { path, range, expected: expectedLength, maxRangeBytes: this.maxRangeBytes });
+    }
     const response = await this.request(path, {
       method: "GET",
       headers: { Range: `bytes=${range.start}-${range.end - 1}` },
@@ -69,6 +87,7 @@ export class HttpResourceReader implements ResourceReader {
     if (contentRange.total !== undefined && contentRange.endInclusive >= contentRange.total) {
       throw new WeiSQLError("INVALID_RANGE_RESPONSE", "Content-Range exceeds the declared resource size", { path, received: contentRange });
     }
+    validateContentLength(response, path, expectedLength, true);
     const bytes = new Uint8Array(await response.arrayBuffer());
     if (bytes.byteLength !== expectedLength) {
       throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", `Expected ${expectedLength} range bytes, received ${bytes.byteLength}`, { path, expected: expectedLength, actual: bytes.byteLength });
@@ -142,6 +161,32 @@ function signalInit(signal: AbortSignal | undefined): RequestInit {
 
 function isAbort(cause: unknown, signal: AbortSignal | null | undefined): boolean {
   return signal?.aborted === true || (cause instanceof Error && cause.name === "AbortError");
+}
+
+function responseBudget(value: number | undefined, name: string): number {
+  const budget = value ?? DEFAULT_MAX_RESPONSE_BYTES;
+  if (!Number.isSafeInteger(budget) || budget <= 0) {
+    throw new WeiSQLError("INVALID_ARGUMENT", `${name} must be a positive safe integer`, { [name]: value });
+  }
+  return budget;
+}
+
+function validateContentLength(response: Response, path: string, limit: number, exact = false): void {
+  const raw = response.headers.get("Content-Length");
+  if (raw === null) return;
+  if (!/^\d+$/.test(raw)) {
+    throw new WeiSQLError("RESOURCE_READ_FAILED", "Invalid Content-Length header", { path, contentLength: raw });
+  }
+  const length = Number(raw);
+  if (!Number.isSafeInteger(length)) {
+    throw new WeiSQLError("RESOURCE_READ_FAILED", "Content-Length exceeds the safe integer range", { path, contentLength: raw });
+  }
+  if (exact && length !== limit) {
+    throw new WeiSQLError("INVALID_RANGE_RESPONSE", "Range response Content-Length does not match the requested byte count", { path, expected: limit, actual: length });
+  }
+  if (!exact && length > limit) {
+    throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Resource exceeds the configured full-read limit", { path, declared: length, maxReadBytes: limit });
+  }
 }
 
 function parseContentRange(value: string | null, path: string): { start: number; endInclusive: number; total?: number } {

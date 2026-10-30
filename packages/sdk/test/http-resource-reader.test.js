@@ -90,3 +90,52 @@ test("reads resource metadata and validates Content-Length", async () => {
   const invalid = new HttpResourceReader({ baseUrl: "https://example.test/db/", fetch: async () => new Response(null, { headers: { "Content-Length": "1.5" } }) });
   await assert.rejects(invalid.stat("data/file"), { code: "RESOURCE_READ_FAILED" });
 });
+
+test("enforces full-read and range response byte budgets before buffering", async t => {
+  await t.test("rejects a declared full response above the budget", async () => {
+    const reader = new HttpResourceReader({
+      baseUrl: "https://example.test/",
+      maxReadBytes: 3,
+      fetch: async () => new Response(bytes([1, 2, 3, 4]), { headers: { "Content-Length": "4" } }),
+    });
+    await assert.rejects(reader.read("data/file"), { code: "RESOURCE_INTEGRITY_FAILED" });
+  });
+
+  await t.test("rejects an undeclared full response above the budget", async () => {
+    const reader = new HttpResourceReader({
+      baseUrl: "https://example.test/",
+      maxReadBytes: 3,
+      fetch: async () => new Response(bytes([1, 2, 3, 4])),
+    });
+    await assert.rejects(reader.read("data/file"), { code: "RESOURCE_INTEGRITY_FAILED" });
+  });
+
+  await t.test("rejects an oversized range before fetching", async () => {
+    let calls = 0;
+    const reader = new HttpResourceReader({
+      baseUrl: "https://example.test/",
+      maxRangeBytes: 3,
+      fetch: async () => { calls++; return new Response(); },
+    });
+    await assert.rejects(reader.readRange("data/file", { start: 0, end: 4 }), { code: "RESOURCE_INTEGRITY_FAILED" });
+    assert.equal(calls, 0);
+  });
+
+  await t.test("rejects a range Content-Length mismatch", async () => {
+    const reader = new HttpResourceReader({
+      baseUrl: "https://example.test/",
+      fetch: async () => new Response(bytes([1, 2]), {
+        status: 206,
+        headers: { "Content-Range": "bytes 0-3/100", "Content-Length": "2" },
+      }),
+    });
+    await assert.rejects(reader.readRange("data/file", { start: 0, end: 4 }), { code: "INVALID_RANGE_RESPONSE" });
+  });
+});
+
+test("rejects invalid HTTP response budgets during construction", () => {
+  for (const value of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.throws(() => new HttpResourceReader({ baseUrl: "https://example.test/", maxReadBytes: value }), { code: "INVALID_ARGUMENT" });
+    assert.throws(() => new HttpResourceReader({ baseUrl: "https://example.test/", maxRangeBytes: value }), { code: "INVALID_ARGUMENT" });
+  }
+});

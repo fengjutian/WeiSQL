@@ -34,13 +34,19 @@ async function readPresets(reader, collection, count) {
   return presets;
 }
 
+function formatVector(vector) {
+  // Float32 values carry decimal noise (0.9 reads back as 0.8999999761); show a
+  // readable form without pretending the stored value is exact decimal.
+  return [...vector].map(value => Number(value.toFixed(4))).join(", ");
+}
+
 function renderPresets() {
   const container = $("presets");
   container.replaceChildren();
   state.presets.forEach(preset => {
     const button = document.createElement("button");
     button.type = "button";
-    button.textContent = `row ${preset.row} · [${[...preset.vector].join(", ")}]`;
+    button.textContent = `row ${preset.row} · [${formatVector(preset.vector)}]`;
     button.setAttribute("aria-pressed", String(state.query === preset));
     button.addEventListener("click", () => {
       state.query = preset;

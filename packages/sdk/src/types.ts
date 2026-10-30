@@ -39,6 +39,8 @@ export interface TextIndexDescriptor {
   termOffsets: FileDescriptor;
   /** UInt32 LE per-document token counts; count = documentCount. */
   docLengths: FileDescriptor;
+  /** Row → business ID, same shape as the vector ID Map. */
+  idMap: IdMapDescriptor;
   k1?: number;
   b?: number;
 }

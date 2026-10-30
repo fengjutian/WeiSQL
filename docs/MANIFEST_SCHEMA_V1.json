@@ -59,7 +59,7 @@
     },
     "textIndex": {
       "type": "object", "additionalProperties": false,
-      "required": ["name", "tableName", "column", "idColumn", "documentCount", "termCount", "averageDocumentLength", "data", "termOffsets", "docLengths"],
+      "required": ["name", "tableName", "column", "idColumn", "documentCount", "termCount", "averageDocumentLength", "data", "termOffsets", "docLengths", "idMap"],
       "properties": {
         "name": { "type": "string", "maxLength": 128, "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
         "tableName": { "type": "string", "maxLength": 128, "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
@@ -71,6 +71,7 @@
         "data": { "$ref": "#/$defs/file" },
         "termOffsets": { "$ref": "#/$defs/file" },
         "docLengths": { "$ref": "#/$defs/file" },
+        "idMap": { "$ref": "#/$defs/idMap" },
         "k1": { "type": "number", "exclusiveMinimum": 0 },
         "b": { "type": "number", "minimum": 0, "maximum": 1 }
       }

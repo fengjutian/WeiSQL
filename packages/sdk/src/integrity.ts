@@ -125,6 +125,8 @@ export function declaredResources(manifest: Readonly<WeiSQLManifest>): DeclaredR
     add("text-data", text.name, text.data);
     add("text-offsets", text.name, text.termOffsets);
     add("text-lengths", text.name, text.docLengths);
+    add("text-ids", text.name, text.idMap.data);
+    add("text-id-offsets", text.name, text.idMap.offsets);
   }
   return [...seen.values()];
 }

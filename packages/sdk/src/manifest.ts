@@ -63,6 +63,8 @@ export function validateManifest(input: unknown): WeiSQLManifest {
     register(item.data, `${path}.data`);
     register(item.termOffsets, `${path}.termOffsets`);
     register(item.docLengths, `${path}.docLengths`);
+    register(item.idMap.data, `${path}.idMap.data`);
+    register(item.idMap.offsets, `${path}.idMap.offsets`);
   });
 
   const tableByName = new Map(tables.map(value => [value.name, value]));
@@ -202,7 +204,7 @@ function indexParams(value: unknown, path: string, issues: Issue[]): Readonly<Re
  */
 function textIndex(value: unknown, path: string, issues: Issue[]): TextIndexDescriptor | undefined {
   if (!record(value)) { issue(issues, path, "must be an object"); return; }
-  allowed(value, ["name", "tableName", "column", "idColumn", "documentCount", "termCount", "averageDocumentLength", "data", "termOffsets", "docLengths", "k1", "b"], path, issues);
+  allowed(value, ["name", "tableName", "column", "idColumn", "documentCount", "termCount", "averageDocumentLength", "data", "termOffsets", "docLengths", "idMap", "k1", "b"], path, issues);
   name(value.name, `${path}.name`, issues);
   name(value.tableName, `${path}.tableName`, issues);
   name(value.column, `${path}.column`, issues);
@@ -215,6 +217,10 @@ function textIndex(value: unknown, path: string, issues: Issue[]): TextIndexDesc
   const data = file(value.data, `${path}.data`, issues);
   const termOffsets = file(value.termOffsets, `${path}.termOffsets`, issues);
   const docLengths = file(value.docLengths, `${path}.docLengths`, issues);
+  const idMap = idMapValue(value.idMap, `${path}.idMap`, issues);
+  if (idMap !== undefined && typeof value.documentCount === "number" && idMap.count !== value.documentCount) {
+    issue(issues, `${path}.idMap.count`, "must equal documentCount");
+  }
 
   let k1: number | undefined;
   if (value.k1 !== undefined) {
@@ -232,7 +238,7 @@ function textIndex(value: unknown, path: string, issues: Issue[]): TextIndexDesc
     !Number.isSafeInteger(value.documentCount) || (value.documentCount as number) < 1 ||
     !Number.isSafeInteger(value.termCount) || (value.termCount as number) < 1 ||
     typeof value.averageDocumentLength !== "number" || value.averageDocumentLength <= 0 ||
-    !data || !termOffsets || !docLengths
+    !data || !termOffsets || !docLengths || !idMap
   ) return;
 
   return {
@@ -246,6 +252,7 @@ function textIndex(value: unknown, path: string, issues: Issue[]): TextIndexDesc
     data,
     termOffsets,
     docLengths,
+    idMap,
     ...(k1 === undefined ? {} : { k1 }),
     ...(b === undefined ? {} : { b }),
   };

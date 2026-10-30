@@ -25,6 +25,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - 混合检索两策略：`exact-filter-first`（过滤先于 Top-K，结果严格）与 `vector-first`（有界候选窗口，诊断标注 `exact` 是否成立）
 - 真实浏览器验收探针（`npm run probe:browser`）：Chromium 中验证 HTTP Range、L3 校验、精确搜索与缓存命中
 - 跨环境对照（`npm run probe:parity`）：同一进程驱动 Node 与 Chromium，逐字段比较查询结果、`exact` 标记与错误码
+- 可复现的基准装置（`npm run bench`）：合成数据包 + 完整性闸门 + p50/p95、I/O 字节与峰值内存，结果见 [基准测量装置](docs/BENCHMARK_HARNESS.md)
 - `weisql validate` 校验命令（`@weisql/cli`）：L1/L2/L3 逐级校验、`--json` 输出与 CI 友好退出码
 - 已接入公开 `vector.search()` 的端到端精确搜索
 - Float32 little-endian 向量分块读取
@@ -411,6 +412,7 @@ tools/                     源 Parquet 生成脚本
 - [端到端验收计划](docs/E2E_ACCEPTANCE_PLAN.md)
 - [V0.5 验收清单](docs/V0_5_ACCEPTANCE.md)
 - [基准测试协议](docs/BENCHMARK_PROTOCOL_V1.md)
+- [基准测量装置](docs/BENCHMARK_HARNESS.md)
 - [技术决策记录](docs/DECISION_LOG.md)
 
 ## 安全边界

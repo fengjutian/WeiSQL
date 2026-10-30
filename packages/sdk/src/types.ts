@@ -23,8 +23,17 @@ export interface WeiSQLManifest {
 export type SQLValue = string | number | bigint | boolean | null | Uint8Array | Date;
 export interface QueryOptions { signal?: AbortSignal }
 export interface VectorSearchOptions { topK?: number; filter?: Readonly<Record<string, string | number | boolean | null>>; signal?: AbortSignal }
-export interface VectorHit { id: string | number; distance: number; metadata?: Readonly<Record<string, unknown>>; diagnostics?: { backend: string; elapsedMs?: number } }
-export interface OpenOptions {
-  manifestUrl: string; mode?: "readonly"; verifyChecksums?: "none" | "manifest" | "all";
-  fetch?: typeof globalThis.fetch; signal?: AbortSignal;
+export interface VectorHit { row: number; id: string | number; distance: number; metadata?: Readonly<Record<string, unknown>>; diagnostics?: { backend: string; elapsedMs?: number; exact?: boolean } }
+export interface WeiSQLCapabilities {
+  sql: boolean;
+  vectorExactSearch: boolean;
+  vectorAnnSearch: boolean;
+  hybridSearch: boolean;
+  resourceRange: boolean;
 }
+export interface OpenOptions {
+  manifestUrl?: string; manifest?: unknown; mode?: "readonly"; verifyChecksums?: "none" | "manifest" | "all";
+  fetch?: typeof globalThis.fetch; resourceReader?: ResourceReader; signal?: AbortSignal;
+}
+import type { ResourceReader } from "./resource-reader.js";
+

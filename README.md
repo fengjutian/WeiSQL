@@ -162,6 +162,7 @@ packages/sdk/              TypeScript SDK、资源层和向量基线
 - [Vector Adapter 契约](docs/VECTOR_ADAPTER_CONTRACT.md)
 - [ResourceReader 契约](docs/RESOURCE_READER_CONTRACT.md)
 - [资源完整性校验规范](docs/RESOURCE_INTEGRITY_SPEC.md)
+- [V0.6 Runtime 基础设计](docs/V0_6_RUNTIME_FOUNDATION.md)
 - [浏览器与 Node.js Runtime 兼容性](docs/RUNTIME_COMPATIBILITY.md)
 - [端到端验收计划](docs/E2E_ACCEPTANCE_PLAN.md)
 - [V0.5 验收清单](docs/V0_5_ACCEPTANCE.md)

@@ -9,6 +9,8 @@ export { validateByteRange } from "./resource-reader.js";
 export type { AdapterOpenOptions, ByteRange, ResourceMetadata, ResourceReader, ResourceReadOptions } from "./resource-reader.js";
 export { HttpResourceReader } from "./http-resource-reader.js";
 export type { HttpResourceReaderOptions } from "./http-resource-reader.js";
+export { NodeFileResourceReader } from "./node-file-resource-reader.js";
+export type { NodeFileResourceReaderOptions } from "./node-file-resource-reader.js";
 export { VectorBlockReader } from "./vector-block-reader.js";
 export type { VectorFileDescriptor } from "./vector-block-reader.js";
 export { vectorDistance } from "./vector-distance.js";

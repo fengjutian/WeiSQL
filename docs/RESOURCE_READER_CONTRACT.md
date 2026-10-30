@@ -1,6 +1,6 @@
 # WeiSQL AI ResourceReader 契约
 
-- 状态：V1 设计基线；具体实现待完成
+- 状态：V1 设计基线；HTTP 与 Node 文件实现已完成首版
 - 目标运行时：浏览器 HTTP(S)、Node.js 文件或 HTTP(S)
 
 ## 1. 目的
@@ -102,10 +102,12 @@ Reader 只提供字节。独立 Integrity 层负责比较声明大小、流式�
 
 SDK 已实现 `HttpResourceReader` 首版，包括完整读取、严格 Range 校验、HEAD 元数据、路径根限制、重定向根限制、取消和幂等关闭。自动化测试使用注入 Fetch，不依赖真实网络。
 
+SDK 还已实现 `NodeFileResourceReader` 首版，包括真实路径 containment、符号链接逃逸防护、文件类型检查、精确范围读取、完整读取上限、取消和幂等关闭。
+
 仍待完成：
 
-- `NodeFileResourceReader`；
 - `HEAD` 不可用时的受控回退策略；
 - 流式 SHA-256 Integrity 层；
 - 超时、响应大小上限和显式重定向策略；
+- Node 文件替换 TOCTOU 加固和并发句柄上限；
 - 真实 Netlify/CDN 的 CORS、缓存与 Range 验收。

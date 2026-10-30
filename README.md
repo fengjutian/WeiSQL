@@ -13,6 +13,7 @@
 - `docs/MANIFEST_SCHEMA_V1_CANDIDATE.json`：待评审的新字段形状候选，不用于当前 Runtime。
 - `docs/SQL_ADAPTER_CONTRACT.md`：SQL 引擎适配器生命周期、参数绑定与结果映射契约。
 - `docs/VECTOR_ADAPTER_CONTRACT.md`：向量引擎适配器距离、过滤、ID 与排序契约。
+- `docs/RESOURCE_READER_CONTRACT.md`：浏览器与 Node.js 的统一资源读取、安全和 Range 契约。
 - `docs/BENCHMARK_PROTOCOL_V1.md`：性能测试协议。
 - `docs/SDK_API_CONTRACT_V1.md`：TypeScript SDK 语义、错误码和安全边界。
 - `docs/DECISION_LOG.md`：架构决策及冻结条件。

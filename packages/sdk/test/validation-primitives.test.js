@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { expectedVectorBytes, validateResourcePath, validateVectorBytes } from "../dist/index.js";
+import { expectedVectorBytes, validateByteRange, validateResourcePath, validateVectorBytes } from "../dist/index.js";
 
 test("calculates uncompressed Float32 vector bytes without numeric overflow", () => {
   assert.equal(expectedVectorBytes(100_000, 768), 307_200_000);
@@ -25,4 +25,12 @@ test("rejects unsafe and ambiguous resource paths", () => {
     " data/file", "data/file ", "data/\0file"
   ];
   for (const path of invalid) assert.throws(() => validateResourcePath(path), { code: "PATH_INVALID" }, path);
+});
+
+test("validates half-open byte ranges", () => {
+  assert.doesNotThrow(() => validateByteRange({ start: 0, end: 4096 }));
+  assert.doesNotThrow(() => validateByteRange({ start: 8, end: 8 }));
+  assert.throws(() => validateByteRange({ start: -1, end: 1 }), RangeError);
+  assert.throws(() => validateByteRange({ start: 2, end: 1 }), RangeError);
+  assert.throws(() => validateByteRange({ start: 0.5, end: 1 }), RangeError);
 });

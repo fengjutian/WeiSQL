@@ -5,4 +5,6 @@ export type { WeiSQLErrorCode } from "./errors.js";
 export { validateManifest } from "./manifest.js";
 export { canonicalResourcePath, validateResourcePath } from "./resource-path.js";
 export { expectedVectorBytes, validateVectorBytes } from "./vector-size.js";
+export { validateByteRange } from "./resource-reader.js";
+export type { AdapterOpenOptions, ByteRange, ResourceMetadata, ResourceReader, ResourceReadOptions } from "./resource-reader.js";
 export type * from "./types.js";

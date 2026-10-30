@@ -139,6 +139,10 @@ expectedBytes = count × dimension × 4
 
 向量数量与源表行数不必天然相等，但 Builder 必须提供稳定的业务 ID 映射；不得仅假定两个文件的行顺序永久一致。
 
+V1 使用 `tableName` 明确源表，并使用独立 `idMap` 资源保存逐行业务 ID。`idMap.format` 为 `jsonl`，每行是 `{ "row": 非负整数, "id": 字符串或安全整数 }`。第 N 行必须声明 `row: N` 并对应第 N 条向量；`idMap.count` 必须等于 `data.count`。业务 ID 默认必须唯一。
+
+Builder 必须验证每个 ID 能在目标表的 `idColumn` 中找到。该检查属于构建期完整性验证；浏览器 Runtime 打开数据包时不应默认扫描整张 Parquet 表。JSONL 不承诺高效随机访问，百万级映射是否改为二进制或分块格式必须依据实测决定。
+
 ## 7. 可选向量索引
 
 索引是可重建的派生资源，不是原始数据的替代品。`index` 如存在，应包含：
@@ -289,6 +293,7 @@ Rust Core 继续保留为独立 crate。示例应至少覆盖 Node.js 只读查�
 - 表使用单个 `path/format/bytes/sha256/columns`；
 - 向量的 `dimension` 位于 `data` 内；
 - 向量编码使用 `f32-le-row-major`；
+- 向量使用 `tableName` 引用源表，并以 `idMap` JSONL 资源映射业务 ID；
 - `index` 是必填的对象或 `null`。
 
 该候选与当前基线存在不兼容差异，尚未取代 `MANIFEST_SCHEMA_V1.json`。冻结前必须决定：
@@ -296,7 +301,7 @@ Rust Core 继续保留为独立 crate。示例应至少覆盖 Node.js 只读查�
 1. 格式标识采用 `weisql-ai` 还是 `weisql`；
 2. 一张表是否允许多个文件/分片；
 3. 列类型采用引擎无关小写类型还是 DuckDB 风格类型；
-4. 向量如何显式引用源表（候选稿只有 `idColumn`，在多表包中存在歧义）；
+4. 百万级数据是否需要二进制或分块 ID 映射扩展；
 5. `index` 缺省与显式 `null` 是否具有相同含义；
 6. 空向量数据集是否允许 `count = 0`。
 

@@ -58,6 +58,21 @@
 - 冻结前必须决定：稳定格式标识、表分片能力、引擎无关列类型、向量源表引用、空索引表示方式和空数据集语义。
 - 约束：候选 Schema 不用于当前 Runtime，也不表示迁移已经完成；决定后必须原子更新 Schema、类型、校验器、样例和兼容性测试。
 
+## ADR-009：向量源表与业务 ID 映射
+
+- 状态：Proposed
+- 决策候选：向量声明增加 `tableName`；独立 `ids` 文件按行映射业务 ID，候选编码为每行一个 JSON 标量的 `jsonl-scalar`。
+- 原因：纯 Float32 文件不包含业务 ID，仅靠隐含行号无法可靠映射 SQL 记录；`tableName` 消除多表数据包中的 `idColumn` 歧义。
+- 冻结条件：验证字符串转义、安全整数、重复 ID、计数一致性、流式解析性能和 Builder/Runtime 往返测试。
+
+## ADR-010：统一资源读取抽象
+
+- 状态：Proposed
+- 决策候选：Runtime 和 Adapter 通过 `ResourceReader` 访问资源，浏览器 HTTP、Node HTTP/文件和未来 `.wsql` 容器分别实现该接口。
+- 原因：避免 Adapter 直接依赖 URL 或文件系统，集中处理路径、Range、取消、资源限制和流式完整性校验。
+- 规范：`RESOURCE_READER_CONTRACT.md`。
+- 冻结条件：至少完成浏览器 HTTP 与 Node 文件两个实现的契约测试。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

@@ -62,9 +62,10 @@
     "vector": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "idColumn", "data", "metric", "index"],
+      "required": ["name", "tableName", "idColumn", "data", "idMap", "metric", "index"],
       "properties": {
         "name": { "type": "string", "minLength": 1 },
+        "tableName": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
         "idColumn": { "type": "string", "minLength": 1 },
         "data": {
           "type": "object",
@@ -76,6 +77,18 @@
             "count": { "type": "integer", "minimum": 1 },
             "dimension": { "type": "integer", "minimum": 1 },
             "bytes": { "type": "integer", "minimum": 4 },
+            "sha256": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "idMap": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "format", "count", "bytes", "sha256"],
+          "properties": {
+            "path": { "$ref": "#/$defs/relativePath" },
+            "format": { "const": "jsonl" },
+            "count": { "type": "integer", "minimum": 1 },
+            "bytes": { "type": "integer", "minimum": 1 },
             "sha256": { "$ref": "#/$defs/sha256" }
           }
         },

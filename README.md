@@ -24,6 +24,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - Node.js DuckDB 只读 SQL Adapter（`@weisql/duckdb-adapter`）：真实 SQL 查询、参数绑定、语句级只读边界、L4 Parquet 模式校验与原生取消
 - 混合检索两策略：`exact-filter-first`（过滤先于 Top-K，结果严格）与 `vector-first`（有界候选窗口，诊断标注 `exact` 是否成立）
 - 真实浏览器验收探针（`npm run probe:browser`）：Chromium 中验证 HTTP Range、L3 校验、精确搜索与缓存命中
+- `weisql validate` 校验命令（`@weisql/cli`）：L1/L2/L3 逐级校验、`--json` 输出与 CI 友好退出码
 - 已接入公开 `vector.search()` 的端到端精确搜索
 - Float32 little-endian 向量分块读取
 - Cosine、L2、IP 统一距离语义
@@ -220,6 +221,30 @@ const report = await buildPackage({
 
 未提供 `rowIds` 时，Builder 不会假装完成主键交叉校验，而是在 `report.warnings` 中报告 `id-membership-unverified`。
 
+## 校验数据包
+
+发布前自检不需要打开 Runtime，直接用 CLI：
+
+```bash
+npx weisql validate ./examples/fixture
+npx weisql validate ./examples/fixture --json --mode all
+```
+
+```
+package:   D:\github\WeiSQL\examples\fixture
+dataset:   demo-documents
+tables:    1 (documents)
+vectors:   1 (document_embeddings: 3 rows, dimension 2, cosine)
+mode:      all
+resources: 4 checked, 4 sizes verified, 4 hashes verified, 955 declared bytes
+OK
+```
+
+- 依次执行 L1/L2 结构校验与 L3 资源完整性；`--mode manifest` 只比对长度，`--mode none` 只做结构校验，输出会如实反映实际验证到哪一级。
+- 退出码：`0` 有效、`1` 无效、`2` 用法错误，可直接接入 CI 或发布脚本。
+- `--json` 输出机器可读结果，包含 `issues[].stage`、`code` 与 `details.path`。
+- 失败示例：`[resources] RESOURCE_INTEGRITY_FAILED: Resource SHA-256 does not match the Manifest (vectors/document_embeddings.f32)`。
+
 ## 资源完整性校验
 
 `open()` 的 `verifyChecksums` 有三种策略，语义与 `RESOURCE_INTEGRITY_SPEC.md` 一致：
@@ -336,6 +361,7 @@ examples/source/           Builder 的不可变 Parquet 输入
 examples/fixture/          Builder 生成的真实数据包示例
 packages/sdk/              TypeScript SDK、资源层、Builder 和向量基线
 packages/duckdb-adapter/   Node.js DuckDB 只读 SQL Adapter
+packages/cli/              `weisql validate` 数据包校验命令
 tools/                     源 Parquet 生成脚本
 ```
 

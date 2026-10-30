@@ -169,6 +169,16 @@
 - 后果（真实 bug）：探针首次运行即暴露 `TypeError: Failed to execute 'fetch' on 'Window': Illegal invocation` —— `globalThis.fetch` 被当作分离函数调用，浏览器拒绝、Node 的 undici 容忍。`HttpResourceReader` 与 `open()` 均已改为绑定全局接收者，`test/fetch-binding.test.js` 用会检查 `this` 的 stub 锁定该行为。
 - 后果（真实结论）：浏览器路径（Range、L3 校验、精确搜索、缓存、无 Node 全局泄漏）已在 Chrome 中通过；Netlify 部署、WASM 向量搜索与 DuckDB-Wasm 仍未验证。
 
+## ADR-021：校验命令独立成包，退出码即闸门
+
+- 状态：Accepted and implemented（REQ-007，`@weisql/cli`）
+- 决策一：CLI 单独成包，只做参数解析、格式化与退出码；校验逻辑仍归 `@weisql/sdk` 的 `validateManifest` 与 `verifyManifestResources`。理由：同一套校验必须被 Runtime、Builder 和 CLI 共用，复制一份逻辑迟早分叉。
+- 决策二：`validate` 不打开 Runtime，只回答「这个目录是不是完整自洽的数据包」。SQL 与向量查询不属于校验职责，避免把引擎可用性混进发布闸门。
+- 决策三：退出码固定为 `0` 有效 / `1` 无效 / `2` 用法错误，失败细节走 stderr，`--json` 走 stdout。这样 `set -e` 的脚本与 CI 都能直接用，不需要解析文本。
+- 决策四：`--mode` 必须如实反映验证级别。`manifest` 模式只比对长度，不能发现同长度篡改；输出中的 `hashesVerified` 会是 `0`，不夸大。
+- 决策五：实现使用 `process.exitCode` 而非 `process.exit()`，避免管道场景下 stdout 被截断。
+- 后果：`weisql` 目前只有 `validate` 子命令；`inspect`、`build` 等留给后续需求。CLI 未发布到 npm，仓库内通过 `npm run build` 后使用 `node packages/cli/dist/bin.js`。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

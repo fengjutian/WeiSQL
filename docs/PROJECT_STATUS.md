@@ -1,11 +1,11 @@
-﻿# 项目状态报告
+# 项目状态报告
 
 > 生成于 2026-10-31。所有数字来自本仓库的测试与基准装置，环境为单机：Intel Core Ultra 7 155H · 22 核 · 32 GiB · Windows 10.0.26200 x64 · Node v24.14.1。
 > 本报告只陈述**已验证**的内容；未验证项在 §6 单独列出。
 
 ## 1. 一句话状态
 
-工程原型：Manifest V1 与数据包格式稳定，五个包共 **287 个自动化测试**，CI 覆盖构建/类型/测试/发布元数据，精确检索、ANN、全文、融合、RAG、单文件容器与浏览器 SQL 均有实现与实测数字；**尚未发布 npm 包**，也没有任何未经测量的性能承诺。
+工程原型：Manifest V1 与数据包格式稳定，五个包共 **277 个自动化测试**，CI 覆盖构建/类型/测试/发布元数据，精确检索、ANN、全文、融合、RAG、单文件容器与浏览器 SQL 均有实现与实测数字；**尚未发布 npm 包**，也没有任何未经测量的性能承诺。
 
 ## 2. 能力矩阵
 
@@ -50,10 +50,10 @@
 | --- | --- | --- |
 | `@weisql/sdk` | 191 | 校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约 |
 | `@weisql/duckdb-adapter` | 20 | 只读边界、参数绑定、两种表加载、取消 |
-| `@weisql/duckdb-wasm-adapter` | 29 | 关键字白名单、CTE 分类与 fail-closed、参数类型收窄、值映射、真实 WASM 引擎集成（打开/绑定/L4/生命周期/取消） |
+| `@weisql/duckdb-wasm-adapter` | 19 | 关键字白名单、CTE 分类与 fail-closed、参数类型收窄、值映射、真实 WASM 引擎集成（打开/绑定/L4/生命周期/取消） |
 | `@weisql/usearch-adapter` | 13 | 度量映射、持久化索引、后过滤、生命周期 |
 | `@weisql/cli` | 34 | 校验退出码、`--json`、`pack`/`--compress`、`unpack`、容器校验、`--l4` |
-| **合计** | **287** | |
+| **合计** | **277** | |
 
 CI（`.github/workflows/ci.yml`）：
 
@@ -78,6 +78,10 @@ CI（`.github/workflows/ci.yml`）：
 | 浏览器一致性 | 8 向量 + 5 文本 + 9 SQL + RAG + 容器 | Chromium 1248 vs Node 24 | 3 条记录、2 维，不能外推 |
 | 浏览器 SQL `open()` | 1.37–1.70 s | Chromium 1248，扩展同源且已缓存 | 3 行表；首次加载另有 34 MB WASM |
 | 浏览器 SQL 查询 | < 50 ms | 同上 | 3 行表，不含首次加载 |
+| DuckDB-Wasm 物化 50k 行 | 160 ms，RSS ~+24 MB | Node 内的同一 WASM 构建，1.9 MB Parquet | 浏览器未测 |
+| DuckDB-Wasm 物化 200k 行 | 192 ms，RSS ~+43 MB | 同上，7.5 MB Parquet | 浏览器未测 |
+| DuckDB-Wasm 物化 500k 行 | 298 ms，RSS ~+76 MB | 同上，18.8 MB Parquet | 约 4×Parquet；浏览器未测 |
+| DuckDB-Wasm 过滤查询 | 5.9–12.9 ms | 同上，等值过滤 | 冷/热缓存未区分 |
 | parquet 扩展体积 | 498,915 B（`wasm_eh`，v1.4.3） | 自托管 | 版本必须与 WASM 核心一致 |
 
 ### 5.1 ANN 召回与分布（100k × 128，Top-10，`expansionSearch=512`）
@@ -118,6 +122,7 @@ CI（`.github/workflows/ci.yml`）：
 | 非只读 CTE 的解析 | CTE 后不是只读动词一律拒绝；无法识别的形态 fail-closed（ADR-059） |
 | 浏览器 SQL 参数类型 | JSON 绑定，`Date`/二进制/超范围 `bigint` 明确拒绝 |
 | 浏览器 SQL 扩展分发 | 必须同源自托管；`extensions.duckdb.org` 无 CORS 头 |
+| 浏览器内的大表与冷启动 | 只测了 Node 里的同一 WASM 构建（§5），浏览器内存与 34 MB 首载时间未测 |
 
 ## 7. 关键决策索引
 

@@ -160,10 +160,21 @@ export function createUSearchAdapter(options: USearchAdapterOptions = {}): Vecto
         hint: "rebuild the index with tools/build-ann-index.mjs",
       });
     }
-    const params = descriptor.params ?? {};
-    const fileConnectivity = numberParam(params, "connectivity", connectivity);
-    const fileExpansionAdd = numberParam(params, "expansion_add", expansionAdd);
-    const fileExpansionSearch = numberParam(params, "expansion_search", expansionSearch);
+    // ADR-029: a persisted graph must carry the parameters it was built with.
+    // Falling back to adapter defaults would keep the query "working" while
+    // silently changing recall, which is worse than refusing to load.
+    const params = descriptor.params;
+    if (params === undefined) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Persisted index is missing its build parameters", {
+        engine: descriptor.engine,
+        version: descriptor.version,
+        required: ["connectivity", "expansion_add", "expansion_search"],
+        hint: "rebuild the index with tools/build-ann-index.mjs",
+      });
+    }
+    const fileConnectivity = requiredNumberParam(params, "connectivity");
+    const fileExpansionAdd = requiredNumberParam(params, "expansion_add");
+    const fileExpansionSearch = requiredNumberParam(params, "expansion_search");
     const bytes = await reader!.read(descriptor.file.path, signal === undefined ? undefined : { signal });
     if (bytes.byteLength !== descriptor.file.bytes) {
       throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Persisted index byte length does not match the Manifest", {
@@ -303,9 +314,15 @@ function positive(value: number, name: string): number {
   return value;
 }
 
-function numberParam(params: Readonly<Record<string, number>>, key: string, fallback: number): number {
+function requiredNumberParam(params: Readonly<Record<string, number>>, key: string): number {
   const value = params[key];
-  if (value === undefined) return fallback;
+  if (value === undefined) {
+    throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", `Persisted index is missing the '${key}' parameter`, {
+      parameter: key,
+      required: ["connectivity", "expansion_add", "expansion_search"],
+      hint: "rebuild the index with tools/build-ann-index.mjs",
+    });
+  }
   if (!Number.isSafeInteger(value) || value <= 0) {
     throw new WeiSQLError("INVALID_ARGUMENT", `index.params.${key} must be a positive safe integer`, { [key]: value });
   }

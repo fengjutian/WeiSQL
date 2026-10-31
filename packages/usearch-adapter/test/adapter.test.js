@@ -299,3 +299,33 @@ test("rejects a persisted index whose bytes do not match the Manifest", async ()
     { code: "RESOURCE_INTEGRITY_FAILED" },
   );
 });
+
+test("rejects a persisted index without its build parameters", async () => {
+  const { descriptor } = await persistedIndexFixture();
+  const reader = {
+    async read() { throw new Error("must not read an index without build parameters"); },
+    async readRange() { throw new Error("must not read an index without build parameters"); },
+    async stat() { return { size: descriptor.file.bytes }; },
+    async close() {},
+  };
+
+  // ADR-029: no fallback to adapter defaults, because that silently changes recall.
+  const { params: _omitted, ...withoutParams } = descriptor;
+  const missing = await fixture();
+  missing.manifest.vectorCollections[0].index = withoutParams;
+  const missingAdapter = createUSearchAdapter();
+  await missingAdapter.open({ manifest: missing.manifest, reader });
+  await assert.rejects(
+    missingAdapter.search({ vector: missing.manifest.vectorCollections[0], query: new Float32Array([1, 0]), topK: 1 }),
+    { code: "RESOURCE_INTEGRITY_FAILED", details: { parameter: "connectivity" } },
+  );
+
+  const partial = await fixture();
+  partial.manifest.vectorCollections[0].index = { ...descriptor, params: { connectivity: 8 } };
+  const partialAdapter = createUSearchAdapter();
+  await partialAdapter.open({ manifest: partial.manifest, reader });
+  await assert.rejects(
+    partialAdapter.search({ vector: partial.manifest.vectorCollections[0], query: new Float32Array([1, 0]), topK: 1 }),
+    { code: "RESOURCE_INTEGRITY_FAILED", details: { parameter: "expansion_add" } },
+  );
+});

@@ -134,23 +134,24 @@ export async function createHnswWasmVectorAdapter(options: HnswWasmVectorAdapter
       const source = reader!;
       const started = typeof performance === "undefined" ? undefined : performance.now();
 
-      let vectors = cache.get(request.vector.data.path);
-      if (vectors === undefined) {
-        vectors = await materializeVectors(source, request.vector, blockSize, request.signal);
-        cache.set(request.vector.data.path, vectors);
-      } else if (vectors.length !== request.vector.count * request.vector.dimension) {
-        throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Cached vector block does not match the descriptor", {
-          expected: request.vector.count * request.vector.dimension,
-          actual: vectors.length,
-        });
-      }
-      throwIfAborted(request.signal);
-
       const identity = indexIdentity(request);
       if (indexKey !== identity) {
         const provided = options.loadIndex?.(request.vector);
         const prebuilt = provided ?? (await readPersistedIndex(source, request.vector, request.signal));
         if (prebuilt === undefined) {
+          // Building needs the vectors; loading a persisted graph does not, so
+          // a package with a declared index never downloads the vector file.
+          let vectors = cache.get(request.vector.data.path);
+          if (vectors === undefined) {
+            vectors = await materializeVectors(source, request.vector, blockSize, request.signal);
+            cache.set(request.vector.data.path, vectors);
+          } else if (vectors.length !== request.vector.count * request.vector.dimension) {
+            throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Cached vector block does not match the descriptor", {
+              expected: request.vector.count * request.vector.dimension,
+              actual: vectors.length,
+            });
+          }
+          throwIfAborted(request.signal);
           buildIndex(api, request, vectors, { m, efConstruction, efSearch, seed });
         } else {
           loadSerialized(api, request, prebuilt);
@@ -272,7 +273,41 @@ function loadSerialized(
   }
 }
 
+/**
+ * Reads the serialized graph the Manifest declares for this collection.
+ * Returns `undefined` when the Manifest declares no index.
+ */
+async function readPersistedIndex(
+  source: ResourceReader,
+  vector: VectorCollectionDescriptor,
+  signal: AbortSignal | undefined,
+): Promise<Uint8Array | undefined> {
+  const descriptor = vector.index;
+  if (descriptor === undefined) return undefined;
+  if (descriptor.engine !== PERSISTED_ENGINE) {
+    throw new WeiSQLError("INDEX_NOT_FOUND", "Manifest index engine is not supported by the HNSW adapter", {
+      expected: PERSISTED_ENGINE,
+      actual: descriptor.engine,
+    });
+  }
+  if (descriptor.version.split(".")[0] !== INDEX_FORMAT_MAJOR) {
+    throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Persisted HNSW index has an unsupported format version", {
+      declared: descriptor.version,
+      expected: INDEX_FORMAT_MAJOR,
+    });
+  }
+  const bytes = await source.read(descriptor.file.path, signal === undefined ? undefined : { signal });
+  if (bytes.byteLength !== descriptor.file.bytes) {
+    throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Persisted index byte length does not match the Manifest", {
+      declared: descriptor.file.bytes,
+      actual: bytes.byteLength,
+    });
+  }
+  return bytes;
+}
+
 /** Rejects a graph that does not describe the requested collection. */
+function assertIndexMatches(api: HnswExports, request: VectorAdapterSearchRequest): void {
   const { count, dimension, metric } = request.vector;
   const metricCode = METRIC_CODES[metric];
   if (

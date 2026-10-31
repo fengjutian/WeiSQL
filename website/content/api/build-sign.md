@@ -8,6 +8,7 @@ hero:
   lead: "Builder、L3 校验、Ed25519 与根授权。"
   chips: ["buildPackage", "L3", "Ed25519"]
 hide_title: true
+examples: [build]
 ---
 
 

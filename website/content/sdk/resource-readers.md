@@ -8,6 +8,7 @@ hero:
   lead: "HTTP、Node 文件、容器与缓存都实现同一个契约；Range 是左闭右开区间。"
   chips: ["HTTP", "Node fs", "cache", "container"]
 hide_title: true
+examples: [node, browser]
 ---
 
 

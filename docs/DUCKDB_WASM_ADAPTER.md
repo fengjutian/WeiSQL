@@ -106,6 +106,23 @@ DECIMAL 这一条不是可选项：不设置 `castDecimalToDouble` 时 Arrow 会
 `maxRows` 行）。取消语义与 `db.sql()` 相同：立即停止等待，单线程引擎可能继续跑完。
 `break` 会关闭 prepared 语句。`probe:wasm` 断言了真实浏览器中的流式读取。
 
+## 4.5 OPFS 持久化（`persistToOpfs`）
+
+```ts
+const adapter = createDuckDbWasmAdapter({
+  bundles,
+  extensionRepository,
+  persistToOpfs: true,
+});
+```
+
+- **缓存键**：`SHA-256({ formatVersion, tables: 排序后的 [name, bytes, sha256] })` 取前 32 个十六进制字符，文件名 `weisql-<key>.db`。任一表的字节数或摘要变化都会得到新文件，旧数据不会被误用。
+- **首次打开**：创建 OPFS 数据库 → 物化所有表 → `flushFiles()`（不 flush 的话文件是空壳，重开会报 invalid database file）。
+- **再次打开**：文件存在且每张表都能 `SELECT 1 ... LIMIT 0` → **跳过物化**，只跑 L4 校验；`capabilities.supportedFeatures` 同时出现 `opfs` 与 `opfs-reused`。
+- **关闭**：`close()` 在 terminate 前再 flush 一次。
+- **回退**：OPFS/WebCrypto 不可用、打开缓存失败、flush 失败都退回内存模式，不阻断 `open()`；此时不声明 `opfs` 能力。
+- **局限**：假设单标签页使用（未实现跨标签页锁）；旧版本缓存文件不会自动清理；命中缓存后只校验 schema（L4），不重新比对行内容。
+
 ## 5. L4 与版本
 
 - 默认开启 L4：对每张已物化的表执行 `DESCRIBE`，列名缺失或类型不匹配返回
@@ -213,10 +230,7 @@ fixture 3 行、扩展已缓存。
 - **COI / 多线程**：试过，不可用。页面跨域隔离后 `duckdb-coi.wasm` 能跑（`threads=4`），但加载
   `parquet` 扩展直接 `LinkError`：扩展声明非共享内存，COI 运行时是共享内存；`wasm_threads`
   变体同样如此（v1.4.3）。见 ADR-063。
-- OPFS 持久化：**已复测可用**（1.32.0 与 1.33.1-dev65.0 均可），但前提是写入后调用
-  `flushFiles()` 再 `terminate()`，否则文件是空壳、重开会报 invalid database file。
-  适配器**尚未实现**缓存（缓存键、失效、多标签页锁、配额回退、L4 复核都还没做），
-  因此当前每次 `open()` 仍然重新物化。见 ADR-070。
+- OPFS 持久化：已实现为 opt-in（`persistToOpfs`），见 §4.5；跨标签页锁与旧缓存清理未做（ADR-070 / ADR-071）。
 - `date`/`timestamp`/二进制参数、结构化错误位置。
 - 非 `SELECT` 的只读 CTE 形态（如 CTE 后直接跟括号子查询）按 fail-closed 拒绝，未逐一支持。
 - CDN 上的扩展 CORS 配置（本实现要求同源自托管）。

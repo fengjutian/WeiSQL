@@ -8,6 +8,7 @@ hero:
   lead: "全文检索按词打分，融合只使用名次；两类分数不能直接比较。"
   chips: ["BM25", "CJK", "RRF", "k=60"]
 hide_title: true
+examples: [node, browser]
 ---
 
 

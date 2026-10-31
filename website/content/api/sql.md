@@ -8,6 +8,7 @@ hero:
   lead: "参数、maxRows、Adapter 接口与两端差异。"
   chips: ["sql", "sqlStream", "maxRows"]
 hide_title: true
+examples: [node, browser]
 ---
 
 

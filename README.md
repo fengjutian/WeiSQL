@@ -27,6 +27,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - `buildPackage()` Builder：接收已有 Parquet，生成 Float32、ID Map、真实摘要与 Manifest，暂存区自检后原子发布
 - Node.js DuckDB 只读 SQL Adapter（`@weisql/duckdb-adapter`）：真实 SQL 查询、参数绑定、语句级只读边界、L4 Parquet 模式校验与原生取消
 - DuckDB-Wasm 浏览器 SQL Adapter（`@weisql/duckdb-wasm-adapter`）：Worker 内真实 DuckDB、表从 `ResourceReader` 字节物化、parquet 扩展同源自托管、tokenizer 判定的只读边界（含只读 CTE）、L4 校验；限制见 [DuckDB-Wasm Adapter](docs/DUCKDB_WASM_ADAPTER.md)
+- 可选 OPFS 缓存（`persistToOpfs`）：表摘要派生缓存键，命中时跳过物化但仍跑 L4，`flushFiles()` 保证落盘；真实 Chromium 探针断言第二次 `open()` 复用
 - 混合检索两策略：`exact-filter-first`（过滤先于 Top-K，结果严格）与 `vector-first`（有界候选窗口，诊断标注 `exact` 是否成立）
 - `VectorAdapter` 注入契约（`open({ vectorAdapter })`）与精确搜索参考实现；ANN 实现必须如实声明 `exactSearch: false`
 - USearch ANN Adapter（`@weisql/usearch-adapter`）：HNSW 索引（可持久化或现场构建）、三种度量映射、`diagnostics.exact: false` 如实标注、可选的后过滤模式（`diagnostics.postFiltered` 自曝不完整）
@@ -57,7 +58,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 ## 尚未实现 / 未验证
 
 - 浏览器 SQL 的 `Date`/二进制参数（当前明确拒绝）；见 [DuckDB-Wasm Adapter](docs/DUCKDB_WASM_ADAPTER.md)
-- 浏览器端 OPFS 缓存尚未实现（数据库文件已复测可用，前提是 `flushFiles()`；见 [DuckDB-Wasm Adapter](docs/DUCKDB_WASM_ADAPTER.md) 与 ADR-070）；多线程/COI 已试且不可用（见 ADR-063）；36.3 MB 首载已实测（`bench:wasm-cold`），CDN 下的冷启动仍未测
+- 浏览器端 OPFS 缓存已实现为 opt-in（`persistToOpfs`）；跨标签页锁与旧缓存清理未做；多线程/COI 已试且不可用（见 ADR-063）；36.3 MB 首载已实测（`bench:wasm-cold`），CDN 下的冷启动仍未测
 - `db.sql()` 仍一次性返回全部行；需要增量消费时用 `db.sqlStream()`（流式 API 已提供）
 - ANN 在真实数据集上的 Recall@K 评估；ANN 后过滤的完整性保证
 - 时间戳的自动推断（需用 `--timestamp` 显式声明；嵌套 JSON 列已支持，见 [源数据转换](docs/SOURCE_CONVERSION.md)）
@@ -578,7 +579,7 @@ tools/                     源 Parquet、ANN/全文索引生成、基准与浏�
 6. ~~DuckDB-Wasm（浏览器 SQL 引擎）~~（已完成，`packages/duckdb-wasm-adapter`：扩展自托管 + tokenizer 判定的只读边界，含只读 CTE）
 7. 真实 embedding 数据集的 Recall@K、多机基准复现与静态 CDN/CORS 验收
 8. ~~Playground 接入浏览器 SQL 与类别过滤~~（已完成，`probe:playground` 断言）
-9. 浏览器 OPFS 缓存（数据库文件已验证可用，缓存语义待设计）、CDN 冷缓存下的首载验收（本地冷启动已测，见 `bench:wasm-cold`）
+9. 跨标签页的 OPFS 锁与旧缓存清理、CDN 冷缓存下的首载验收（本地冷启动已测，见 `bench:wasm-cold`）
 
 第 7 步是当前瓶颈：Node 端的性能结论不能外推到 WASM；性能与召回数字也不能从单机合成数据外推。
 

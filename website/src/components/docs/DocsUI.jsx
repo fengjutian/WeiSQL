@@ -107,3 +107,21 @@ export function Callout({ tone = "teal", title, children }) {
 export function Module({ children }) {
   return <section className={styles.module}>{children}</section>;
 }
+
+export function ExampleLinks({ items = [] }) {
+  const labels = {
+    node: "Node.js 示例",
+    browser: "浏览器示例",
+    build: "构建与发布示例",
+  };
+  return (
+    <nav className={styles.exampleBar} aria-label="相关示例">
+      <span>可复制示例</span>
+      {items.map((item) => (
+        <Link key={item} to={`/docs/examples/${item}`}>
+          {labels[item] ?? item}
+        </Link>
+      ))}
+    </nav>
+  );
+}

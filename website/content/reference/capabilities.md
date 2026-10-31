@@ -22,7 +22,7 @@ hide_title: true
 | 已实现 · 未验证 | 代码存在，缺少目标场景的测量（真实数据、真实 CDN、大表等） |
 | 未实现 | 当前没有可用实现 |
 
-测试规模来自 `docs/PROJECT_STATUS.md` 的快照：五个包合计 321 个测试（SDK 208、DuckDB 24、DuckDB-Wasm 38、USearch 13、CLI 38）。数量会随提交变化，别把它当版本承诺。
+测试规模来自 `docs/PROJECT_STATUS.md` 的快照：五个包合计 330 个测试（SDK 209、DuckDB 25、DuckDB-Wasm 39、USearch 13、CLI 44）。数量会随提交变化，别把它当版本承诺。
 
 ## SDK 与格式层
 

@@ -8,6 +8,7 @@ hero:
   lead: "DuckDB、DuckDB-Wasm、USearch 的选项与能力。"
   chips: ["createDuckDbAdapter", "createUSearchAdapter"]
 hide_title: true
+examples: [node, browser]
 ---
 
 

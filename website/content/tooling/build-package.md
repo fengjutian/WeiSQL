@@ -8,6 +8,7 @@ hero:
   lead: "Builder 生成向量、ID Map、摘要，并在发布前重新读取暂存区做自检。"
   chips: ["buildPackage()", "L3", "atomic"]
 hide_title: true
+examples: [build]
 ---
 
 

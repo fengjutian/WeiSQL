@@ -198,7 +198,7 @@ export default function Home() {
               </div>
               <dl className={styles.stats}>
                 <div>
-                  <dt>321</dt>
+                  <dt>330</dt>
                   <dd>自动化测试</dd>
                 </div>
                 <div>

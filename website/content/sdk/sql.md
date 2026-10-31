@@ -8,6 +8,7 @@ hero:
   lead: "参数绑定、语句级只读边界与流式读取；SDK 本身不绑定引擎。"
   chips: ["DuckDB", "DuckDB-Wasm", "maxRows", "sqlStream"]
 hide_title: true
+examples: [node, browser]
 ---
 
 

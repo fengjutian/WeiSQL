@@ -8,6 +8,7 @@ hero:
   lead: "Cosine / L2 / IP 统一为越小越相似；过滤发生在 Top-K 之前。"
   chips: ["Float32", "Top-K", "filter", "exact"]
 hide_title: true
+examples: [node, browser]
 ---
 
 

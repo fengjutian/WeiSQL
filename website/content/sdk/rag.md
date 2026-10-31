@@ -8,6 +8,7 @@ hero:
   lead: "rag.search() 只返回带来源与名次的片段，不调用模型、不拼 prompt。"
   chips: ["evidence", "budget", "boundary"]
 hide_title: true
+examples: [node, browser]
 ---
 
 

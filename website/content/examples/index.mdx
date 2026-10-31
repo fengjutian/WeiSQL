@@ -1,0 +1,38 @@
+---
+title: 示例
+description: 按场景组织的可复制示例：Node.js、浏览器与数据包构建。
+sidebar_position: 35
+hero:
+  kicker: "示例"
+  title: "复制就能跑的配方"
+  lead: "不追求覆盖全部 API，只给最常见的任务：打开、检索、过滤、SQL、容器、构建与签名。"
+  chips: ["Node.js", "Browser", "Builder", "CLI"]
+hide_title: true
+---
+
+import { CardGrid, DocCard } from "@site/src/components/docs/DocsUI";
+
+## 三组示例
+
+<CardGrid columns={3}>
+  <DocCard title="Node.js" index="01" to="/docs/examples/node">
+    本地目录、向量、过滤、全文、混合、RAG、SQL 与容器。
+  </DocCard>
+  <DocCard title="浏览器" index="02" to="/docs/examples/browser">
+    HTTP Range、缓存、取消、流式容器与 DuckDB-Wasm。
+  </DocCard>
+  <DocCard title="构建与发布" index="03" to="/docs/examples/build">
+    CSV → Parquet、Builder、全文/ANN 索引、打包、校验与签名。
+  </DocCard>
+</CardGrid>
+
+## 使用方式
+
+每个示例都是**独立片段**：复制后按注释替换路径、集合名或索引名即可。共同前提是仓库已构建：
+
+```bash
+npm install
+npm run build
+```
+
+如果数据包来自 `examples/fixture`，集合名是 `document_embeddings`，维度为 2，度量为 cosine。自己的数据包请以 `manifest.json` 中的声明为准。

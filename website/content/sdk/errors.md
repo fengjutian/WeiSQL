@@ -8,6 +8,7 @@ hero:
   lead: "16 个稳定错误码，覆盖 Manifest、资源、检索、SQL 与生命周期。"
   chips: ["WeiSQLError", "code", "details"]
 hide_title: true
+examples: [node, browser]
 ---
 
 

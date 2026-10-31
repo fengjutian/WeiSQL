@@ -8,6 +8,7 @@ hero:
   lead: "向量、全文、混合与 RAG 的选项、默认值与诊断。"
   chips: ["vector", "text", "hybrid", "rag"]
 hide_title: true
+examples: [node, browser]
 ---
 
 

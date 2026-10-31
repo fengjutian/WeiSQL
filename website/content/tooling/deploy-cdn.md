@@ -8,6 +8,7 @@ hero:
   lead: "Range、CORS、缓存与版本切换，决定浏览器端能否按需读取。"
   chips: ["206", "CORS", "cache"]
 hide_title: true
+examples: [browser]
 ---
 
 

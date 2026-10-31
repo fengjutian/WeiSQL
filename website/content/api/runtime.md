@@ -8,6 +8,7 @@ hero:
   lead: "选项、状态机、能力声明与关闭语义。"
   chips: ["open()", "capabilities()", "close()"]
 hide_title: true
+examples: [node, browser]
 ---
 
 

@@ -134,6 +134,7 @@ const config = {
               { label: "快速开始", to: "/docs/start/quickstart" },
               { label: "端到端教程", to: "/docs/start/tutorial" },
               { label: "API 参考", to: "/docs/api" },
+              { label: "示例", to: "/docs/examples" },
               { label: "已知限制", to: "/docs/reference/limitations" },
             ],
           },

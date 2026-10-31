@@ -2,6 +2,7 @@ import { WeiSQLError } from "@weisql/sdk/errors";
 import type { QueryOptions, SqlAdapter, SqlAdapterCapabilities, SqlAdapterOpenContext, SQLValue } from "@weisql/sdk";
 
 import { quoteIdentifier, verifyTableSchema } from "./schema.js";
+import { opfsDatabaseFileName, opfsFileExists, pruneOpfsDatabases } from "./opfs.js";
 import { assertReadOnlyStatement } from "./sql-guard.js";
 import type { SqlTokenStream } from "./sql-guard.js";
 import { normalizeRows, toWasmParameters } from "./values.js";
@@ -46,6 +47,14 @@ export interface DuckDbWasmAdapterOptions {
   extensionRepository?: string;
   /** Forward DuckDB-Wasm logs to the console. Defaults to silent. */
   logger?: "silent" | "console";
+  /**
+   * Keep the materialized database in OPFS and reuse it across sessions.
+   * Requires a secure context and an adapter-owned `AsyncDuckDB`; falls back to
+   * in-memory when OPFS/WebCrypto is unavailable. The cache key derives from the
+   * Manifest table bytes and SHA-256, so changed data gets a new file. Defaults
+   * to false.
+   */
+  persistToOpfs?: boolean;
 }
 
 /**
@@ -102,12 +111,16 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
     verifyTableSchema: boolean;
     extensionRepository?: string;
     logger: "silent" | "console";
+    persistToOpfs: boolean;
   };
   private stateValue: DuckDbWasmAdapterState = "CREATED";
   private database: WasmDuckDb | undefined;
   private connection: WasmDuckDbConnection | undefined;
   private ownsDatabase = false;
   private tokenizerAvailable = false;
+  private persistRequested = false;
+  private opfsExisted = false;
+  private opfsReused = false;
   private capabilitiesValue: SqlAdapterCapabilities = Object.freeze({
     engine: "duckdb-wasm",
     parameterBinding: true,
@@ -136,6 +149,7 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
       maxTotalTableBytes,
       verifyTableSchema: options.verifyTableSchema !== false,
       logger: options.logger ?? "silent",
+      persistToOpfs: options.persistToOpfs === true,
       ...(options.bundles === undefined ? {} : { bundles: options.bundles }),
       ...(options.database === undefined ? {} : { database: options.database }),
       ...(options.extensionRepository === undefined ? {} : { extensionRepository: options.extensionRepository }),
@@ -159,11 +173,42 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
       // Reject an oversized package before loading 34 MB of WASM and the
       // parquet extension: the budget is about declared bytes only.
       this.assertTotalBudget(context.manifest.tables);
-      await this.instantiate();
+      let databasePath: string | undefined;
+      if (this.options.persistToOpfs && this.options.database === undefined) {
+        try {
+          const fileName = await opfsDatabaseFileName(context.manifest);
+          this.opfsExisted = await opfsFileExists(fileName);
+          databasePath = `opfs://${fileName}`;
+          this.persistRequested = true;
+        } catch {
+          // OPFS or WebCrypto unavailable (older browser, private mode): keep
+          // working in memory instead of failing the whole package.
+          this.persistRequested = false;
+          this.opfsExisted = false;
+          databasePath = undefined;
+        }
+      }
+      try {
+        await this.instantiate(databasePath);
+      } catch (cause) {
+        if (databasePath === undefined) throw cause;
+        // Opening an existing OPFS database can fail (quota, locking, a corrupt
+        // cache): retry in memory once.
+        this.persistRequested = false;
+        this.opfsExisted = false;
+        await this.instantiate(undefined);
+      }
       this.connection = await this.database!.connect();
       await this.loadParquetExtension();
-      for (const [index, table] of context.manifest.tables.entries()) {
-        await this.materialize(context, index, table.name, table.file.path, table.file.bytes);
+      const reuse = this.persistRequested && this.opfsExisted && await this.tablesExist(context.manifest);
+      if (reuse) {
+        this.opfsReused = true;
+      } else {
+        if (this.persistRequested && this.opfsExisted) await this.dropTables(context.manifest);
+        for (const [index, table] of context.manifest.tables.entries()) {
+          await this.materialize(context, index, table.name, table.file.path, table.file.bytes);
+        }
+        if (this.persistRequested) await this.flushToOpfs();
       }
       if (this.options.verifyTableSchema) {
         for (const table of context.manifest.tables) await verifyTableSchema(this.connection, table);
@@ -180,6 +225,8 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
         supportedFeatures: [
           ...SUPPORTED_FEATURES,
           ...(this.tokenizerAvailable ? ["cte"] : []),
+          ...(this.persistRequested ? ["opfs"] : []),
+          ...(this.opfsReused ? ["opfs-reused"] : []),
         ],
         cancellation: "best-effort" as const,
       });
@@ -388,10 +435,38 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
     }
   }
 
-  private async instantiate(): Promise<void> {
+  private async tablesExist(manifest: SqlAdapterOpenContext["manifest"]): Promise<boolean> {
+    try {
+      for (const table of manifest.tables) {
+        await this.connection!.query(`SELECT 1 FROM ${quoteIdentifier(table.name)} LIMIT 0`);
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private async dropTables(manifest: SqlAdapterOpenContext["manifest"]): Promise<void> {
+    for (const table of manifest.tables) {
+      await this.connection!.query(`DROP TABLE IF EXISTS ${quoteIdentifier(table.name)}`);
+    }
+  }
+
+  private async flushToOpfs(): Promise<void> {
+    try {
+      await this.database?.flushFiles?.();
+    } catch {
+      // Persistence is an optimization: do not fail `open()` because a flush
+      // failed, but stop advertising the feature for this instance.
+      this.persistRequested = false;
+    }
+  }
+
+  private async instantiate(databasePath?: string): Promise<void> {
     if (this.options.database !== undefined) {
       this.database = this.options.database;
       this.ownsDatabase = false;
+      this.persistRequested = false;
       this.tokenizerAvailable = typeof this.database.tokenize === "function";
       return;
     }
@@ -405,7 +480,18 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
     // a public `SQLValue`. The Node adapter's driver already reports DECIMAL as
     // `number`; asking DuckDB to cast it to DOUBLE keeps the two engines aligned
     // and documents the same >15-significant-digit limitation.
-    await database.open({ path: ":memory:", query: { castDecimalToDouble: true } });
+    const accessMode = (duckdb as unknown as { DuckDBAccessMode?: { READ_WRITE: number } }).DuckDBAccessMode?.READ_WRITE;
+    const config = {
+      path: databasePath ?? ":memory:",
+      ...(databasePath === undefined || accessMode === undefined ? {} : { accessMode }),
+      query: { castDecimalToDouble: true },
+    };
+    try {
+      await database.open(config);
+    } catch (cause) {
+      await Promise.resolve(database.terminate?.()).catch(() => undefined);
+      throw cause;
+    }
     this.database = database as unknown as WasmDuckDb;
     this.ownsDatabase = true;
     this.tokenizerAvailable = typeof this.database.tokenize === "function";
@@ -502,6 +588,13 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
     }
     if (this.database !== undefined && this.ownsDatabase) {
       const database = this.database;
+      if (this.persistRequested) {
+        try {
+          await database.flushFiles?.();
+        } catch (cause) {
+          failures.push(String(cause));
+        }
+      }
       try {
         await database.terminate?.();
       } catch (cause) {
@@ -510,6 +603,8 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
     }
     this.database = undefined;
     this.ownsDatabase = false;
+    this.persistRequested = false;
+    this.opfsExisted = false;
     if (failures.length > 0 && this.stateValue !== "FAILED") {
       throw new WeiSQLError("INTERNAL_ERROR", "DuckDB-Wasm resources could not be released cleanly", {
         engine: "duckdb-wasm",

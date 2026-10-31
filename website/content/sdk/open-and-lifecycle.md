@@ -8,6 +8,7 @@ hero:
   lead: "open() 是唯一入口；Reader 与 Adapter 在这里注入，生命周期由 Runtime 持有。"
   chips: ["open()", "capabilities()", "close()"]
 hide_title: true
+examples: [node, browser]
 ---
 
 

@@ -5,7 +5,7 @@
 
 ## 1. 一句话状态
 
-工程原型：Manifest V1 与数据包格式稳定，五个包共 **329 个自动化测试**，CI 覆盖构建/类型/测试/发布元数据，精确检索、ANN、全文、融合、RAG、单文件容器与浏览器 SQL 均有实现与实测数字；**尚未发布 npm 包**，也没有任何未经测量的性能承诺。
+工程原型：Manifest V1 与数据包格式稳定，五个包共 **330 个自动化测试**，CI 覆盖构建/类型/测试/发布元数据，精确检索、ANN、全文、融合、RAG、单文件容器与浏览器 SQL 均有实现与实测数字；**尚未发布 npm 包**，也没有任何未经测量的性能承诺。
 
 ## 2. 能力矩阵
 
@@ -21,6 +21,7 @@
 | Hybrid 过滤两策略（等值/IN/范围/日期） | ✅ | ✅ | ✅ | — |
 | DuckDB 只读 SQL（memory / lazy） | ✅ | ✅ | ✅ | — |
 | DuckDB-Wasm 浏览器 SQL | ✅ | ✅ + 探针 | ✅ | ✅ open() 1.37–1.70 s，查询 < 50 ms，只读 CTE 通过（3 行） |
+| OPFS 持久化（opt-in） | ✅ | ✅ + 探针 | ✅ | 表摘要派生缓存键；第二次 open 命中 `opfs-reused` |
 | USearch ANN（持久化/现场构建） | ✅ | ✅ | ✅ | ✅ 0.385–0.740 Recall@10 |
 | ANN 后过滤（显式可选） | ✅ | ✅ | ✅ | — |
 | 全文检索 BM25 | ✅ | ✅ | ✅ | ✅ p50 ≈10.5 ms @100k 文档 |
@@ -50,10 +51,10 @@
 | --- | --- | --- |
 | `@weisql/sdk` | 209 | 校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约 |
 | `@weisql/duckdb-adapter` | 25 | 只读边界、参数绑定、两种表加载、两层字节预算、取消 |
-| `@weisql/duckdb-wasm-adapter` | 38 | 关键字白名单、CTE 分类与 fail-closed、参数类型收窄、值映射、两层预算、取消、错误契约、真实 WASM 引擎集成 |
+| `@weisql/duckdb-wasm-adapter` | 39 | 关键字白名单、CTE 分类与 fail-closed、参数类型收窄、值映射、两层预算、取消、错误契约、真实 WASM 引擎集成 |
 | `@weisql/usearch-adapter` | 13 | 度量映射、持久化索引、后过滤、生命周期 |
 | `@weisql/cli` | 44 | 校验退出码、`--json`、`pack`/`--compress`、`unpack`、容器校验、`--l4` |
-| **合计** | **329** | |
+| **合计** | **330** | |
 
 CI（`.github/workflows/ci.yml`）：
 
@@ -141,7 +142,7 @@ CI（`.github/workflows/ci.yml`）：
 
 ## 7. 关键决策索引
 
-70 条 ADR 记录在 `docs/DECISION_LOG.md`。与外部读者最相关的是：
+73 条 ADR 记录在 `docs/DECISION_LOG.md`。与外部读者最相关的是：
 
 | ADR | 决策 |
 | --- | --- |
@@ -162,12 +163,13 @@ CI（`.github/workflows/ci.yml`）：
 | 063 / 064 | COI 多线程因扩展内存不兼容而不采用；取消只承诺立即停止等待（`engineMayStillRun`） |
 | 067 / 068 | 物化预算分单表/整包两层；`maxRows` 超限硬失败并让引擎提前停止 |
 | 069 | `sqlStream()` 用 AsyncIterable 增量交付，适配器可选实现并有回退 |
+| 070 / 071 | OPFS 数据库文件验证可用（需 `flushFiles()`）；缓存为 opt-in、内容派生键、命中仍跑 L4 |
 
 ## 8. 发布就绪度
 
 | 检查项 | 状态 |
 | --- | --- |
-| 测试 / 类型 / 构建 | ✅ 329 测试，typecheck 通过 |
+| 测试 / 类型 / 构建 | ✅ 330 测试，typecheck 通过 |
 | 打包内容 | ✅ 仅 `dist/` + README + LICENSE，无 src/test 泄漏 |
 | 依赖范围 | ✅ caret 且跟踪本地版本 |
 | 许可证 | ✅ Apache-2.0（根 + 每包） |

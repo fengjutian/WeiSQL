@@ -8,6 +8,7 @@ hero:
   lead: "HTTP、Node、缓存与容器的签名和失败语义。"
   chips: ["ByteRange", "LRU", "container"]
 hide_title: true
+examples: [node, browser]
 ---
 
 

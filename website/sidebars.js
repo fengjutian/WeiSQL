@@ -33,6 +33,17 @@ const sidebars = {
     },
     {
       type: "category",
+      label: "示例",
+      collapsed: false,
+      items: [
+        "examples/index",
+        "examples/node",
+        "examples/browser",
+        "examples/build",
+      ],
+    },
+    {
+      type: "category",
       label: "适配器",
       collapsed: false,
       items: [

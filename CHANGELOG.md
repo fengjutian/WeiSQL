@@ -100,6 +100,10 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   before slicing so Chinese literals cannot shift a keyword classification.
 - Parameter binding via prepared statements, limited to values the JSON binding
   can carry; `Date`, binary and out-of-range `bigint` are rejected.
+- Opt-in OPFS persistence (`persistToOpfs`): the cache key comes from the Manifest
+  table bytes and SHA-256, a hit skips materialization but still runs L4, and
+  `flushFiles()` runs before `terminate()`. OPFS/WebCrypto/flush failures fall
+  back to memory (ADR-070, ADR-071).
 - `db.sql(..., { maxRows })` matches the Node adapter: `SELECT`/`VALUES`/`TABLE`
   are wrapped with `LIMIT maxRows + 1` and oversized results raise
   `INVALID_ARGUMENT`; metadata statements are checked after execution.

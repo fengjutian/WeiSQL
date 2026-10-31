@@ -1,0 +1,120 @@
+.page {
+  display: grid;
+  place-items: center;
+  min-height: calc(100vh - 62px);
+  padding: 72px 24px;
+  background:
+    radial-gradient(700px 360px at 50% 0%, rgba(20, 184, 166, 0.14), transparent 65%),
+    #f7faf9;
+}
+
+:global([data-theme="dark"]) .page {
+  background:
+    radial-gradient(700px 360px at 50% 0%, rgba(20, 184, 166, 0.1), transparent 65%),
+    #0b1416;
+}
+
+.card {
+  width: min(680px, 100%);
+  padding: 44px 40px;
+  border: 1px solid rgba(15, 118, 110, 0.16);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 40px 90px rgba(6, 47, 51, 0.12);
+  text-align: center;
+  backdrop-filter: blur(10px);
+}
+
+:global([data-theme="dark"]) .card {
+  border-color: rgba(45, 212, 191, 0.18);
+  background: rgba(16, 29, 32, 0.82);
+  box-shadow: none;
+}
+
+.code {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(15, 118, 110, 0.08);
+  color: #0f766e;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+:global([data-theme="dark"]) .code {
+  background: rgba(45, 212, 191, 0.1);
+  color: #2dd4bf;
+}
+
+.title {
+  margin: 18px 0 12px;
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.lead {
+  max-width: 32rem;
+  margin: 0 auto;
+  color: var(--ifm-color-emphasis-700);
+  line-height: 1.8;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.primary,
+.ghost {
+  display: inline-flex;
+  align-items: center;
+  padding: 11px 18px;
+  border-radius: 10px;
+  font-weight: 650;
+  font-size: 0.92rem;
+  text-decoration: none;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.primary {
+  color: #ffffff;
+  background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
+  box-shadow: 0 10px 24px rgba(15, 118, 110, 0.24);
+}
+
+.primary:hover {
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.ghost {
+  color: var(--ifm-font-color-base);
+  border: 1px solid var(--ifm-color-emphasis-200);
+  background: transparent;
+}
+
+.ghost:hover {
+  color: var(--ifm-color-primary);
+  border-color: rgba(20, 184, 166, 0.5);
+  text-decoration: none;
+}
+
+.hint {
+  margin: 22px 0 0;
+  color: var(--ifm-color-emphasis-600);
+  font-size: 0.8rem;
+}
+
+.hint kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 4px;
+  background: var(--ifm-background-color);
+  font-size: 0.72rem;
+}

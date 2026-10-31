@@ -8,6 +8,7 @@ hero:
   lead: ".wsql 支持整包与流式读取；压缩条目内的 Range 需要先解压。"
   chips: [".wsql", "gzip", "stream"]
 hide_title: true
+examples: [node, browser]
 ---
 
 

@@ -8,6 +8,7 @@ hero:
   lead: "L3 证明内容与 Manifest 一致；Ed25519 证明谁发布过它。"
   chips: ["SHA-256", "Ed25519", "L3", "trust"]
 hide_title: true
+examples: [build]
 ---
 
 

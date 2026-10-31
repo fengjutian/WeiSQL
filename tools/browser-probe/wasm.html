@@ -172,9 +172,46 @@
           cancellation: { baselineMs, cancelMs, code: cancelError?.code, details: cancelError?.details },
           streamCancellation: { cancelMs: streamCancelMs, code: streamCancelError?.code, details: streamCancelError?.details },
         };
+        await db.close();
+
+        // OPFS persistence: the second adapter must reuse the materialized
+        // database instead of re-reading Parquet.
+        const persistence = { ok: false };
+        try {
+          const bundles = {
+            mainModule: "/vendor/@duckdb/duckdb-wasm/dist/duckdb-eh.wasm",
+            mainWorker: "/vendor/@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js",
+          };
+          const extensionRepository = `${location.origin}/extensions`;
+          const firstAdapter = createDuckDbWasmAdapter({ bundles, extensionRepository, persistToOpfs: true });
+          const first = await open({
+            manifestUrl: new URL("manifest.json", base).href,
+            resourceReader: new HttpResourceReader({ baseUrl: base }),
+            sqlAdapter: firstAdapter,
+            verifyChecksums: "all",
+          });
+          persistence.firstRows = Number((await first.sql("select count(*) as n from documents"))[0].n);
+          persistence.advertised = firstAdapter.capabilities.supportedFeatures.includes("opfs");
+          await first.close();
+
+          const secondAdapter = createDuckDbWasmAdapter({ bundles, extensionRepository, persistToOpfs: true });
+          const second = await open({
+            manifestUrl: new URL("manifest.json", base).href,
+            resourceReader: new HttpResourceReader({ baseUrl: base }),
+            sqlAdapter: secondAdapter,
+            verifyChecksums: "all",
+          });
+          persistence.secondRows = Number((await second.sql("select count(*) as n from documents"))[0].n);
+          persistence.reused = secondAdapter.capabilities.supportedFeatures.includes("opfs-reused");
+          await second.close();
+          persistence.ok = persistence.firstRows === 3 && persistence.secondRows === 3 && persistence.advertised && persistence.reused;
+        } catch (error) {
+          persistence.error = `${error.name}: ${error.message}`.slice(0, 300);
+        }
+        result.persistence = persistence;
+        result.ok = result.ok && persistence.ok === true;
         log(JSON.stringify(result));
         window.__PROBE_RESULT = result;
-        await db.close();
       }
 
       main().catch((error) => {

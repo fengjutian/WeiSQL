@@ -13,6 +13,8 @@ hide_title: true
 
 本页是 WeiSQL API 参考的入口：先给出五个包的导入路径和稳定性边界，再按用途列出公开导出，并说明贯穿所有 API 的类型约定。读完后你应该能判断一个功能属于哪个包、该看哪一页 API 参考。
 
+> 可复制示例：[Node.js](/docs/examples/node) · [浏览器](/docs/examples/browser) · [构建与发布](/docs/examples/build)
+
 ## 包与导入路径
 
 | 包 | 导入路径 | 运行环境 | 职责 |

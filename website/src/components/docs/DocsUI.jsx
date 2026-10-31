@@ -103,3 +103,7 @@ export function Callout({ tone = "teal", title, children }) {
     </aside>
   );
 }
+
+export function Module({ children }) {
+  return <section className={styles.module}>{children}</section>;
+}

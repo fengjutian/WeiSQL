@@ -12,6 +12,7 @@ import {
   CardGrid,
   DocCard,
   Callout,
+  Module,
 } from "@site/src/components/docs/DocsUI";
 
 <PageHero
@@ -32,52 +33,54 @@ WeiSQL 的核心设计只有一句话：**把“数据库服务”换成“可�
 
 ## 1. 分层
 
-<LayerStack
-  layers={[
-    {
-      title: "应用层",
-      tag: "consumer",
-      desc: "浏览器应用、Node 服务、CLI 与 Playground 只调用公开 API，不直接接触字节或引擎。",
-      tags: ["Browser", "Node.js", "CLI", "Playground"],
-    },
-    {
-      title: "API 层",
-      tag: "contract",
-      desc: "open() 返回 WeiSQLDatabase，统一暴露查询入口、状态、能力与幂等关闭。",
-      tags: ["open()", "sql", "sqlStream", "vector", "text", "hybrid", "rag"],
-    },
-    {
-      title: "校验层",
-      tag: "L1–L4",
-      desc: "L1/L2 在读取前校验 Manifest；L3 校验尺寸与 SHA-256；L4 比对 Parquet 列定义。",
-      tags: ["Manifest", "SHA-256", "L4"],
-    },
-    {
-      title: "查询层",
-      tag: "core",
-      desc: "精确向量、BM25、RRF 融合、RAG 证据组装都在 SDK 内；SQL 只做委派。",
-      tags: ["exact scan", "BM25", "RRF", "RAG"],
-    },
-    {
-      title: "适配层",
-      tag: "pluggable",
-      desc: "SqlAdapter 与 VectorAdapter 是引擎边界；Node、浏览器与 ANN 可以选不同实现。",
-      tags: ["DuckDB", "DuckDB-Wasm", "USearch", "exact"],
-    },
-    {
-      title: "资源层",
-      tag: "bytes",
-      desc: "ResourceReader 是唯一接触字节的地方；缓存负责 LRU、并发合并与发布版本隔离。",
-      tags: ["HTTP", "Node fs", "Container", "LRU"],
-    },
-    {
-      title: "存储层",
-      tag: "static",
-      desc: "数据包目录放在 CDN / 磁盘，或打成单个 .wsql；三种形态对上层 API 完全一致。",
-      tags: ["CDN", "disk", ".wsql"],
-    },
-  ]}
-/>
+<Module>
+  <LayerStack
+    layers={[
+      {
+        title: "应用层",
+        tag: "consumer",
+        desc: "浏览器应用、Node 服务、CLI 与 Playground 只调用公开 API，不直接接触字节或引擎。",
+        tags: ["Browser", "Node.js", "CLI", "Playground"],
+      },
+      {
+        title: "API 层",
+        tag: "contract",
+        desc: "open() 返回 WeiSQLDatabase，统一暴露查询入口、状态、能力与幂等关闭。",
+        tags: ["open()", "sql", "sqlStream", "vector", "text", "hybrid", "rag"],
+      },
+      {
+        title: "校验层",
+        tag: "L1–L4",
+        desc: "L1/L2 在读取前校验 Manifest；L3 校验尺寸与 SHA-256；L4 比对 Parquet 列定义。",
+        tags: ["Manifest", "SHA-256", "L4"],
+      },
+      {
+        title: "查询层",
+        tag: "core",
+        desc: "精确向量、BM25、RRF 融合、RAG 证据组装都在 SDK 内；SQL 只做委派。",
+        tags: ["exact scan", "BM25", "RRF", "RAG"],
+      },
+      {
+        title: "适配层",
+        tag: "pluggable",
+        desc: "SqlAdapter 与 VectorAdapter 是引擎边界；Node、浏览器与 ANN 可以选不同实现。",
+        tags: ["DuckDB", "DuckDB-Wasm", "USearch", "exact"],
+      },
+      {
+        title: "资源层",
+        tag: "bytes",
+        desc: "ResourceReader 是唯一接触字节的地方；缓存负责 LRU、并发合并与发布版本隔离。",
+        tags: ["HTTP", "Node fs", "Container", "LRU"],
+      },
+      {
+        title: "存储层",
+        tag: "static",
+        desc: "数据包目录放在 CDN / 磁盘，或打成单个 .wsql；三种形态对上层 API 完全一致。",
+        tags: ["CDN", "disk", ".wsql"],
+      },
+    ]}
+  />
+</Module>
 
 ## 2. 一次向量查询
 

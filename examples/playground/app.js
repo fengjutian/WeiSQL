@@ -280,8 +280,12 @@ async function runSql() {
       sqlStreaming: streaming,
     };
   } catch (error) {
+    // A failed query must not leave a half-rendered result looking complete.
+    $("sql-head").replaceChildren();
+    $("sql-results").replaceChildren();
     setText("sql-status", "失败");
-    setText("error", String(error && error.message ? error.message : error));
+    const maxRows = error?.details?.maxRows;
+    setText("error", maxRows === undefined ? String(error && error.message ? error.message : error) : `超过行数上限 ${maxRows}（INVALID_ARGUMENT），结果未显示`);
   }
 }
 

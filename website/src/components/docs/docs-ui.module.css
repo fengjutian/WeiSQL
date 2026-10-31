@@ -393,6 +393,45 @@ a.card:hover {
   color: var(--ifm-color-primary-light);
 }
 
+/* ---------------------------------------------------------------------------
+   模块容器：把每个章节变成独立面板
+   --------------------------------------------------------------------------- */
+
+.module {
+  margin: 1rem 0 2.2rem;
+  padding: 22px 24px;
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 16px;
+  background: var(--ifm-background-surface-color);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
+}
+
+.module > :first-child {
+  margin-top: 0;
+}
+
+.module > :last-child {
+  margin-bottom: 0;
+}
+
+.module .grid,
+.module .layers,
+.module .flow,
+.module .callout {
+  margin-bottom: 0;
+}
+
+.module .layers,
+.module .flow {
+  margin-top: 0;
+}
+
+:global([data-theme="dark"]) .module {
+  border-color: rgba(45, 212, 191, 0.14);
+  background: #0d181a;
+  box-shadow: none;
+}
+
 @media (max-width: 996px) {
   .hero {
     padding: 2rem 1.6rem 1.6rem;

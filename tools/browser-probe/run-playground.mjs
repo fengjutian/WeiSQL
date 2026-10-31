@@ -191,18 +191,26 @@ if (!sqlStatus.includes("流式")) {
 }
 
 // Row budget: two rows requested against a three-row result must fail loudly
-// instead of truncating.
+// instead of truncating, on both the array and the streaming path.
 try {
   await page.fill("#sql-max-rows", "2");
-  await page.click("#sql-run");
-  await page.waitForFunction(
-    () => (document.querySelector("#error")?.textContent ?? "").includes("maxRows"),
-    undefined,
-    { timeout: 60_000 },
-  );
-  const errorText = await page.locator("#error").innerText();
-  if (!errorText.includes("maxRows")) await fail(`row budget error was: ${errorText}`);
+  for (const streaming of [false, true]) {
+    if (streaming) await page.check("#sql-stream");
+    else await page.uncheck("#sql-stream");
+    await page.evaluate(() => { document.querySelector("#error").textContent = ""; });
+    await page.click("#sql-run");
+    await page.waitForFunction(
+      () => (document.querySelector("#error")?.textContent ?? "").includes("上限"),
+      undefined,
+      { timeout: 60_000 },
+    );
+    const errorText = await page.locator("#error").innerText();
+    if (!errorText.includes("INVALID_ARGUMENT")) await fail(`row budget error was: ${errorText}`);
+    const rendered = await page.locator("#sql-results tr").count();
+    if (rendered !== 0) await fail(`row budget failure still rendered ${rendered} row(s)`);
+  }
   await page.fill("#sql-max-rows", "");
+  await page.uncheck("#sql-stream");
 } catch (error) {
   await fail(`row budget check failed: ${String(error).slice(0, 300)}\n${await page.locator("#error").innerText()}`);
 }

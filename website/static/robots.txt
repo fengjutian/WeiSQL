@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://weisql.netlify.app/sitemap.xml

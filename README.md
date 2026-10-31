@@ -62,6 +62,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - WASM 构建（`npm run build:wasm`）：无 wasm-bindgen、无导入的 17 KB 模块，cosine/L2/IP 三种度量，同一 fixture 第三方实现对照（`npm run test:wasm-golden`）
 - WASM Vector Adapter（`createWasmVectorAdapter`）：把该产物接成 `VectorAdapter`，与 TypeScript 精确适配器逐字段对照（`npm run test:wasm-adapter`）
 - HNSW 备选索引（`crates/vector-hnsw`）：纯 Rust、零依赖、种子可复现；2000×32 聚类数据 Recall@10 = 1.00，p50 查询 0.048 ms
+- HNSW 的 WASM 模块（`npm run build:hnsw-wasm`）：41 KB、单实例持有一个索引，1000×16 数据 Recall@10 = 1.00、p50 0.033 ms（`npm run test:hnsw-wasm`）
 
 ## 尚未实现 / 未验证
 
@@ -128,16 +129,18 @@ npm run build:wasm         # 构建 crates/vector-wasm（wasm32-unknown-unknown�
 npm run test:wasm-golden   # 用同一 fixture 校验 WASM 产物
 ```
 
-Rust 示例参数依次为向量数量、维度、Top-K 和可选的测量轮数（默认 5 轮，另有 1 轮预热）；参数非法时以退出码 2 拒绝，而不是静默回落默认值。输出包含 `best_ms`/`median_ms`/`mean_ms`/`worst_ms`。该程序是确定性正确性与基准实验入口，不是生产 ANN 引擎。CI 的 `rust vector baseline and wasm` 作业会执行三个 crate 的 `fmt`/`clippy`/`test`、一次 release 基准烟测、HNSW 召回烟测，以及 WASM 构建与黄金对照。
+Rust 示例参数依次为向量数量、维度、Top-K 和可选的测量轮数（默认 5 轮，另有 1 轮预热）；参数非法时以退出码 2 拒绝，而不是静默回落默认值。输出包含 `best_ms`/`median_ms`/`mean_ms`/`worst_ms`。该程序是确定性正确性与基准实验入口，不是生产 ANN 引擎。CI 的 `rust vector baseline and wasm` 作业会执行四个 crate 的 `fmt`/`clippy`/`test`、一次 release 基准烟测、HNSW 召回烟测，以及两套 WASM 构建与对照。
 
 HNSW 备选索引（`crates/vector-hnsw`，纯 Rust、无依赖、种子可复现）：
 
 ```bash
 cargo test --manifest-path crates/vector-hnsw/Cargo.toml
 cargo run --release --manifest-path crates/vector-hnsw/Cargo.toml --example recall
+npm run build:hnsw-wasm
+npm run test:hnsw-wasm
 ```
 
-`examples/recall.rs` 在 2000×32 的确定性聚类数据上打印建图耗时、p50 查询延迟与 Recall@10。该索引只作为 USearch 之外的备选实现，`search()` 返回近似结果，调用方必须如实标注 `exact: false`。
+`examples/recall.rs` 在 2000×32 的确定性聚类数据上打印建图耗时、p50 查询延迟与 Recall@10；`test:hnsw-wasm` 则在 1000×16 数据上验证同一引擎编译到 WASM 后仍能建图并以 Recall@10 ≥ 0.9 检索。该索引只作为 USearch 之外的备选实现，`search()` 返回近似结果，调用方必须如实标注 `exact: false`。
 
 跨语言黄金对照：`tools/bench/rust-golden.mjs` 用 SDK 的 `exactVectorSearch` 把 6 个固定数据集写入 `crates/vector-benchmark/tests/fixtures/exact_cosine_golden.txt`，Rust 的 `golden_tests.rs` 在 1e-6 容差内断言相同排名与距离。修改任一侧语义都会让 `npm run test:rust-golden` 或 `cargo test` 失败；需要更新基线时运行 `node tools/bench/rust-golden.mjs --write`。
 

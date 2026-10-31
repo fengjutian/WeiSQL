@@ -26,7 +26,9 @@ website/
 ├── content/architecture/    # 架构专题（独立侧边栏，路由 /docs/architecture）
 ├── src/pages/index.js       # 首页（/），独立 React 落地页
 ├── src/css/custom.css       # 品牌色、表格、导航与侧边栏
-├── static/img/              # logo / favicon
+├── static/img/              # logo / favicon / 社交卡片 / 文档截图
+├── static/llms.txt          # 给 LLM 的站点索引
+├── static/robots.txt        # 爬虫与 sitemap 声明
 ├── docusaurus.config.js     # 站点、导航、搜索插件
 ├── sidebars.js              # 手工侧边栏
 └── CONTENT-GUIDE.md         # 写作规范

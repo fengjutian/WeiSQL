@@ -1,0 +1,71 @@
+# WeiSQL AI
+
+> 只读数据运行时：把 Parquet 表、Float32 向量、ID Map 与索引打包成可版本化的静态数据包，发布到静态托管或 CDN，浏览器与 Node.js 通过 HTTP Range 按需查询，无需数据库服务。
+
+站点：https://weisql.netlify.app
+仓库：https://github.com/fengjutian/WeiSQL
+当前状态：工程原型（0.1.0），尚未发布到 npm，未验证项见「限制与路线」。
+
+## 核心文档
+
+- [文档首页](https://weisql.netlify.app/docs)
+- [什么是 WeiSQL AI](https://weisql.netlify.app/docs/start/what-is-weisql)
+- [快速开始](https://weisql.netlify.app/docs/start/quickstart)
+- [端到端教程](https://weisql.netlify.app/docs/start/tutorial)
+- [核心概念](https://weisql.netlify.app/docs/start/concepts)
+- [技术栈](https://weisql.netlify.app/docs/start/tech-stack)
+- [常见问题](https://weisql.netlify.app/docs/reference/faq)
+
+## 架构
+
+- [架构总览](https://weisql.netlify.app/docs/architecture)
+- [查询链路](https://weisql.netlify.app/docs/architecture/query)
+- [信任与部署](https://weisql.netlify.app/docs/architecture/trust)
+
+## SDK 使用
+
+- [打开数据库与生命周期](https://weisql.netlify.app/docs/sdk/open-and-lifecycle)
+- [资源读取器](https://weisql.netlify.app/docs/sdk/resource-readers)
+- [向量检索](https://weisql.netlify.app/docs/sdk/vector-search)
+- [全文检索与混合检索](https://weisql.netlify.app/docs/sdk/text-and-hybrid)
+- [RAG 证据组装](https://weisql.netlify.app/docs/sdk/rag)
+- [SQL 查询](https://weisql.netlify.app/docs/sdk/sql)
+- [单文件容器](https://weisql.netlify.app/docs/sdk/containers)
+- [完整性与签名](https://weisql.netlify.app/docs/sdk/integrity-and-signing)
+- [错误处理](https://weisql.netlify.app/docs/sdk/errors)
+
+## API 参考
+
+- [API 总览](https://weisql.netlify.app/docs/api)
+- [Runtime API](https://weisql.netlify.app/docs/api/runtime)
+- [Readers API](https://weisql.netlify.app/docs/api/readers)
+- [检索 API](https://weisql.netlify.app/docs/api/search)
+- [SQL API](https://weisql.netlify.app/docs/api/sql)
+- [Builder 与签名 API](https://weisql.netlify.app/docs/api/build-sign)
+- [Adapter 工厂 API](https://weisql.netlify.app/docs/api/adapters)
+
+## 示例
+
+- [示例总览](https://weisql.netlify.app/docs/examples)
+- [Node.js 示例](https://weisql.netlify.app/docs/examples/node)
+- [浏览器示例](https://weisql.netlify.app/docs/examples/browser)
+- [构建与发布示例](https://weisql.netlify.app/docs/examples/build)
+- [前端框架集成](https://weisql.netlify.app/docs/examples/frameworks)
+
+## 适配器与工具链
+
+- [DuckDB Adapter](https://weisql.netlify.app/docs/adapters/duckdb)
+- [DuckDB-Wasm Adapter](https://weisql.netlify.app/docs/adapters/duckdb-wasm)
+- [USearch Adapter](https://weisql.netlify.app/docs/adapters/usearch)
+- [CLI](https://weisql.netlify.app/docs/tooling/cli)
+- [构建数据包](https://weisql.netlify.app/docs/tooling/build-package)
+- [部署到 CDN](https://weisql.netlify.app/docs/tooling/deploy-cdn)
+- [基准与浏览器验收](https://weisql.netlify.app/docs/tooling/benchmarks)
+
+## 参考
+
+- [Manifest 速查](https://weisql.netlify.app/docs/reference/manifest)
+- [能力矩阵](https://weisql.netlify.app/docs/reference/capabilities)
+- [兼容性](https://weisql.netlify.app/docs/reference/compatibility)
+- [限制与路线](https://weisql.netlify.app/docs/reference/limitations)
+- [术语表](https://weisql.netlify.app/docs/reference/glossary)

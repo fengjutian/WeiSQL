@@ -237,6 +237,10 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   validation and Recall@10 against the exact baseline for all three metrics;
   `examples/recall.rs` reports 2000×32 clustered data at Recall@10 = 1.00 with a
   p50 of 0.048 ms. USearch remains the default ANN engine.
+- `crates/vector-hnsw-wasm`: the same graph behind a 41 KB, import-free C ABI —
+  build once per module instance, then search with `f64` distances. A Node probe
+  builds 1000×16 clustered data inside the module and checks Recall@10 against a
+  JavaScript brute-force scan (1.00, p50 0.033 ms).
 - `createWasmVectorAdapter()`: a `VectorAdapter` over that artifact. It caches
   one materialised `Float32Array` per collection, compacts `allowedRows` before
   the scan so filtered results stay exact, and maps rows back to business IDs

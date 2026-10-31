@@ -75,16 +75,19 @@ jobs:
           cargo fmt --check --manifest-path crates/vector-benchmark/Cargo.toml
           cargo fmt --check --manifest-path crates/vector-wasm/Cargo.toml
           cargo fmt --check --manifest-path crates/vector-hnsw/Cargo.toml
+          cargo fmt --check --manifest-path crates/vector-hnsw-wasm/Cargo.toml
       - name: Lints
         run: |
           cargo clippy --locked --manifest-path crates/vector-benchmark/Cargo.toml --all-targets -- -D warnings
           cargo clippy --locked --manifest-path crates/vector-wasm/Cargo.toml --all-targets -- -D warnings
           cargo clippy --locked --manifest-path crates/vector-hnsw/Cargo.toml --all-targets -- -D warnings
+          cargo clippy --locked --manifest-path crates/vector-hnsw-wasm/Cargo.toml --all-targets -- -D warnings
       - name: Tests
         run: |
           cargo test --locked --manifest-path crates/vector-benchmark/Cargo.toml
           cargo test --locked --manifest-path crates/vector-wasm/Cargo.toml
           cargo test --locked --manifest-path crates/vector-hnsw/Cargo.toml
+          cargo test --locked --manifest-path crates/vector-hnsw-wasm/Cargo.toml
       - name: Benchmark smoke
         run: cargo run --locked --release --manifest-path crates/vector-benchmark/Cargo.toml -- 10000 128 10 2
       - name: HNSW recall smoke
@@ -96,6 +99,13 @@ jobs:
         run: cargo build --locked --release --target wasm32-unknown-unknown --manifest-path crates/vector-wasm/Cargo.toml
       - name: WASM golden parity
         run: node tools/bench/wasm-baseline.mjs
+
+      # The fallback ANN engine also runs in WASM, so its graph is built and
+      # searched by the module that would ship to a browser.
+      - name: Build the HNSW WASM module
+        run: cargo build --locked --release --target wasm32-unknown-unknown --manifest-path crates/vector-hnsw-wasm/Cargo.toml
+      - name: HNSW WASM recall
+        run: node tools/bench/hnsw-wasm.mjs
 
       # The adapter is the SDK-facing half: build the package and run it against
       # the TypeScript exact adapter on the same in-memory collection.

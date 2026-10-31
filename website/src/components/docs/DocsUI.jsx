@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "@docusaurus/Link";
 import styles from "./docs-ui.module.css";
@@ -130,6 +130,8 @@ export function ExampleLinks({ items = [] }) {
 export function ZoomImage({ src, alt, caption }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const closeRef = useRef(null);
+  const lastFocused = useRef(null);
 
   useEffect(() => {
     setMounted(true);
@@ -137,15 +139,20 @@ export function ZoomImage({ src, alt, caption }) {
 
   useEffect(() => {
     if (!open) return undefined;
+    lastFocused.current = document.activeElement;
     const previous = document.body.style.overflow;
     const onKeyDown = (event) => {
       if (event.key === "Escape") setOpen(false);
     };
     document.body.style.overflow = "hidden";
     document.addEventListener("keydown", onKeyDown);
+    closeRef.current?.focus();
     return () => {
       document.body.style.overflow = previous;
       document.removeEventListener("keydown", onKeyDown);
+      if (lastFocused.current instanceof HTMLElement) {
+        lastFocused.current.focus();
+      }
     };
   }, [open]);
 
@@ -168,6 +175,12 @@ export function ZoomImage({ src, alt, caption }) {
               aria-modal="true"
               aria-label={alt}
               onClick={() => setOpen(false)}
+              onKeyDown={(event) => {
+                if (event.key === "Tab") {
+                  event.preventDefault();
+                  closeRef.current?.focus();
+                }
+              }}
             >
               <img
                 src={src}
@@ -175,6 +188,7 @@ export function ZoomImage({ src, alt, caption }) {
                 onClick={(event) => event.stopPropagation()}
               />
               <button
+                ref={closeRef}
                 type="button"
                 className={styles.lightboxClose}
                 onClick={() => setOpen(false)}

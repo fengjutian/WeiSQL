@@ -80,6 +80,11 @@ for (const { directory, manifest } of packages) {
   if (manifest.publishConfig?.registry === undefined) {
     warn(`${label}: no publishConfig.registry (fine for public npm, required for a private registry)`);
   }
+  if (typeof manifest.license !== "string" || manifest.license.length === 0) {
+    fail(`${label}: missing license field (decided: Apache-2.0)`);
+  } else if (manifest.license !== "Apache-2.0") {
+    fail(`${label}: license '${manifest.license}' does not match the decided Apache-2.0`);
+  }
 
   for (const [dependency, range] of Object.entries(manifest.dependencies ?? {})) {
     if (!dependency.startsWith("@weisql/")) continue;
@@ -107,7 +112,19 @@ for (const { directory, manifest } of packages) {
 }
 
 if (!existsSync(path.join(REPO_ROOT, "LICENSE"))) {
-  warn("no LICENSE at the repository root; publishing without one is a legal decision, not a default");
+  fail("no LICENSE at the repository root; Apache-2.0 was decided, so the file must exist");
+} else if (!readFileSync(path.join(REPO_ROOT, "LICENSE"), "utf8").includes("Apache License")) {
+  fail("LICENSE does not contain the Apache License text");
+}
+if (typeof root.license !== "string" || root.license !== "Apache-2.0") {
+  fail(`root package.json must declare license 'Apache-2.0'`);
+}
+if (existsSync(path.join(REPO_ROOT, "LICENSE")) && packages.length > 0) {
+  for (const { directory } of packages) {
+    if (!existsSync(path.join(REPO_ROOT, "packages", directory, "LICENSE"))) {
+      fail(`${directory}: no LICENSE file inside the package; npm only ships a license that exists in the package directory`);
+    }
+  }
 }
 if (!existsSync(path.join(REPO_ROOT, "CHANGELOG.md"))) {
   warn("no CHANGELOG.md; release notes would have to be written from scratch");

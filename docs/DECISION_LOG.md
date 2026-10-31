@@ -354,6 +354,14 @@
 - 决策五：容器摘要与 Manifest 摘要**都校验**。前者防容器结构被改，后者防 Manifest 与实际资源不符；只查一层会留下盲区。
 - 后果：`weisql pack` 与 `weisql validate <file>.wsql` 落地，ci 的派生作业新增容器往返校验。压缩、流式、HTTP Range 映射与 MIME 注册列入未完成项。
 
+## ADR-040：许可证采用 Apache-2.0，且每个包内自带 LICENSE
+
+- 状态：Accepted and implemented
+- 决策一：项目采用 **Apache-2.0**（由项目所有者决定）。它包含明确的专利授权，适合可能被基础设施项目采用的数据运行时。
+- 决策二：许可证文本直接取自依赖中的官方副本（`node_modules/usearch/LICENSE`）而不是手抄，避免逐字转录错误；根目录与四个包目录各放一份。
+- 决策三：`release:check` 从「警告缺失」升级为**硬错误**：根目录 LICENSE 必须包含 Apache License 文本、根与四个包的 `license` 字段必须等于 `Apache-2.0`、每个包目录内必须有 LICENSE。npm 只会打包包目录内的许可证文件，根目录那份不会自动带上。
+- 后果：发布阻塞项减少为「npm 组织与访问令牌」与「多机基准复现」。`npm pack --dry-run` 确认 tarball 内包含 `LICENSE`。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

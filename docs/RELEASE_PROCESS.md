@@ -122,8 +122,7 @@ CI 已配置（`.github/workflows/ci.yml`）：`npm ci` → build → typecheck 
 
 | 项 | 状态 |
 | --- | --- |
-| LICENSE | **未确定**。这是法律决策，不是默认值；`release:check` 会持续警告 |
 | npm 组织与访问令牌 | 未配置 |
 | 多机基准复现 | 未做，`BENCHMARK_HARNESS.md` 的数字仅代表一台机器 |
 
-在 LICENSE 与 npm 组织落地之前，不应对外宣称「已发布」。
+在 npm 组织与令牌落地之前，不应对外宣称「已发布」。

@@ -473,9 +473,14 @@ tools/                     源 Parquet、ANN/全文索引生成、基准与浏�
 2. ~~实现 L3 文件长度与 SHA-256 校验~~（已完成，`verifyChecksums`）
 3. ~~接入 Node.js DuckDB Adapter~~（已完成，`packages/duckdb-adapter`）
 4. ~~完成 SQL + 精确向量搜索端到端测试~~（已完成，见适配器测试）
-5. 验证 DuckDB-Wasm 和静态 CDN
-6. 在正确性基线稳定后接入 ANN 并运行性能协议
+5. ~~接入 ANN 并测量召回与延迟~~（已完成，见 `docs/BENCHMARK_HARNESS.md`）
+6. DuckDB-Wasm（浏览器 SQL 引擎）：仍受阻，Parquet 扩展需从外部下载且当前不可达
+7. 真实 embedding 数据集的 Recall@K、多机基准复现与静态 CDN/CORS 验收
 
-第 5 步是当前瓶颈：浏览器侧还没有任何已验证的引擎路径，Node 端的结论不能外推到 WASM。
+第 6、7 步是当前瓶颈：浏览器侧没有已验证的 SQL 引擎路径，Node 端的结论不能外推到 WASM；性能与召回数字也不能从单机合成数据外推。
 
 在真实测试报告完成前，不对百万级向量延迟、浏览器内存、ANN 召回率或 CDN 随机访问效率作产品承诺。
+
+## 许可证
+
+[Apache-2.0](LICENSE)。四个发布包的目录内各带一份许可证副本，`npm pack --dry-run` 可确认它进入了 tarball。

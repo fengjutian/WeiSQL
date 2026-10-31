@@ -54,6 +54,9 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 
 ### Tooling (not published)
 
+- Apache-2.0 license, with a copy in the repository root and inside every
+  published package.
+
 - GitHub Actions CI: build, typecheck, tests and release checks on Ubuntu and
   Windows, plus fixture reproducibility, derived indexes and container packing.
 - Browser probe, playground example, cross-environment parity check.

@@ -38,7 +38,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - Manifest signing supports multiple signatures (`signatures`), co-signing via
   `countersignManifest()` / `weisql sign --add`, and key rotation without breaking
   consumers pinned to the old key. Verifiers can require n pinned signers
-  (`minimumTrustedSignatures` / `--require`).
+  (`minimumTrustedSignatures` / `--require`). A root key can authorize release
+  keys with a validity window (`authorizeSigner()` / `trustedRootKeyIds`).
 - Manifest signing: Ed25519 over canonical JSON, `signManifest()` /
   `verifyManifestSignature()` with optional pinned key ids; `buildPackage()`
   signs during the build when a key pair is supplied.
@@ -70,6 +71,9 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - Read-only DuckDB adapter: statement-type enforcement, parameter binding,
   L4 schema verification, native interruption.
 - `tableLoading: "memory" | "lazy"` with the security/memory trade-off documented.
+- Two-level declared-byte budget: `maxTableBytes` (default 256 MiB) per table and
+  `maxTotalTableBytes` (default 512 MiB) per package, checked before the DuckDB
+  instance is created.
 
 ### `@weisql/duckdb-wasm-adapter` 0.1.0
 
@@ -91,6 +95,9 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - Default table budget is 64 MiB in the browser (the Node adapter keeps 256 MiB):
   materialization costs roughly four times the Parquet size, so 256 MiB would
   allow ~1 GiB of browser memory. `maxTableBytes` stays overridable.
+- `maxTotalTableBytes` (default 128 MiB) caps a whole package's declared table
+  bytes before the WASM module or extension is loaded; a per-table limit alone
+  let ten tables ask for ten times the memory.
 - `capabilities()` reports `engine: "duckdb-wasm"` and `cancellation: "best-effort"`.
   Aborting a running query rejects the caller immediately with
   `QUERY_CANCELLED` and `details.engineMayStillRun: true`; `cancelSent()` cannot

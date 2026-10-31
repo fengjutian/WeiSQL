@@ -73,12 +73,30 @@ export interface ManifestSignature {
   /** Base64 Ed25519 signature, 64 bytes. */
   value: string;
 }
+/**
+ * A root key authorizing a signer key, with a validity window. The root's
+ * signature covers the signer key, the validity window and both fingerprints,
+ * so a delegation cannot be lifted onto another key.
+ */
+export interface ManifestAuthorization {
+  algorithm: "ed25519";
+  rootKeyId: string;
+  rootPublicKey: string;
+  keyId: string;
+  publicKey: string;
+  /** ISO timestamps: inclusive start, exclusive end. */
+  validFrom: string;
+  validUntil: string;
+  value: string;
+}
 export interface WeiSQLManifest {
   format: "weisql"; formatVersion: "1.0.0"; datasetId: string;
   tables: TableDescriptor[]; vectorCollections: VectorCollectionDescriptor[];
   textIndexes?: TextIndexDescriptor[];
   signature?: ManifestSignature;
   signatures?: readonly ManifestSignature[];
+  /** Root-key delegations; consumers pin the root instead of every release key. */
+  authorizations?: readonly ManifestAuthorization[];
   metadata?: { title?: string; description?: string; createdAt?: string; builderVersion?: string };
 }
 export type SQLValue = string | number | bigint | boolean | null | Uint8Array | Date;

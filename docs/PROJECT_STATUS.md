@@ -5,7 +5,7 @@
 
 ## 1. 一句话状态
 
-工程原型：Manifest V1 与数据包格式稳定，五个包共 **307 个自动化测试**，CI 覆盖构建/类型/测试/发布元数据，精确检索、ANN、全文、融合、RAG、单文件容器与浏览器 SQL 均有实现与实测数字；**尚未发布 npm 包**，也没有任何未经测量的性能承诺。
+工程原型：Manifest V1 与数据包格式稳定，五个包共 **305 个自动化测试**，CI 覆盖构建/类型/测试/发布元数据，精确检索、ANN、全文、融合、RAG、单文件容器与浏览器 SQL 均有实现与实测数字；**尚未发布 npm 包**，也没有任何未经测量的性能承诺。
 
 ## 2. 能力矩阵
 
@@ -27,7 +27,7 @@
 | RRF 融合 | ✅ | ✅ | ✅ | — |
 | RAG 证据组装 | ✅ | ✅ | ✅ | ✅ 端到端 |
 | `.wsql` 单文件容器（pack/validate/unpack、流式、gzip 1.1.0） | ✅ | ✅ | ✅ | ✅ 3.6 KB 包往返 |
-| Manifest Ed25519 签名（含多签与轮换） | ✅ | ✅ | ✅ | ✅ 篡改与信任固定均拒绝 |
+| Manifest Ed25519 签名（多签 / 轮换 / root 授权） | ✅ | ✅ | ✅ | ✅ 篡改、信任固定与有效期均拒绝 |
 | 浏览器路径（Chromium） | ✅ | 探针 | ✅ | ✅ 与 Node 逐字段一致 |
 | 发布前检查 + Apache-2.0 | ✅ | — | ✅ | ✅ |
 | CSV/JSON → Parquet 转换工具 | ✅ | ✅ | ✅ | ✅ 回读校验 |
@@ -48,12 +48,12 @@
 
 | 包 | 测试数 | 覆盖重点 |
 | --- | --- | --- |
-| `@weisql/sdk` | 204 | 校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约 |
+| `@weisql/sdk` | 207 | 校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约 |
 | `@weisql/duckdb-adapter` | 20 | 只读边界、参数绑定、两种表加载、取消 |
-| `@weisql/duckdb-wasm-adapter` | 34 | 关键字白名单、CTE 分类与 fail-closed、参数类型收窄、值映射、真实 WASM 引擎集成（打开/绑定/L4/生命周期/取消） |
+| `@weisql/duckdb-wasm-adapter` | 29 | 关键字白名单、CTE 分类与 fail-closed、参数类型收窄、值映射、真实 WASM 引擎集成（打开/绑定/L4/生命周期/取消） |
 | `@weisql/usearch-adapter` | 13 | 度量映射、持久化索引、后过滤、生命周期 |
 | `@weisql/cli` | 36 | 校验退出码、`--json`、`pack`/`--compress`、`unpack`、容器校验、`--l4` |
-| **合计** | **307** | |
+| **合计** | **305** | |
 
 CI（`.github/workflows/ci.yml`）：
 
@@ -83,7 +83,7 @@ CI（`.github/workflows/ci.yml`）：
 | DuckDB-Wasm 物化 200k 行 | 192 ms，RSS ~+43 MB | 同上，7.5 MB Parquet | 浏览器未测 |
 | DuckDB-Wasm 物化 500k 行 | 298 ms，RSS ~+76 MB | 同上，18.8 MB Parquet | 约 4×Parquet；浏览器未测 |
 | DuckDB-Wasm 过滤查询 | 5.9–12.9 ms | 同上，等值过滤 | 冷/热缓存未区分 |
-| DuckDB-Wasm 默认表预算 | 64 MiB（约 256 MB RAM） | 实测物化约 4× Parquet | Node 适配器为 256 MiB |
+| 物化默认预算 | 浏览器 64/128 MiB；Node 256/512 MiB（单表/整包） | 实测物化约 4× Parquet | 声明字节，不是内存承诺 |
 | parquet 扩展体积 | 498,915 B（`wasm_eh`，v1.4.3） | 自托管 | 版本必须与 WASM 核心一致 |
 
 ### 5.1 ANN 召回与分布（100k × 128，Top-10，`expansionSearch=512`）
@@ -145,14 +145,14 @@ CI（`.github/workflows/ci.yml`）：
 | 039 | `.wsql` 不压缩、整文件入内存 |
 | 040 | Apache-2.0，每个包内自带 LICENSE |
 | 057 | Builder 在构建时签名，发布链路少一步补签 |
-| 061 / 062 | 浏览器 SQL 用 DuckDB-Wasm、扩展同源自托管；062 用 tokenizer 支持只读 CTE，取代 061 的 `WITH` 拒绝 |
+| 065 / 066 | 浏览器 SQL 用 DuckDB-Wasm、扩展同源自托管；066 用 tokenizer 支持只读 CTE，取代 065 的 `WITH` 拒绝 |
 | 063 / 064 | COI 多线程因扩展内存不兼容而不采用；取消只承诺立即停止等待（`engineMayStillRun`） |
 
 ## 8. 发布就绪度
 
 | 检查项 | 状态 |
 | --- | --- |
-| 测试 / 类型 / 构建 | ✅ 307 测试，typecheck 通过 |
+| 测试 / 类型 / 构建 | ✅ 310 测试，typecheck 通过 |
 | 打包内容 | ✅ 仅 `dist/` + README + LICENSE，无 src/test 泄漏 |
 | 依赖范围 | ✅ caret 且跟踪本地版本 |
 | 许可证 | ✅ Apache-2.0（根 + 每包） |

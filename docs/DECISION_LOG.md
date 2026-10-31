@@ -518,26 +518,26 @@
 - 决策四：签名后仍走 `validateManifest`（含签名结构校验），避免写出解析器无法接受的 Manifest。
 - 后果：发布链路简化为 `buildPackage({ signing })` → `weisql validate --signature`。密钥管理（轮换、多签）仍不在范围内。
 
-## ADR-061：浏览器 SQL 走 DuckDB-Wasm，扩展自托管而不是跨域下载
+## ADR-065：浏览器 SQL 走 DuckDB-Wasm，扩展自托管而不是跨域下载
 
 - 状态：Accepted and implemented
 - 背景：ADR-020 把 DuckDB-Wasm 记为「parquet 扩展需从 extensions.duckdb.org 下载，当前不可达」。复测发现主机本身可达，**真正的阻塞是 CORS**：Node 能下载是因为 Node 不执行 CORS，页面里的 `XMLHttpRequest` 一定失败；同时 DuckDB-Wasm 的 JS API 不暴露 prepared statement 的 `StatementType`，Node 适配器的引擎级只读分类不可复用。
 - 决策一：新增独立包 `@weisql/duckdb-wasm-adapter`，不把 WASM 塞进 SDK。SDK 仍然零引擎依赖，浏览器与 Node 各带各的引擎，能力差异可以分别声明。
 - 决策二：表数据只从 `ResourceReader` 读取，再 `registerFileBuffer` + `CREATE TABLE ... AS SELECT`。DuckDB 不直接访问数据包 URL，Range、缓存、L3 校验不会因为走 SQL 被绕过。
 - 决策三：parquet 扩展由部署方自托管（`npm run vendor:wasm-extension` 按 WASM 核心版本下载），适配器用 `extensionRepository` 指向同源目录；不设置时 `open()` 明确失败为 `SQL_UNSUPPORTED`（`phase: "extension"`），不静默降级。
-- 决策四：只读用**首关键字白名单**，并**显式拒绝 `WITH`**。没有 `StatementType` 时，放行 `WITH` 等于把 `WITH ... DELETE` 交给引擎；宁可少支持一个语法，也不宣称一个挡不住的边界。白名单另加单语句扫描（识别字符串、标识符、注释、dollar-quoted）。（`WITH` 的这一条已被 ADR-062 取代。）
+- 决策四：只读用**首关键字白名单**，并**显式拒绝 `WITH`**。没有 `StatementType` 时，放行 `WITH` 等于把 `WITH ... DELETE` 交给引擎；宁可少支持一个语法，也不宣称一个挡不住的边界。白名单另加单语句扫描（识别字符串、标识符、注释、dollar-quoted）。（`WITH` 的这一条已被 ADR-066 取代。）
 - 决策五：参数绑定保留，但如实收窄类型：DuckDB-Wasm 用 JSON 传参，`Date`、二进制与超范围 `bigint` 直接 `INVALID_ARGUMENT`，不做静默转换；取消声明为 `best-effort`。
 - 决策六：L4（`DESCRIBE` 与 Manifest 比对）默认开启，规则与 Node 适配器一致，但代码不跨包复用——浏览器包不能依赖 `@duckdb/node-api`，复制比引入 Node 依赖更安全。
 - 后果：浏览器 SQL 可用（Chromium 探针：`open()` 1.37–1.70 s，查询 < 50 ms，写操作 `SQL_UNSUPPORTED`）；扩展必须同源托管、首次加载 34 MB WASM。README 与状态报告已按此更新，不再保留「浏览器 SQL 未实现」的说法。
 
-## ADR-062：用 DuckDB 自己的 tokenizer 支持只读 CTE，写 CTE 仍然拒绝
+## ADR-066：用 DuckDB 自己的 tokenizer 支持只读 CTE，写 CTE 仍然拒绝
 
-- 状态：Accepted and implemented（取代 ADR-061 决策四中「显式拒绝 `WITH`」的部分）
-- 背景：ADR-061 为了不误放写语句，直接拒绝 `WITH`。这挡住了 `WITH ... DELETE`，也挡住了合法的只读 CTE，是能力上的净损失。
+- 状态：Accepted and implemented（取代 ADR-065 决策四中「显式拒绝 `WITH`」的部分）
+- 背景：ADR-065 为了不误放写语句，直接拒绝 `WITH`。这挡住了 `WITH ... DELETE`，也挡住了合法的只读 CTE，是能力上的净损失。
 - 决策一：`AsyncDuckDB.tokenize()` 返回 `{ offsets, types }`，是引擎自己的词法结果；据此跳过 `[RECURSIVE] name [(cols)] [MATERIALIZED] AS (...) {, ...}`，再判定 CTE 之后的真实动词。正则或自写解析器都不如引擎词法可靠。
 - 决策二：只读动词集合不变（`SELECT`/`VALUES`/`TABLE` 等），`WITH ... DELETE/INSERT/UPDATE` 仍然 `SQL_UNSUPPORTED`；白名单仍是主边界，CTE 只是把「首关键字」换成「CTE 之后的关键字」。
 - 决策三：结构无法识别时 **fail closed**：括号不闭合、缺 `AS`、CTE 后直接跟 `(` 都拒绝，不猜测。
-- 决策四：tokenizer 不可用（注入的 database 没实现 `tokenize`，或词法报错）时退回 ADR-061 的严格白名单，`supportedFeatures` 不含 `cte`。能力声明必须反映实际可用的边界。
+- 决策四：tokenizer 不可用（注入的 database 没实现 `tokenize`，或词法报错）时退回 ADR-065 的严格白名单，`supportedFeatures` 不含 `cte`。能力声明必须反映实际可用的边界。
 - 后果：浏览器端 `WITH ... SELECT` 与递归 CTE 可用并有测试；`probe:wasm` 同时断言只读 CTE 返回结果、写 CTE 被拒绝。代价是分类逻辑依赖 tokenizer 的存在。
 
 ## ADR-058：ID 反向索引整份载入内存，而不是逐条二分
@@ -601,6 +601,27 @@
 - 决策三：策略未固定密钥时报 `INVALID_ARGUMENT`——没有信任集合时，「至少 2 个签名」无法定义谁算数。
 - 决策四：结果中返回 `trustedKeyIds`（实际签名的固定密钥），区分「有效签名」与「来自受信方的有效签名」。
 - 后果：多签从「一起签」扩展到「按方数验收」。证书链（根密钥授权中间密钥）仍未实现：它需要有效期、吊销与信任锚的部署决策，属于另一个 ADR。
+
+## ADR-067：浏览器物化预算分单表与整包两层，且在建库前检查
+
+- 状态：Accepted and implemented
+- 背景：`bench:wasm` 实测物化内存约为 Parquet 的 4 倍。沿用 Node 的 256 MiB 单表上限，一个表就可能占 ~1 GB；而只设单表上限时，10 张表的包仍能申请 ~2.5 GB。
+- 决策一：浏览器默认 `maxTableBytes = 64 MiB`（≈256 MB 内存），Node 256 MiB；整包默认浏览器 128 MiB、Node 512 MiB。差异写进 README 与适配器文档，不假装两端一致。
+- 决策二：两端都新增 `maxTotalTableBytes`（浏览器 128 MiB、Node 512 MiB，均为两张表）。整包合计在 `open()` 的**最前面**检查：浏览器端先于 WASM 与扩展加载，Node 端先于 DuckDB 实例与临时目录创建。
+- 决策三：两层都可覆盖。错误统一为 `RESOURCE_INTEGRITY_FAILED`，`details` 带 `bytes` 与对应的上限字段，调用方能区分「单表过大」和「整包过大」。
+- 决策四：这是**声明字节**预算，不是运行时内存测量；它挡的是明显不合理的包，不承诺精确的峰值内存。
+- 后果：默认配置下最坏约 512 MB 物化内存，且超预算在读取任何数据前失败。测试覆盖单表、整包、覆盖值三条路径，其中整包检查用「无效 worker URL」证明没有进入 WASM 加载阶段。
+
+## ADR-062：根密钥授权是单层委托，签名覆盖授权记录
+
+- 状态：Accepted（SDK 已实现；CLI 的 `authorize` 命令尚未提供）
+- 背景：每次换发布密钥都要求消费者更新固定指纹并不现实。需要「消费者固定一个 root，root 授权具体发布密钥」的机制。
+- 决策一：`ManifestAuthorization` 由 root 私钥签名，覆盖 root/发布方双方的指纹与公钥、以及 `validFrom`/`validUntil`。有效期让旧发布密钥自然退场，不需要吊销列表。
+- 决策二：授权记录**进入 manifest 签名载荷**（签名只排除 `signature/signatures`）。否则攻击者可以替换授权列表；因此改授权会同时破坏两层签名，测试已覆盖。
+- 决策三：单层委托，不支持链式 `root → intermediate → signer`。层级链需要吊销、路径约束与信任锚策略，属于 PKI 范畴；没有部署方之前实现它只会得到一套无人验证的结构。
+- 决策四：无吊销列表。有效期到期即失效；提前作废需要重新签发（并由发布方重新签名 manifest）。
+- 决策五：`trustedRootKeyIds` 与 `trustedKeyIds` 是两套独立信任模式，可同时给出（AND）。`authorizations` 不会被当作「有效签名」计入 `minimumTrustedSignatures`。
+- 后果：消费者可以固定长期 root，发布密钥按季度轮换。未做：CLI `authorize`、多级链、吊销、以及 root 本身的轮换策略。
 
 ## 明确禁止的未经验证声明
 

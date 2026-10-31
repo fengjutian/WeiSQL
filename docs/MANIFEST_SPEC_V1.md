@@ -173,6 +173,23 @@ interface ManifestSignature {
 - 签名不是 L1–L3 的一部分：它证明「发布后未被篡改」，发布者身份需要调用方固定 `keyId`（SDK 不内置信任库）；
 - 资源文件通过 Manifest 中的 SHA-256 被间接覆盖：改了任何一个资源，签名即失效。
 
+### 根密钥授权（可选）
+
+```ts
+interface ManifestAuthorization {
+  algorithm: "ed25519";
+  rootKeyId: string;      // root 公钥指纹
+  rootPublicKey: string;  // base64 SPKI
+  keyId: string;          // 被授权的签名密钥
+  publicKey: string;
+  validFrom: string;      // ISO，含起点
+  validUntil: string;     // ISO，不含终点
+  value: string;          // root 对授权内容的签名
+}
+```
+
+`authorizations: ManifestAuthorization[]`（1–8 个）让消费者只固定 **root** 指纹，用 `trustedRootKeyIds` 验签：只要有一条有效授权链指向某个已签名的密钥，签名就被接受。授权内容覆盖双方指纹、公钥与有效期，因此不能被挪用到别的密钥或延长期限。授权记录本身也在 manifest 签名的覆盖范围内——改它会同时破坏 manifest 签名与授权签名。
+
 ### 多签名与密钥轮换
 
 Manifest 可以声明 `signatures: ManifestSignature[]`（1–8 个）代替单个 `signature`，两者不能同时出现。语义是**全部签名都必须有效**；信任检查放宽为「至少一个签名来自固定的 `keyId`」。

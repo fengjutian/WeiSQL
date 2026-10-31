@@ -13,7 +13,7 @@ const metrics = new Set(["cosine", "l2", "ip"]);
 export function validateManifest(input: unknown): WeiSQLManifest {
   const issues: Issue[] = [];
   if (!record(input)) fail([{ path: "$", message: "manifest must be an object" }]);
-  allowed(input, ["format", "formatVersion", "datasetId", "tables", "vectorCollections", "textIndexes", "signature", "signatures", "metadata"], "$", issues);
+  allowed(input, ["format", "formatVersion", "datasetId", "tables", "vectorCollections", "textIndexes", "signature", "signatures", "authorizations", "metadata"], "$", issues);
   if (input.format !== "weisql") issue(issues, "$.format", "must equal 'weisql'");
   if (input.formatVersion !== "1.0.0") {
     if (typeof input.formatVersion === "string") throw new WeiSQLError("FORMAT_VERSION_UNSUPPORTED", `Unsupported manifest format version '${input.formatVersion}'`, { supported: "1.0.0" });
@@ -43,6 +43,7 @@ export function validateManifest(input: unknown): WeiSQLManifest {
   }
   signatureValue(input.signature, "$.signature", issues);
   signaturesValue(input.signatures, "$.signatures", issues);
+  authorizationsValue(input.authorizations, "$.authorizations", issues);
   if (input.signature !== undefined && input.signatures !== undefined) {
     issue(issues, "$.signatures", "cannot be combined with $.signature; use one form");
   }
@@ -153,6 +154,36 @@ function signaturesValue(value: unknown, path: string, issues: Issue[]): void {
     signatureValue(item, `${path}[${index}]`, issues);
     if (record(item) && typeof item.keyId === "string") {
       if (keyIds.has(item.keyId)) issue(issues, `${path}[${index}].keyId`, "duplicates another signature key");
+      keyIds.add(item.keyId);
+    }
+  });
+}
+
+function authorizationsValue(value: unknown, path: string, issues: Issue[]): void {
+  if (value === undefined) return;
+  if (!Array.isArray(value)) { issue(issues, path, "must be an array"); return; }
+  if (value.length === 0) issue(issues, path, "must contain at least one authorization");
+  if (value.length > 8) issue(issues, path, "must contain at most 8 authorizations");
+  const keyIds = new Set<string>();
+  value.forEach((item, index) => {
+    const itemPath = `${path}[${index}]`;
+    if (!record(item)) { issue(issues, itemPath, "must be an object"); return; }
+    allowed(item, ["algorithm", "rootKeyId", "rootPublicKey", "keyId", "publicKey", "validFrom", "validUntil", "value"], itemPath, issues);
+    if (item.algorithm !== "ed25519") issue(issues, `${itemPath}.algorithm`, "must equal 'ed25519'");
+    if (typeof item.rootKeyId !== "string" || !/^sha256:[a-f0-9]{64}$/.test(item.rootKeyId)) issue(issues, `${itemPath}.rootKeyId`, "must be a sha256:<hex> fingerprint");
+    if (typeof item.keyId !== "string" || !/^sha256:[a-f0-9]{64}$/.test(item.keyId)) issue(issues, `${itemPath}.keyId`, "must be a sha256:<hex> fingerprint");
+    for (const field of ["rootPublicKey", "publicKey", "value"] as const) {
+      const raw = item[field];
+      if (typeof raw !== "string" || !/^[A-Za-z0-9+/]+={0,2}$/.test(raw)) issue(issues, `${itemPath}.${field}`, "must be a base64 string");
+      else if (base64Length(raw) !== (field === "value" ? 64 : 44)) issue(issues, `${itemPath}.${field}`, `must decode to ${field === "value" ? 64 : 44} bytes`);
+    }
+    const from = typeof item.validFrom === "string" ? Date.parse(item.validFrom) : Number.NaN;
+    const until = typeof item.validUntil === "string" ? Date.parse(item.validUntil) : Number.NaN;
+    if (Number.isNaN(from)) issue(issues, `${itemPath}.validFrom`, "must be an ISO timestamp");
+    if (Number.isNaN(until)) issue(issues, `${itemPath}.validUntil`, "must be an ISO timestamp");
+    if (!Number.isNaN(from) && !Number.isNaN(until) && from >= until) issue(issues, `${itemPath}.validUntil`, "must be after validFrom");
+    if (typeof item.keyId === "string") {
+      if (keyIds.has(item.keyId)) issue(issues, `${itemPath}.keyId`, "duplicates another authorization");
       keyIds.add(item.keyId);
     }
   });

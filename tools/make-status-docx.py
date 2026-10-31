@@ -181,13 +181,13 @@ def build(target: Path):
     style_run(run, size=22, bold=True, color=ACCENT)
 
     subtitle = document.add_paragraph()
-    run = subtitle.add_run("2026-10-31 · 仓库 HEAD ddee911 · 240 个自动化测试 · 尚未发布 npm")
+    run = subtitle.add_run("2026-10-31 · 仓库 HEAD ddee911 · 239 个自动化测试 · 尚未发布 npm")
     style_run(run, size=10, color=MUTED)
 
     document.add_heading("1. 一句话状态", level=1)
     paragraph = document.add_paragraph()
     run = paragraph.add_run(
-        "工程原型。Manifest V1 与数据包格式稳定，四个包共 240 个自动化测试，CI 覆盖构建、类型、测试与发布元数据；"
+        "工程原型。Manifest V1 与数据包格式稳定，四个包共 239 个自动化测试，CI 覆盖构建、类型、测试与发布元数据；"
         "精确检索、ANN、全文、融合、RAG 与单文件容器均有实现与实测数字。尚未发布 npm 包，也没有任何未经测量的性能承诺。"
     )
     style_run(run, size=10.5)
@@ -196,7 +196,7 @@ def build(target: Path):
         document,
         ["维度", "状态"],
         [
-            ["测试", "240 个全绿（SDK 179 / DuckDB 20 / USearch 13 / CLI 27）"],
+            ["测试", "239 个全绿（SDK 179 / DuckDB 20 / USearch 13 / CLI 27）"],
             ["CI", "GitHub Actions：Ubuntu + Windows 行为闸门，另有派生索引与容器作业"],
             ["许可证", "Apache-2.0（根目录与每个包内各一份）"],
             ["发布", "未发布 npm 包（缺组织与访问令牌）"],
@@ -257,7 +257,7 @@ def build(target: Path):
             ["@weisql/duckdb-adapter", "20", "只读边界、参数绑定、两种表加载、取消"],
             ["@weisql/usearch-adapter", "13", "度量映射、持久化索引、后过滤、生命周期"],
             ["@weisql/cli", "27", "校验退出码、--json、pack、unpack、容器校验、--l4"],
-            ["合计", "240", ""],
+            ["合计", "239", ""],
         ],
         widths=[4.6, 1.8, 9.4],
     )
@@ -368,7 +368,7 @@ def build(target: Path):
         document,
         ["检查项", "状态"],
         [
-            ["测试 / 类型 / 构建", "✓ 240 测试，typecheck 通过"],
+            ["测试 / 类型 / 构建", "✓ 239 测试，typecheck 通过"],
             ["打包内容", "✓ 仅 dist/ + README + LICENSE，无 src/test 泄漏"],
             ["依赖范围", "✓ caret 且跟踪本地版本"],
             ["许可证", "✓ Apache-2.0（根 + 每包）"],

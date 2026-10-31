@@ -58,6 +58,11 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   `ContainerReader` and `StreamingContainerReader` with an HTTP Range source.
 - Container format 1.1.0: optional per-entry gzip (`compress: true`), with
   digests computed over the decompressed content.
+- The tested WASM vector modules ship inside the package under `wasm/`:
+  `wasmArtifactUrl("exact" | "hnsw")` resolves `weisql_vector_wasm.wasm` and
+  `weisql_vector_hnsw_wasm.wasm`; `wasm/artifacts.json` records size, SHA-256,
+  ABI version and required exports. `npm run embed:wasm` refreshes them and
+  `release:check` rejects a package whose bytes disagree with the manifest.
 
 ### `@weisql/cli` 0.1.0
 
@@ -141,9 +146,24 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   filters by widening the candidate window and marks results incomplete.
 - Persisted index loading rejects a different USearch major version instead of
   risking a silently misread index.
+- A persisted index without `connectivity` / `expansion_add` /
+  `expansion_search` is rejected with `RESOURCE_INTEGRITY_FAILED` instead of
+  falling back to adapter defaults (ADR-029).
 
 ### Tooling (not published)
 
+- `tools/build-ann-index.mjs` builds either backend with one command:
+  `--engine usearch` writes a USearch index, `--engine hnsw` runs the HNSW WASM
+  module; both record `index.params` and a real digest in the Manifest.
+  `--recall-samples/--recall-top-k/--min-recall` sample deterministic rows and
+  gate the build on Recall@K against an exact scan.
+- `tools/embed-wasm.mjs` embeds both WASM artifacts into `@weisql/sdk/wasm` and
+  writes `artifacts.json`; `--check` is used by `release:check` and `prepack`.
+- `tools/cdn-probe.mjs` (`npm run probe:cdn`) checks CORS, `206`,
+  `Content-Range`, `Content-Length`, `Accept-Ranges` and exposed headers on a
+  deployed package; `docs/CDN_ACCEPTANCE.md` records the checklist.
+- `bench:recall` accepts `--output <report.json>` and `--min-recall <n>` so a
+  real-embedding run produces a reproducible acceptance record.
 - Deterministic fuzz tests for the Manifest and container parsers: every input
   must either succeed or throw a `WeiSQLError` with a documented code.
 - Apache-2.0 license, with a copy in the repository root and inside every
@@ -281,9 +301,13 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - `tools/bench/hnsw-dataset.mjs` (`npm run bench:hnsw-dataset`) measures the WASM
   HNSW engine at scale against a JavaScript exact scan: build time, index bytes,
   p50/p95 for both engines and Recall@K. It accepts raw little-endian `.f32`
-  embeddings via `--file`, so the same command works on real data. Baseline:
-  10k×32 builds in 2.1 s, 0.25 ms p50 vs 3.67 ms exact, Recall@10 = 1.00;
-  50k×64 builds in 42 s, 0.60 ms vs 24.2 ms, Recall@10 = 0.997.
+  embeddings via `--file`, so the same command works on real data, and
+  `--distribution random` generates the harder uniform direction case. Baseline:
+  10k×32 clustered builds in 2.1 s with Recall@10 = 1.00; 10k×256 random takes
+  61.8 s and lands at Recall@10 = 0.95 (1.05 ms vs 9.49 ms exact); 50k×64
+  clustered builds in 42 s at Recall@10 = 0.997. `docs/HNSW_EVALUATION.md` is the
+  runbook for real embeddings: data layout, commands, what each field means, a
+  results template, and the limits that make synthetic numbers non-transferable.
 - `createWasmVectorAdapter()`: a `VectorAdapter` over that artifact. It caches
   one materialised `Float32Array` per collection, compacts `allowedRows` before
   the scan so filtered results stay exact, and maps rows back to business IDs

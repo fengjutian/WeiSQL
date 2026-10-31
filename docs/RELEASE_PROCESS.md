@@ -55,8 +55,9 @@
 npm ci                      # 锁定文件必须干净可复现
 npm run build
 npm run typecheck
-npm test                    # SDK 169 + DuckDB 19 + USearch 12 + CLI 20
-npm run release:check       # 打包元数据、发布可见性（access）、仓库字段、依赖范围（含 peer）、README、dist 产物
+npm test
+npm run embed:wasm:check    # 两个 .wasm 与 artifacts.json 的尺寸/SHA-256/ABI 一致
+npm run release:check       # 打包元数据、wasm 产物、发布可见性（access）、仓库字段、依赖范围（含 peer）、README、dist 产物
 node packages/cli/dist/bin.js validate examples/fixture --l4   # L1–L4 全链路
 ```
 
@@ -67,6 +68,8 @@ npm run probe:browser       # 浏览器路径（需要 Chromium）
 npm run probe:playground
 npm run probe:parity        # Node ↔ Chromium 语义对照
 npm run bench -- --ann      # 刷新基准与召回口径
+npm run probe:cdn -- --manifest https://cdn.example.com/pkg/manifest.json  # 部署后的 CORS/Range 头
+npm run bench:recall -- --embeddings real.npy --output recall.json --min-recall 0.9
 ```
 
 人工检查：
@@ -85,7 +88,7 @@ npm run release:e2e           # pack, install the tarballs in a temp project, ru
 npm run release:publish       # preflight + per-package `npm publish --dry-run`
 ```
 
-确认产物只包含 `dist/`、`README.md`、`package.json`，不包含源码、`node_modules` 或测试。
+确认 `@weisql/sdk` 的产物包含 `dist/`、`wasm/`（两个 `.wasm` + `artifacts.json`）、`README.md` 与 `package.json`；其余包只包含 `dist/`、`README.md`、`package.json`。任何包都不应包含源码、`node_modules` 或测试。
 
 `release:e2e` 补的是静态列表看不到的问题：包装后的 `exports` 是否可解析、运行期依赖是否声明完整。它需要一个临时目录并从 registry 安装 `@duckdb/node-api`，所以不在默认测试里跑。
 

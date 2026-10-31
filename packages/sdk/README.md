@@ -16,6 +16,8 @@ WeiSQL AI 的只读 TypeScript SDK。当前版本提供：
 - `Sha256` / `sha256Hex()`：零依赖增量 SHA-256，浏览器与 Node.js 共用。
 - `buildPackage()`：Builder 首版，从已有 Parquet、向量和业务 ID 生成完整数据包并自检后原子发布。
 - `vector.search(..., { filter, strategy })`：`exact-filter-first`（过滤先于 Top-K，可声明 `exact`）与 `vector-first`（有界候选窗口，诊断如实标注 `exact`）。
+- `createWasmVectorAdapter()` / `createHnswWasmVectorAdapter()`：精确与 HNSW 两种 WASM 向量 Adapter；两个 `.wasm` 随包发布，用 `wasmArtifactUrl("exact" | "hnsw")` 取得 URL。
+- `wasm/artifacts.json`：模块尺寸、SHA-256、ABI 版本与必需导出；`release:check` 会拒绝与清单不一致的字节。
 
 注入 `resourceReader` 后，`vector.search()` 执行完整闭环（Range 读取 → Float32 解码
 → 距离扫描 → Top-K → Indexed ID Map → 业务 ID），诊断中标记 `exact: true`。
@@ -27,8 +29,8 @@ CORS、Range 和缓存验收。
 
 `open({ verifyChecksums })` 的三种策略：`none` 不访问资源，`manifest` 只校验长度，
 `all` 增量哈希并校验 ID Map。L3 校验在 Adapter 接触资源之前完成，需要同时提供
-`resourceReader`。精确向量基线只用于语义验证和后续 Adapter 对照；ANN 索引和大规模
-性能验证尚未完成。
+`resourceReader`。精确向量基线用于语义验证与 Adapter 对照；USearch 与 HNSW 的索引
+构建、Manifest 持久化加载均已实现，真实语料上的 Recall@K 仍需单独测量。
 
 `IndexedIdMapReader.getIdsByRows()` 会拒绝重复或非法行号、合并连续候选行并恢复调用顺序；精确搜索验证向量块连续完整覆盖，并只在距离扫描完成后为最终 Top-K 解析业务 ID。测试使用 Node.js 内置测试运行器，可执行 `npm test` 或 `npm run test:watch`。
 
@@ -74,6 +76,17 @@ await db.close();
 ```
 
 `sql()` 需要注入实现了 `SqlAdapter` 的引擎适配器；本包只定义契约，不包含 DuckDB 或 DuckDB-Wasm 实现。Node.js 端可直接使用独立包 `@weisql/duckdb-adapter`（`createDuckDbAdapter()`）。
+
+WASM 向量 Adapter 不需要自己找产物：
+
+```ts
+import { readFile } from "node:fs/promises";
+import { createWasmVectorAdapter, wasmArtifactUrl } from "@weisql/sdk";
+
+const adapter = await createWasmVectorAdapter({ module: await readFile(wasmArtifactUrl("exact")) });
+```
+
+`wasmArtifactUrl("hnsw")` 指向 HNSW 模块；浏览器端把 `readFile` 换成 `fetch` 即可。包的 `wasm/artifacts.json` 记录每个模块的尺寸、SHA-256、ABI 版本与必需导出。
 
 打开时可要求 L3 校验：
 

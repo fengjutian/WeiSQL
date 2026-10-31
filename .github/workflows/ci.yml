@@ -35,6 +35,7 @@ jobs:
       - run: npm run build
       - run: npm run typecheck
       - run: npm test
+      - run: npm run embed:wasm:check
       - run: npm run release:check
       - run: npm run release:pack
       - run: npm run bench:self-test

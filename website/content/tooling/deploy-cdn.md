@@ -104,11 +104,21 @@ curl -sI -H "Origin: https://app.example.com" \
 
 静态数据包默认可以被任何人下载。不要把 API Key、访问令牌、私钥或私密数据放进包；签名只证明「Manifest 由对应私钥签署」，不提供加密或访问控制。SHA-256 用于检测内容是否与 Manifest 声明一致，不证明发布者身份。访问控制应由托管层负责。
 
+### 部署后验收
+
+```bash
+npm run probe:cdn -- \
+  --manifest https://cdn.example.com/weisql/docs/manifest.json \
+  --origin https://docs.example.com
+```
+
+探针检查 `Access-Control-Allow-Origin`、`206`、`Content-Range`、`Content-Length`、`Accept-Ranges` 以及 `Access-Control-Expose-Headers`；完整清单与失败修复见 [CDN 与 CORS 验收](https://github.com/fengjutian/WeiSQL/blob/main/docs/CDN_ACCEPTANCE.md)。真实部署结果仍应附上 `--json` 输出与版本号。
+
 ### 未验证
 
-- 真实 CDN 的 CORS、Range 与缓存行为尚未完成验收；当前只有本地静态服务与模拟 Fetch 测试；
+- 真实 CDN 的 CORS、Range 与缓存行为尚未完成验收；仓库提供 `probe:cdn`，但没有真实部署结果；
 - 多机、冷缓存与真实网络下的性能未测量；
-- 浏览器内大表与 34 MB WASM 首载时间未测量；
+- 浏览器内物化与 36.3 MB 首载已在本地 Chromium 测过，真实 CDN 网络下的数字未测；
 - 压缩容器的流式读取只验证了语义，未做大容器实测。
 
 因此本页给出的是托管要求与检查方法，不是「已在某家 CDN 验证」的结论。

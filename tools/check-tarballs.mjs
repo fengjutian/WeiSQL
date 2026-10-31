@@ -17,7 +17,7 @@ const run = promisify(execFile);
 const ROOT = path.resolve(new URL("..", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
 
 const ALLOWED_EXACT = new Set(["package.json", "README.md", "LICENSE"]);
-const ALLOWED_PREFIXES = ["dist/"];
+const ALLOWED_PREFIXES = ["dist/", "wasm/"];
 const FORBIDDEN = [/^src\//, /^test\//, /\/node_modules\//, /\.test\.[cm]?[jt]s$/, /\.ts$/];
 const FORBIDDEN_EXCEPTIONS = [/\.d\.ts$/];
 
@@ -84,8 +84,18 @@ function checkExports(manifest, directory) {
   const problems = [];
   const walk = (value, keyPath) => {
     if (typeof value === "string") {
-      if (!value.startsWith("./")) problems.push(`exports${keyPath} must start with './' (got ${value})`);
-      else if (!existsSync(path.join(directory, value))) problems.push(`exports${keyPath} points to a missing file: ${value}`);
+      if (!value.startsWith("./")) {
+        problems.push(`exports${keyPath} must start with './' (got ${value})`);
+      } else if (value.includes("*")) {
+        // Wildcard exports (e.g. "./wasm/*") name a directory, not one file.
+        // Require that directory to exist; individual files are checked by the
+        // package's own tests and release:check.
+        const prefix = value.slice(0, value.indexOf("*"));
+        const directoryPath = path.join(directory, prefix.endsWith("/") ? prefix : path.dirname(prefix));
+        if (!existsSync(directoryPath)) problems.push(`exports${keyPath} points to a missing directory: ${value}`);
+      } else if (!existsSync(path.join(directory, value))) {
+        problems.push(`exports${keyPath} points to a missing file: ${value}`);
+      }
       return;
     }
     if (value === null) {
@@ -124,6 +134,9 @@ let failed = false;
 for (const directory of await packageDirectories()) {
   const manifest = JSON.parse(await readFile(path.join(directory, "package.json"), "utf8"));
   const label = manifest.name ?? path.basename(directory);
+  // Private packages (the desktop app) are never published; npm pack would
+  // still include their sources, which is not a release problem.
+  if (manifest.private === true) continue;
   if (!existsSync(path.join(directory, "dist"))) {
     console.error(`error: ${label} has no dist directory; run "npm run build" first`);
     failed = true;

@@ -310,22 +310,45 @@ CDN + 冷缓存 + 移动网络验收。
 
 ```bash
 npm run bench:hnsw-dataset -- --rows 10000 --dim 32 --queries 50
+npm run bench:hnsw-dataset -- --distribution random --rows 10000 --dim 256 --metric cosine
 npm run bench:hnsw-dataset -- --file embeddings.f32 --rows N --dim 768 --metric cosine
 ```
 
 `--file` 读取原始小端 float32 row-major 数据（与 `.f32` dump、SDK 向量块同布局），
-因此同一命令可以直接跑真实 embedding；不带 `--file` 时生成确定性聚类数据。
+因此同一命令可以直接跑真实 embedding；不带 `--file` 时按 `--distribution` 生成确定性数据
+（`clustered` 默认，`random` 为均匀随机方向，用来观察更难的数据几何）。
 
-实测（2026-10-31，单机，`m=16 ef_construction=200 ef_search=64`，L2）：
+实测（2026-10-31，单机，`m=16 ef_construction=200 ef_search=64`）：
 
-| 规模 | 建图 | 索引字节 | HNSW p50 | HNSW p95 | 精确 JS p50 | Recall@10 |
-| --- | --- | --- | --- | --- | --- | --- |
-| 10,000 × 32 | 2.1 s | 2.27 MB | 0.25 ms | 0.37 ms | 3.67 ms | 1.000 |
-| 50,000 × 64 | 42.0 s | 19.0 MB | 0.60 ms | 0.71 ms | 24.2 ms | 0.997 |
+| 规模 | 分布 / 度量 | 建图 | 索引字节 | HNSW p50 | HNSW p95 | 精确 JS p50 | Recall@10 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 10,000 × 32 | clustered / l2 | 2.1 s | 2.27 MB | 0.25 ms | 0.37 ms | 3.67 ms | 1.000 |
+| 10,000 × 32 | random / cosine | 4.6 s | 2.62 MB | 0.34 ms | 0.53 ms | 3.73 ms | 1.000 |
+| 10,000 × 256 | random / cosine | 61.8 s | 11.7 MB | 1.05 ms | 1.56 ms | 9.49 ms | 0.950 |
+| 50,000 × 64 | clustered / l2 | 42.0 s | 19.0 MB | 0.60 ms | 0.71 ms | 24.2 ms | 0.997 |
 
-聚类数据对 HNSW 天然友好，Recall 接近 1 不代表在真实 embedding 上也成立；真实数据请用
-`--file` 复测，并把 recall 与数据几何一起报告。建图时间是单线程 WASM，原生构建会更快
-（`cargo run --example recall` 的 2000×32 为 0.24 s）。
+维度升高、方向更均匀时 Recall 会下降（256 维随机数据到 0.95），这正说明不能拿聚类数据
+的 1.00 当承诺。`--file` 路径已用一份 10k×32 的原始 f32 验证过：与 `--distribution random`
+生成的数据得到相同结果。真实 embedding 请用 `--file` 复测，并把 recall 与数据几何一起报告。
+建图时间是单线程 WASM，原生构建会更快（`cargo run --example recall` 的 2000×32 为 0.24 s）。
+
+### 3.8 真实语料 Recall 验收记录 — `bench:recall`
+
+`tools/bench/recall.mjs` 面向 USearch，读取 `.npy`（`<f4`、C order）或原始 `.f32`，采样行同时
+作为查询与 ground truth，并用精确扫描计算 Recall@K。它现在可以把结果写成验收记录，并在低于
+阈值时让命令失败：
+
+```bash
+npm run bench:recall -- \
+  --embeddings real-embeddings.npy \
+  --queries 200 --top-k 10 \
+  --output .scratch/recall-report.json \
+  --min-recall 0.9
+```
+
+报告包含 `source`、`generatedAt`、Node/平台/架构、查询数、`topK`、索引参数与 `result`
+（`recall`、p50/p95、建图时间、索引字节）。这是仓库里唯一能把「真实数据召回」从口头结论
+变成可复核记录的入口；没有真实语料时不要用合成数字替代。
 
 ## 4. 记录结果（2026-10-30，单机）
 

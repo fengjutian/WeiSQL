@@ -2,7 +2,8 @@
 // ANN evaluation harness for the pure-Rust HNSW engine.
 //
 //   node tools/bench/hnsw-dataset.mjs [--file vectors.f32 --rows N --dim D]
-//        [--metric cosine|l2|ip] [--queries 50] [--top-k 10]
+//        [--distribution clustered|random] [--metric cosine|l2|ip]
+//        [--queries 50] [--top-k 10]
 //        [--m 16] [--ef-construction 200] [--ef-search 64]
 //        [--wasm path/to/weisql_vector_hnsw_wasm.wasm]
 //
@@ -31,6 +32,7 @@ function parse(arguments_) {
     rows: 10_000,
     dimension: 32,
     metric: "l2",
+    distribution: "clustered",
     queries: 50,
     topK: 10,
     m: 16,
@@ -46,6 +48,7 @@ function parse(arguments_) {
     else if (flag === "--rows") options.rows = Number(take());
     else if (flag === "--dim") options.dimension = Number(take());
     else if (flag === "--metric") options.metric = take();
+    else if (flag === "--distribution") options.distribution = take();
     else if (flag === "--queries") options.queries = Number(take());
     else if (flag === "--top-k") options.topK = Number(take());
     else if (flag === "--m") options.m = Number(take());
@@ -55,6 +58,9 @@ function parse(arguments_) {
     else throw new Error(`unknown option ${flag}`);
   }
   if (!(options.metric in METRIC_CODES)) throw new Error(`--metric must be one of ${Object.keys(METRIC_CODES).join(", ")}`);
+  if (options.distribution !== "clustered" && options.distribution !== "random") {
+    throw new Error("--distribution must be 'clustered' or 'random'");
+  }
   for (const [name, value] of [["rows", options.rows], ["dim", options.dimension], ["queries", options.queries], ["top-k", options.topK]]) {
     if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`--${name} must be a positive safe integer`);
   }
@@ -64,7 +70,7 @@ function parse(arguments_) {
 const options = parse(process.argv.slice(2));
 
 async function loadVectors() {
-  if (options.file === undefined) return synthetic(options.rows, options.dimension);
+  if (options.file === undefined) return synthetic(options.rows, options.dimension, options.distribution);
   const bytes = await readFile(options.file);
   const expected = options.rows * options.dimension * Float32Array.BYTES_PER_ELEMENT;
   if (bytes.byteLength !== expected) {
@@ -73,15 +79,19 @@ async function loadVectors() {
   return new Float32Array(bytes.buffer, bytes.byteOffset, options.rows * options.dimension).slice();
 }
 
-function synthetic(rows, dimension) {
+function synthetic(rows, dimension, distribution) {
   let state = 7;
   const next = () => {
     state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
     return state / 4294967296 - 0.5;
   };
+  const values = new Float32Array(rows * dimension);
+  if (distribution === "random") {
+    for (let index = 0; index < values.length; index++) values[index] = next();
+    return values;
+  }
   const clusters = 8;
   const centers = Array.from({ length: clusters }, () => Array.from({ length: dimension }, () => next() * 20));
-  const values = new Float32Array(rows * dimension);
   for (let row = 0; row < rows; row++) {
     const center = centers[Math.min(clusters - 1, Math.floor((next() + 0.5) * clusters))];
     for (let column = 0; column < dimension; column++) {
@@ -202,7 +212,7 @@ exactTimes.sort((left, right) => left - right);
 const recall = total === 0 ? 0 : matched / total;
 
 console.log(`engine=weisql-hnsw-wasm`);
-console.log(`source=${options.file ?? "synthetic-clustered"}`);
+console.log(`source=${options.file ?? `synthetic-${options.distribution}`}`);
 console.log(`rows=${rows}`);
 console.log(`dimension=${dimension}`);
 console.log(`metric=${options.metric}`);

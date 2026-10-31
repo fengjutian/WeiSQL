@@ -300,8 +300,14 @@ impl HnswIndex {
 
     /// Diversity heuristic: keep a candidate only when it is closer to the
     /// query than to every neighbour already kept.
+    ///
+    /// Leftover slots are filled with the nearest rejected candidates
+    /// (`keepPrunedConnections`): an over-strict heuristic otherwise leaves
+    /// sparse nodes, which hurts recall on high-dimensional data more than the
+    /// extra links cost.
     fn select_neighbors(&self, candidates: &[Scored], m: usize) -> Vec<u32> {
         let mut selected: Vec<u32> = Vec::with_capacity(m.min(candidates.len()));
+        let mut pruned: Vec<u32> = Vec::new();
         for candidate in candidates {
             if selected.len() >= m {
                 break;
@@ -310,7 +316,15 @@ impl HnswIndex {
                 selected.iter().all(|&other| self.distance_between(candidate.id, other) >= candidate.distance);
             if diverse {
                 selected.push(candidate.id);
+            } else {
+                pruned.push(candidate.id);
             }
+        }
+        for id in pruned {
+            if selected.len() >= m {
+                break;
+            }
+            selected.push(id);
         }
         selected
     }

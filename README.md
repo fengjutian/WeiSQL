@@ -149,7 +149,7 @@ npm run test:hnsw-wasm
 npm run bench:hnsw-dataset -- --rows 10000 --dim 32
 ```
 
-`examples/recall.rs` 在 2000×32 的确定性聚类数据上打印建图耗时、p50 查询延迟与 Recall@10；`test:hnsw-wasm` 则在 1000×16 数据上验证同一引擎编译到 WASM 后仍能建图并以 Recall@10 ≥ 0.9 检索，并把图导出后导入一个**全新的模块实例**，确认同一查询的行号与距离逐位相同。`bench:hnsw-dataset` 在 WASM 里跑更大规模并同时打印精确扫描的耗时（10k×32：建图 2.1 s、p50 0.25 ms vs 3.67 ms、Recall@10 = 1.00），可用 `--file embeddings.f32` 换成真实 embedding。该索引只作为 USearch 之外的备选实现，`search()` 返回近似结果，调用方必须如实标注 `exact: false`。
+`examples/recall.rs` 在 2000×32 的确定性聚类数据上打印建图耗时、p50 查询延迟与 Recall@10；`test:hnsw-wasm` 则在 1000×16 数据上验证同一引擎编译到 WASM 后仍能建图并以 Recall@10 ≥ 0.9 检索，并把图导出后导入一个**全新的模块实例**，确认同一查询的行号与距离逐位相同。`bench:hnsw-dataset` 在 WASM 里跑更大规模并同时打印精确扫描的耗时（10k×32 聚类：建图 2.1 s、p50 0.25 ms vs 3.67 ms、Recall@10 = 1.00；10k×256 均匀随机：Recall@10 降到 0.95），可用 `--distribution random` 或 `--file embeddings.f32` 复测更难的数据与真实 embedding。该索引只作为 USearch 之外的备选实现，`search()` 返回近似结果，调用方必须如实标注 `exact: false`。真实数据怎么采、怎么记录，见 [HNSW 真实数据评估手册](docs/HNSW_EVALUATION.md)。
 
 索引用 `to_bytes()` / `from_bytes()` 持久化：自定义格式带 magic、版本、稠密邻接表、原始向量和 FNV-1a 校验；加载时逐字段校验（层级、邻居上限、ID 越界、非有限值、尾部多余字节），损坏的 buffer 直接拒绝而不是载入成一张坏图。WASM ABI 另外暴露 `weisql_hnsw_serialized_len` / `weisql_hnsw_save` / `weisql_hnsw_load`，浏览器侧因此可以缓存预建索引、跳过冷启动重建。
 

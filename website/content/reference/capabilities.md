@@ -75,8 +75,9 @@ hide_title: true
 | 取消 | 已实现 · 已测试 | `best-effort`；202 ms 查询在 50 ms abort 后 51 ms 返回，引擎未停 |
 | parquet 扩展自托管 | 已实现 · 已测试 | 498,915 B（`wasm_eh`，v1.4.3），必须同源 |
 | 两层字节预算 | 已实现 · 已测试 | 单表默认 64 MiB，整包默认 128 MiB，早于 WASM 加载 |
-| 浏览器内大表与冷启动 | 已实现 · 未验证 | 只在 Node 里测同一 WASM 构建；浏览器内存与 34 MB 首载未测 |
-| OPFS 持久化 | 未实现 | 无实现 |
+| 浏览器内大表与冷启动 | 已实现 · 部分实测 | 本地 Chromium 已测 200k/500k/1M 行与关闭缓存的 36.3 MB 首载；真实 CDN 网络未测 |
+| OPFS 持久化 | 已实现 · opt-in | `persistToOpfs`；内容派生键，命中后仍跑 L4，跨标签页用 Web Locks |
+| WASM 向量模块 | 已实现 · 随包 | exact 与 HNSW 两个 `.wasm` 在 `@weisql/sdk/wasm`，含 `artifacts.json`；浏览器实测未做 |
 
 ## Adapter
 

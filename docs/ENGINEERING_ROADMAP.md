@@ -269,7 +269,10 @@ DuckDB-Wasm 与浏览器 SQL 已验证、WASM 向量搜索仍待推进；CDN 按
 | 纯 Rust HNSW 备选 | 已实现（`crates/vector-hnsw`，零依赖、种子可复现）：分层图 + 多样性启发式；2000×32 聚类数据 Recall@10 = 1.00、p50 0.048 ms；41 KB WASM 模块；`to_bytes`/`from_bytes` 与 WASM `save`/`load` 持久化（带 FNV-1a 校验与结构校验），默认引擎仍是 USearch |
 | HNSW Adapter | `createHnswWasmVectorAdapter()` 已实现：`exactSearch: false`、`postFiltering: true`；支持 `loadIndex` 与 Manifest `vector.index`（`engine: "weisql-hnsw"`，导入时不读向量文件）；校验行数/维度/度量/引擎/版本/字节数，错配直接拒绝；对精确适配器 Recall@10 ≥ 0.9 |
 | HNSW 索引构建 | `tools/build-ann-index.mjs --engine hnsw`（`build-hnsw-index.mjs` 为兼容包装）在 WASM 中建图并写回 `indexes/<collection>.hnsw` 与 Manifest `index`；支持 `--recall-samples/--recall-top-k/--min-recall` 抽样自检召回，包级探针覆盖「建索引 → 摘要校验 → 适配器加载」闭环 |
+| HNSW 真实数据评估 | 评估工具（`bench:hnsw-dataset`，支持 `--file` 裸 f32 与 `--distribution`）与 [评估手册](HNSW_EVALUATION.md) 已就绪；仓库内只有合成数据基线，真实 embedding 的 Recall@K 仍待补 |
 | WASM 向量 Adapter | `createWasmVectorAdapter()` 已实现：整集合缓存 + `allowedRows` 压缩后精确扫描，三度量与零查询错误码均与 TypeScript 精确适配器逐字段对照 |
+| WASM 产物分发 | 两个 `.wasm` 与 `artifacts.json` 随 `@weisql/sdk` 发布；`wasmArtifactUrl()` 给出 URL，`embed:wasm` 重建，`release:check` 校验尺寸/SHA-256/ABI |
+| CDN / CORS 验收 | `probe:cdn` 已实现（206、Content-Range、暴露头、ACAO）；真实 CDN 部署仍未执行 |
 | ANN 真实数据集召回 | 未评估；现有 Recall@K 均来自合成数据，不能外推 |
 | 全文检索 | 已实现；Manifest `textIndexes`、倒排索引读取器、BM25 排序与 Unicode 分词，`text.search()` 已接入 Runtime |
 | Rust 向量能力 | 精确 Cosine/L2/IP 基线 + WASM 产物 + HNSW 备选（含 WASM 与持久化）：65 个测试通过（含 9 个跨语言黄金用例、6 个属性测试、16 个 HNSW 测试）；距离用 `f64` 返回，CI 接入 `fmt`/`clippy`/`test`/release 烟测/WASM 黄金对照 |

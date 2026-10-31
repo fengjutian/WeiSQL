@@ -257,6 +257,7 @@
 - 决策四：USearch 只能从路径加载，Adapter 因此把资源字节写到私有临时文件，`close()` 时连同临时目录一起删除。这是与 DuckDB Adapter 相同的取舍：引擎不支持内存文件系统时，落地文件是唯一可行路径。
 - 决策五：索引文件纳入 L3 校验（`declaredResources` 已包含 `index.file`），`weisql validate` 会对它做尺寸与 SHA-256 校验。索引损坏在发布前就会被发现，而不是等到检索时。
 - 后果：`tools/build-ann-index.mjs` 负责生成索引并回写 Manifest（写盘前重新 `validateManifest`）。`capabilities().persistedIndex` 对 USearch 适配器改为 `true`；未声明索引的包仍在首次检索时现场构建。
+- 实现补记（2026-10-31）：此前 USearch Adapter 的 `loadPersisted` 在 `params` 缺失时会退回 Adapter 默认值，与决策三冲突；现已改为缺 `connectivity` / `expansion_add` / `expansion_search` 时抛 `RESOURCE_INTEGRITY_FAILED`，并增加「完全缺失」与「部分缺失」两条回归测试。HNSW 的持久化格式只要求 `engine`/`version`/`file`，因为图本身携带行数、维度与度量并在导入时逐项校验。
 
 ## ADR-030：ANN 召回必须逐查询报告，均值单独出现即为误导
 

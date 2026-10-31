@@ -179,6 +179,14 @@ export interface CacheOptions {
 export interface OpenOptions {
   manifestUrl?: string; manifest?: unknown; mode?: "readonly"; verifyChecksums?: "none" | "manifest" | "all";
   fetch?: typeof globalThis.fetch; resourceReader?: ResourceReader; sqlAdapter?: SqlAdapter; vectorAdapter?: VectorAdapter; cache?: CacheOptions; signal?: AbortSignal;
+  /**
+   * Per-resource ceiling for L3 verification, in declared bytes; defaults to
+   * 64 MiB. Raising it lets a package with one large Parquet file pass checks,
+   * but verification buffers that resource in memory to hash it.
+   */
+  maxResourceBytes?: number;
+  /** Total declared-bytes ceiling for L3 verification; defaults to 512 MiB. */
+  maxTotalBytes?: number;
 }
 export interface HybridVectorSource {
   name: string;

@@ -13,8 +13,9 @@ npm run dev        # http://127.0.0.1:3000
 构建与预览：
 
 ```bash
+npm run check:snippets # 校验 content/examples 里的 TS/JS 代码块
 npm run build
-npm run serve      # 预览 build/ 产物
+npm run serve          # 预览 build/ 产物
 ```
 
 ## 目录

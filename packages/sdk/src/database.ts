@@ -521,7 +521,12 @@ async function prepare(manifest: WeiSQLManifest, options: OpenOptions): Promise<
       await verifyManifestResources({
         manifest,
         reader,
-        options: { mode, ...(options.signal === undefined ? {} : { signal: options.signal }) },
+        options: {
+          mode,
+          ...(options.signal === undefined ? {} : { signal: options.signal }),
+          ...(options.maxResourceBytes === undefined ? {} : { maxResourceBytes: options.maxResourceBytes }),
+          ...(options.maxTotalBytes === undefined ? {} : { maxTotalBytes: options.maxTotalBytes }),
+        },
       });
     }
     handedOff = true;

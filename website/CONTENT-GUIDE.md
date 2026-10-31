@@ -57,6 +57,16 @@ hide_title: true
 
 `src/theme/DocItem/Content` 会读取 `hero` 并渲染 `PageHero`；没有 `hero` 的页面保持默认标题。
 
+## 示例代码
+
+示例页的 TS/TSX/JS/JSX 代码块会被 `npm run check:snippets` 解析一遍语法，CI 在构建前执行。Vue/Svelte 代码块与带 `{ ... }` 的示意片段会跳过。
+
+新增示例后先跑：
+
+```bash
+npm run check:snippets
+```
+
 ## 侧边栏分区
 
 `sidebars.js` 有三个 sidebar：

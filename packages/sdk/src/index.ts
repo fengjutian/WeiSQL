@@ -10,6 +10,8 @@ export type { AdapterOpenOptions, ByteRange, ResourceMetadata, ResourceReader, R
 export type { SqlAdapter, SqlAdapterCapabilities, SqlAdapterOpenContext } from "./sql-adapter.js";
 export { createExactVectorAdapter } from "./vector-adapter.js";
 export type { ExactVectorAdapterOptions, VectorAdapter, VectorAdapterCapabilities, VectorAdapterOpenContext, VectorAdapterSearchRequest } from "./vector-adapter.js";
+export { createWasmVectorAdapter } from "./wasm-vector-adapter.js";
+export type { WasmVectorAdapterOptions } from "./wasm-vector-adapter.js";
 export { HttpResourceReader } from "./http-resource-reader.js";
 export type { HttpResourceReaderOptions } from "./http-resource-reader.js";
 export { CachedResourceReader } from "./cached-resource-reader.js";

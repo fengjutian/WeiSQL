@@ -8,6 +8,7 @@
     "build": "docusaurus build",
     "serve": "docusaurus serve --port 3000",
     "clear": "docusaurus clear",
+    "check:snippets": "node scripts/check-examples.mjs",
     "postinstall": "node scripts/patch-search-trimmer.mjs"
   },
   "dependencies": {
@@ -17,6 +18,9 @@
     "@mdx-js/react": "^3.1.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@babel/parser": "^7.29.12"
   },
   "engines": {
     "node": ">=20.0"

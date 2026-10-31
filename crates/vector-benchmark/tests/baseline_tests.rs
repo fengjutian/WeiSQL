@@ -1,4 +1,7 @@
-use weisql_vector_benchmark::{exact_cosine_search, validate_dataset, SearchError, MAX_TOP_K};
+use weisql_vector_benchmark::{
+    exact_cosine_search, exact_cosine_search_contiguous, exact_search, exact_search_contiguous, validate_dataset,
+    Metric, SearchError, MAX_TOP_K,
+};
 
 #[test]
 fn ranks_identical_direction_first() {
@@ -190,6 +193,107 @@ fn error_codes_match_the_typescript_taxonomy() {
 #[test]
 fn validate_dataset_reports_the_common_dimension() {
     assert_eq!(validate_dataset(&[vec![1.0, 2.0, 3.0], vec![4.0, 5.0, 6.0]]), Ok(3));
+}
+
+#[test]
+fn contiguous_matches_the_vec_api() {
+    let mut random = Lcg::new(11);
+    for &(rows, dim) in &[(1_usize, 1_usize), (7, 3), (24, 8), (16, 32)] {
+        let vectors: Vec<Vec<f32>> = (0..rows)
+            .map(|_| (0..dim).map(|_| random.next_f32() * 10.0).collect())
+            .collect();
+        let query: Vec<f32> = (0..dim).map(|_| random.next_f32()).collect();
+        let flat: Vec<f32> = vectors.iter().flatten().copied().collect();
+        for &top_k in &[1_usize, 3, 100] {
+            let expected = exact_cosine_search(&vectors, &query, top_k).unwrap();
+            let actual = exact_cosine_search_contiguous(&flat, rows, dim, &query, top_k).unwrap();
+            assert_eq!(actual, expected, "{rows}x{dim} top_k={top_k}");
+        }
+    }
+}
+
+#[test]
+fn contiguous_rejects_a_wrong_buffer_length() {
+    let err = exact_cosine_search_contiguous(&[1.0, 0.0, 2.0], 2, 2, &[1.0, 0.0], 1).unwrap_err();
+    assert_eq!(
+        err,
+        SearchError::BufferLengthMismatch {
+            rows: 2,
+            dimension: 2,
+            actual: 3
+        }
+    );
+    assert_eq!(err.code(), "VECTOR_INVALID_VALUE");
+}
+
+#[test]
+fn contiguous_rejects_empty_dataset_and_dimension() {
+    assert_eq!(
+        exact_cosine_search_contiguous(&[], 0, 2, &[1.0, 0.0], 1),
+        Err(SearchError::EmptyDataset)
+    );
+    assert_eq!(
+        exact_cosine_search_contiguous(&[], 2, 0, &[], 1),
+        Err(SearchError::EmptyDimension)
+    );
+}
+
+#[test]
+fn contiguous_rejects_invalid_top_k() {
+    assert_eq!(
+        exact_cosine_search_contiguous(&[1.0, 0.0], 1, 2, &[1.0, 0.0], 0),
+        Err(SearchError::InvalidTopK {
+            top_k: 0,
+            limit: MAX_TOP_K
+        })
+    );
+}
+
+#[test]
+fn l2_orders_by_euclidean_distance() {
+    let vectors = vec![vec![0.0, 0.0], vec![1.0, 0.0], vec![0.0, 2.0]];
+    let hits = exact_search(&vectors, &[0.0, 0.0], 3, Metric::L2).unwrap();
+    assert_eq!(hits.iter().map(|h| h.id).collect::<Vec<_>>(), vec![0, 1, 2]);
+    assert!(hits[0].distance.abs() < 1e-6);
+    assert!((hits[1].distance - 1.0).abs() < 1e-6);
+    assert!((hits[2].distance - 2.0).abs() < 1e-6);
+}
+
+#[test]
+fn ip_uses_negative_inner_product() {
+    let vectors = vec![vec![1.0, 0.0], vec![-2.0, 0.0]];
+    let hits = exact_search(&vectors, &[1.0, 0.0], 2, Metric::Ip).unwrap();
+    assert_eq!(hits.iter().map(|h| h.id).collect::<Vec<_>>(), vec![0, 1]);
+    assert!((hits[0].distance + 1.0).abs() < 1e-6);
+    assert!((hits[1].distance - 2.0).abs() < 1e-6);
+}
+
+#[test]
+fn l2_and_ip_accept_zero_vectors_but_cosine_does_not() {
+    let vectors = vec![vec![0.0, 0.0], vec![1.0, 1.0]];
+    assert!(exact_search(&vectors, &[0.0, 0.0], 2, Metric::L2).is_ok());
+    assert!(exact_search(&vectors, &[1.0, 0.0], 2, Metric::Ip).is_ok());
+    assert_eq!(
+        exact_search(&vectors, &[0.0, 0.0], 2, Metric::Cosine),
+        Err(SearchError::QueryZeroVector)
+    );
+}
+
+#[test]
+fn metric_codes_round_trip() {
+    for metric in [Metric::Cosine, Metric::L2, Metric::Ip] {
+        assert_eq!(Metric::from_code(metric.code()), Some(metric));
+    }
+    assert_eq!(Metric::from_code(3), None);
+}
+
+#[test]
+fn contiguous_l2_matches_the_vec_api() {
+    let vectors = vec![vec![0.0, 0.0], vec![1.0, 1.0], vec![-2.0, 0.5]];
+    let flat: Vec<f32> = vectors.iter().flatten().copied().collect();
+    let expected = exact_search(&vectors, &[0.0, 1.0], 3, Metric::L2).unwrap();
+    let actual = exact_search_contiguous(&flat, 3, 2, &[0.0, 1.0], 3, Metric::L2).unwrap();
+    assert_eq!(actual, expected);
 }
 
 /// Independent O(n log n) reference implementation used to cross-check the heap.

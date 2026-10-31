@@ -10,6 +10,7 @@ hero:
 hide_title: true
 ---
 
+import { CardGrid, DocCard } from "@site/src/components/docs/DocsUI";
 
 WeiSQL AI 是一个**只读数据运行时**。它把 Parquet 表、Float32 向量、ID Map 与索引打包成一个可版本化的数据包，随应用发布到静态托管或 CDN；浏览器和 Node.js 通过 HTTP Range 按需读取，不需要单独部署数据库服务。
 
@@ -17,23 +18,75 @@ WeiSQL AI 是一个**只读数据运行时**。它把 Parquet 表、Float32 向�
 构建数据包  →  上传到 CDN / 静态托管  →  open()  →  vector / text / hybrid / rag / sql
 ```
 
-## 我想……
+## 先选一条路
 
-| 目标 | 从这里开始 |
-| --- | --- |
-| 先搞清楚它适不适合我的场景 | [什么是 WeiSQL AI](/docs/start/what-is-weisql) |
-| 5 分钟内跑起来 | [快速开始](/docs/start/quickstart) |
-| 理解数据包、Manifest、L1–L4 | [核心概念](/docs/start/concepts) |
-| 看整体分层与请求链路 | [架构](/docs/architecture) |
-| 查公开 API 的签名与选项 | [API 参考](/docs/api) |
-| 找可复制的最小示例 | [示例](/docs/examples) |
-| 查技术选型与版本 | [技术栈](/docs/start/tech-stack) |
-| 在 Node.js 里查向量 / SQL | [打开与生命周期](/docs/sdk/open-and-lifecycle)、[SQL 查询](/docs/sdk/sql) |
-| 在浏览器里做检索 | [资源读取与缓存](/docs/sdk/resource-readers)、[DuckDB-Wasm](/docs/adapters/duckdb-wasm) |
-| 构建并校验自己的数据包 | [构建数据包](/docs/tooling/build-package)、[CLI](/docs/tooling/cli) |
-| 部署到 CDN / Netlify | [部署到 CDN](/docs/tooling/deploy-cdn) |
-| 看哪些能力还没验证 | [限制与路线](/docs/reference/limitations) |
-| 先问边界与常见疑问 | [常见问题](/docs/reference/faq) |
+<CardGrid columns={3}>
+  <DocCard title="先判断适不适合" index="01" to="/docs/start/what-is-weisql">
+
+用三个“没有”和适用/不适用场景，判断是否该继续。
+
+</DocCard>
+  <DocCard title="5 分钟跑通" index="02" to="/docs/start/quickstart">
+
+用 fixture 打开数据包，跑第一条向量查询。
+
+</DocCard>
+  <DocCard title="理解核心概念" index="03" to="/docs/start/concepts">
+
+数据包、Manifest、L1–L4 与一次查询的完整链路。
+
+</DocCard>
+  <DocCard title="直接抄代码" index="04" to="/docs/examples">
+
+Node.js、浏览器与构建发布的可复制片段。
+
+</DocCard>
+  <DocCard title="查公开 API" index="05" to="/docs/api">
+
+五个包的导入路径、签名、选项与类型约定。
+
+</DocCard>
+  <DocCard title="看整体架构" index="06" to="/docs/architecture">
+
+七层分层、查询链路、信任边界与部署形态。
+
+</DocCard>
+</CardGrid>
+
+## 更具体的任务
+
+<CardGrid columns={3}>
+  <DocCard title="Node.js 里查向量 / SQL" index="07" to="/docs/sdk/open-and-lifecycle">
+
+生命周期、Adapter 注入、`sql()` 与 `sqlStream()`。
+
+</DocCard>
+  <DocCard title="浏览器里做检索" index="08" to="/docs/sdk/resource-readers">
+
+HTTP Range、缓存、取消与 DuckDB-Wasm。
+
+</DocCard>
+  <DocCard title="构建并校验数据包" index="09" to="/docs/tooling/build-package">
+
+从 Parquet 到 Builder、文本索引与 ANN。
+
+</DocCard>
+  <DocCard title="部署到 CDN / Netlify" index="10" to="/docs/tooling/deploy-cdn">
+
+Range、CORS、缓存头与单文件容器。
+
+</DocCard>
+  <DocCard title="看还没验证的部分" index="11" to="/docs/reference/limitations">
+
+外部阻塞、设计未定与明确不做的能力。
+
+</DocCard>
+  <DocCard title="先问边界与疑问" index="12" to="/docs/reference/faq">
+
+只读、私有数据、WASM 体积与 npm 状态。
+
+</DocCard>
+</CardGrid>
 
 ## 能力速览
 
@@ -65,7 +118,7 @@ WeiSQL AI 是一个**只读数据运行时**。它把 Parquet 表、Float32 向�
 - **示例**：Node.js、浏览器、构建与发布的可复制片段
 - **适配器**：DuckDB（Node）、DuckDB-Wasm（浏览器）、USearch（ANN）
 - **工具链**：CLI、构建数据包、部署到 CDN、基准与浏览器验收
-- **参考**：Manifest 速查、能力矩阵、兼容性、限制、术语
+- **参考**：Manifest 速查、能力矩阵、兼容性、限制、常见问题、术语
 - **工程**：文档框架选型 ADR
 
 规范与决策记录保留在仓库 [`docs/`](https://github.com/fengjutian/WeiSQL/tree/main/docs)；本站在需要深挖时给出原文链接，不复制规范全文。

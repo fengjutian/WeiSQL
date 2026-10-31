@@ -5,7 +5,7 @@
 
 use std::str::FromStr;
 
-use weisql_vector_benchmark::exact_cosine_search;
+use weisql_vector_benchmark::{exact_cosine_search, exact_cosine_search_contiguous};
 
 const FIXTURE: &str = include_str!("fixtures/exact_cosine_golden.txt");
 
@@ -52,6 +52,13 @@ fn rust_matches_the_typescript_golden_fixture() {
                 actual.distance
             );
         }
+
+        // The WASM shim calls the contiguous entry point, so the fixture must
+        // hold for that layout too, bit for bit.
+        let flat: Vec<f32> = case.vectors.iter().flatten().copied().collect();
+        let contiguous = exact_cosine_search_contiguous(&flat, case.rows, case.dim, &case.query, case.top_k)
+            .unwrap_or_else(|error| panic!("case {} contiguous: {error}", case.name));
+        assert_eq!(contiguous, hits, "case {}: contiguous layout differs", case.name);
     }
 }
 

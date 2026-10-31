@@ -8,6 +8,17 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 
 产品文档站源码在 [`website/`](website/README.md)：首次运行 `npm run docs:install`，然后 `npm run docs:dev`；构建用 `npm run docs:build`。
 
+桌面客户端在 [`apps/desktop/`](apps/desktop/README.md)（Tauri 2 + TypeScript）：打开数据包目录或 `.wsql` 单文件，浏览表结构、执行只读 SQL、做精确向量检索与全文检索，全部在本机完成。
+
+![WeiSQL Desktop](docs/assets/desktop-client.png)
+
+```bash
+npm install
+npm run desktop:dev     # Tauri 开发模式（需要 Rust stable 与 cargo-tauri）
+npm run desktop:web     # 只跑前端，自动打开内置示例
+npm run desktop:build   # 生成安装包
+```
+
 > 当前状态：工程原型。Manifest V1 基础结构已冻结；L1/L2 校验、L3 资源完整性（尺寸 + SHA-256）、HTTP 与 Node 文件 Reader、Runtime 生命周期、TypeScript 精确向量检索、全文检索与 RRF 融合、生成真实数据包的 Builder 首版、Node.js DuckDB 只读 SQL Adapter、DuckDB-Wasm 浏览器 SQL Adapter（parquet 扩展自托管）以及 USearch ANN Adapter 均已实现并有自动化测试。浏览器 SQL 不支持 `Date`/二进制参数、ANN 在真实数据集上的召回评估与真实 CDN 部署仍未完成。项目尚未发布 npm 包，也没有未经实测的性能承诺。
 
 ## 已实现
@@ -55,6 +66,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - 流式 TypeScript 精确搜索正确性基线
 - Rust 精确 Cosine 搜索基线（单次扫描、`f64` 累加、定容最大堆）
 - TypeScript ↔ Rust 跨语言黄金对照：同一固定数据集两侧排名与距离一致（6 个用例，CI 双向校验）
+- WASM 构建（`npm run build:wasm`）：无 wasm-bindgen、无导入的 17 KB 模块，同一 fixture 第三实现对照（`npm run test:wasm-golden`）
 
 ## 尚未实现 / 未验证
 
@@ -63,7 +75,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - `db.sql()` 仍一次性返回全部行；需要增量消费时用 `db.sqlStream()`（流式 API 已提供）
 - ANN 在真实数据集上的 Recall@K 评估；ANN 后过滤的完整性保证
 - 时间戳的自动推断（需用 `--timestamp` 显式声明；嵌套 JSON 列已支持，见 [源数据转换](docs/SOURCE_CONVERSION.md)）
-- WASM 构建与浏览器端 Rust 运行时
+- WASM 产物接入 SDK Runtime / Playground（当前只做基准与黄金对照，未替换 TypeScript 精确搜索）
 - 真实 CDN（CORS、Range、缓存）与多机/冷缓存验收
 - npm 发布（元数据与发布脚本已就绪，缺 npm 组织与访问令牌）
 
@@ -101,6 +113,7 @@ npm run probe:browser
 npm run probe:wasm         # 浏览器 SQL（DuckDB-Wasm），首次会下载 parquet 扩展
 npm run probe:playground   # 打开 Playground 并断言交互结果
 npm run probe:parity       # Node 与 Chromium 结果对照（见 docs/ENVIRONMENT_PARITY.md）
+npm run probe:opfs-lock    # 双标签页 OPFS 锁：第二个页面回退内存
 npm run playground         # 手动浏览 http://127.0.0.1:8099/playground/
 ```
 
@@ -116,11 +129,15 @@ npm run test:watch
 cargo test --manifest-path crates/vector-benchmark/Cargo.toml
 cargo run --release --manifest-path crates/vector-benchmark/Cargo.toml -- 10000 128 10
 npm run test:rust-golden   # 校验提交的跨语言 fixture 仍等于 TypeScript 输出
+npm run build:wasm         # 构建 crates/vector-wasm（wasm32-unknown-unknown）
+npm run test:wasm-golden   # 用同一 fixture 校验 WASM 产物
 ```
 
-Rust 示例参数依次为向量数量、维度、Top-K 和可选的测量轮数（默认 5 轮，另有 1 轮预热）；参数非法时以退出码 2 拒绝，而不是静默回落默认值。输出包含 `best_ms`/`median_ms`/`mean_ms`/`worst_ms`。该程序是确定性正确性与基准实验入口，不是生产 ANN 引擎。CI 的 `rust vector baseline` 作业会执行 `cargo fmt --check`、`cargo clippy -D warnings`、`cargo test` 和一次 release 基准烟测。
+Rust 示例参数依次为向量数量、维度、Top-K 和可选的测量轮数（默认 5 轮，另有 1 轮预热）；参数非法时以退出码 2 拒绝，而不是静默回落默认值。输出包含 `best_ms`/`median_ms`/`mean_ms`/`worst_ms`。该程序是确定性正确性与基准实验入口，不是生产 ANN 引擎。CI 的 `rust vector baseline and wasm` 作业会执行两个 crate 的 `fmt`/`clippy`/`test`、一次 release 基准烟测，以及 WASM 构建与黄金对照。
 
 跨语言黄金对照：`tools/bench/rust-golden.mjs` 用 SDK 的 `exactVectorSearch` 把 6 个固定数据集写入 `crates/vector-benchmark/tests/fixtures/exact_cosine_golden.txt`，Rust 的 `golden_tests.rs` 在 1e-6 容差内断言相同排名与距离。修改任一侧语义都会让 `npm run test:rust-golden` 或 `cargo test` 失败；需要更新基线时运行 `node tools/bench/rust-golden.mjs --write`。
+
+WASM：[vector-wasm](crates/vector-wasm/src/lib.rs) 把 `exact_cosine_search_contiguous` 暴露为无导入的 C ABI（`weisql_alloc` / `weisql_cosine_topk` / `weisql_dealloc`，ABI v1），发布构建约 17 KB。`tools/bench/wasm-baseline.mjs` 用同一 fixture 在 Node 中实例化并逐项断言，形成 TypeScript、原生 Rust、WASM 三方一致。
 
 ## Manifest V1
 
@@ -489,6 +506,7 @@ const hits = await db.vector.search("document_embeddings", [1, 0], {
 
 ```text
 crates/vector-benchmark/   Rust 精确 Cosine 基线
+crates/vector-wasm/        WASM C ABI（无 wasm-bindgen，无导入）
 docs/                      格式、Adapter、安全、基准和路线文档
 examples/manifest/         Manifest 正例与安全负例
 examples/source/           Builder 的不可变 Parquet 输入

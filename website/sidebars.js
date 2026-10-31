@@ -39,6 +39,7 @@ const sidebars = {
         "examples/index",
         "examples/node",
         "examples/browser",
+        "examples/frameworks",
         "examples/build",
       ],
     },

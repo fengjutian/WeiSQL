@@ -58,28 +58,39 @@ jobs:
         run: node packages/cli/dist/bin.js validate examples/fixture --l4
 
   rust:
-    name: rust vector baseline
+    name: rust vector baseline and wasm
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: crates/vector-benchmark
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
 
       # The baseline is the correctness oracle for every ANN comparison, so it
       # gets the same gates as the TypeScript packages instead of relying on
       # contributors to remember `cargo test`.
       - name: Formatting
-        run: cargo fmt --check
+        run: |
+          cargo fmt --check --manifest-path crates/vector-benchmark/Cargo.toml
+          cargo fmt --check --manifest-path crates/vector-wasm/Cargo.toml
       - name: Lints
-        run: cargo clippy --all-targets -- -D warnings
+        run: |
+          cargo clippy --locked --manifest-path crates/vector-benchmark/Cargo.toml --all-targets -- -D warnings
+          cargo clippy --locked --manifest-path crates/vector-wasm/Cargo.toml --all-targets -- -D warnings
       - name: Tests
-        run: cargo test
+        run: |
+          cargo test --locked --manifest-path crates/vector-benchmark/Cargo.toml
+          cargo test --locked --manifest-path crates/vector-wasm/Cargo.toml
       - name: Benchmark smoke
-        run: cargo run --release -- 10000 128 10 2
+        run: cargo run --locked --release --manifest-path crates/vector-benchmark/Cargo.toml -- 10000 128 10 2
+
+      # Same golden fixture, third implementation: the artifact that ships to
+      # the browser must rank identically to TypeScript and to native Rust.
+      - name: Build the WASM baseline
+        run: cargo build --locked --release --target wasm32-unknown-unknown --manifest-path crates/vector-wasm/Cargo.toml
+      - name: WASM golden parity
+        run: node tools/bench/wasm-baseline.mjs
 
   derived:
     name: derived indexes and fixture determinism
@@ -181,6 +192,9 @@ jobs:
 
       - name: DuckDB-Wasm browser SQL probe
         run: npm run probe:wasm
+
+      - name: Cross-tab OPFS lock probe
+        run: npm run probe:opfs-lock
 
       - name: Playground probe (SQL, text, RAG, containers)
         run: npm run probe:playground

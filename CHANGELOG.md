@@ -106,6 +106,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   back to memory (ADR-070, ADR-071). Old entries are pruned to the current
   database plus the three newest, WAL files included. A Web Locks exclusive lock
   covers each database; a second tab gets memory instead of sharing writes.
+- `npm run probe:opfs-lock` opens two pages in one browser context and asserts
+  the second falls back to memory, then a third page reclaims the cache.
 - `db.sql(..., { maxRows })` matches the Node adapter: `SELECT`/`VALUES`/`TABLE`
   are wrapped with `LIMIT maxRows + 1` and oversized results raise
   `INVALID_ARGUMENT`; metadata statements are checked after execution.
@@ -152,7 +154,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   adapter/extension wiring, and `npm run test:contract` to hold both SQL
   adapters to one declared contract; the `verify` matrix runs the same contract
   on both operating systems. A `browser` job runs `probe:browser`,
-  `probe:wasm`, `probe:playground` and `probe:parity` on the runner's Chrome.
+  `probe:wasm`, `probe:opfs-lock`, `probe:playground` and `probe:parity` on the
+  runner's Chrome.
 - `@weisql/sdk` exports `./errors` so browser adapters can import `WeiSQLError`
   without pulling the Node-only resource readers into a bundle.
 - `npm run probe:wasm` runs the DuckDB-Wasm probe in Chromium; `npm run
@@ -206,6 +209,11 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   fixed-capacity max heap instead of a full sort, `top_k`/zero-dimension
   contracts aligned with TypeScript, and a `rust vector baseline` CI job
   (`fmt`/`clippy`/`test`/release smoke).
+- `crates/vector-wasm`: the baseline compiled to `wasm32-unknown-unknown` behind
+  a flat C ABI (`weisql_alloc` / `weisql_cosine_topk` / `weisql_dealloc`, ABI v1)
+  with no imports and no wasm-bindgen, about 17 KB stripped. The same golden
+  fixture now gates TypeScript, native Rust and the WASM artifact, and the core
+  gained `exact_cosine_search_contiguous` for zero-copy row-major buffers.
 - ANN index builder and release checks.
 - Text index builder (`tools/build-text-index.mjs`) reading the Parquet column and
   updating the Manifest.

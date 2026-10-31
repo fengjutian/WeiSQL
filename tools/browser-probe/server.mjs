@@ -41,6 +41,8 @@ export function createProbeServer(fixtureDirectory = DEFAULT_FIXTURE, containerP
     if (urlPath === "/wasm-stream-bench" || urlPath === "/wasm-stream-bench.html") return path.join(HERE, "wasm-stream-bench.html");
     if (urlPath === "/wasm-parquet-bench" || urlPath === "/wasm-parquet-bench.html") return path.join(HERE, "wasm-parquet-bench.html");
     if (urlPath === "/wasm-cold" || urlPath === "/wasm-cold.html") return path.join(HERE, "wasm-cold.html");
+    if (urlPath === "/opfs-lock" || urlPath === "/opfs-lock.html") return path.join(HERE, "opfs-lock.html");
+    if (urlPath === "/wasm-materialize-bench" || urlPath === "/wasm-materialize-bench.html") return path.join(HERE, "wasm-materialize-bench.html");
     if (urlPath === "/playground" || urlPath === "/playground/") return path.join(PLAYGROUND, "index.html");
     if (urlPath === "/parity" || urlPath === "/parity/") return path.join(HERE, "parity.html");
     if (urlPath === "/container.wsql") return containerPath;

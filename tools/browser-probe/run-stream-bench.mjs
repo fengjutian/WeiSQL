@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Measures browser SQL delivery with the real DuckDB-Wasm adapter.
  *
  *   npm run bench:wasm-stream
@@ -70,6 +70,7 @@ const fixture = path.resolve(HERE, "..", "..", "examples", "fixture");
 
 let rangeResult;
 const parquetResults = [];
+const materializeResults = [];
 try {
   rangeResult = await collect(fixture, "/wasm-stream-bench");
   if (rangeResult?.ok !== true) throw new Error(`range benchmark failed: ${JSON.stringify(rangeResult)}`);
@@ -84,6 +85,20 @@ try {
     result.rows = rows;
     result.parquetMB = Number((pkg.parquetBytes / (1024 * 1024)).toFixed(1));
     parquetResults.push(result);
+  }
+
+  // Larger sizes only measure `open()`: fetching a million rows with `db.sql`
+  // would measure the array, not the materialization curve.
+  for (const rows of [200_000, 500_000, 1_000_000]) {
+    const directory = path.join(PACKAGE_DIR, `mat-${rows}`);
+    await rm(directory, { recursive: true, force: true });
+    await mkdir(directory, { recursive: true });
+    const pkg = await writeBenchPackage(directory, rows);
+    const result = await collect(directory, "/wasm-materialize-bench", 300_000);
+    if (result?.ok !== true) throw new Error(`materialize benchmark (${rows}) failed: ${JSON.stringify(result)}`);
+    result.expectedRows = rows;
+    result.parquetMB = Number((pkg.parquetBytes / (1024 * 1024)).toFixed(1));
+    materializeResults.push(result);
   }
 } catch (error) {
   console.error(String(error).slice(0, 1200));
@@ -107,6 +122,14 @@ console.log("| rows | parquet | open() | open heap | sqlStream | first row | str
 console.log("| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
 for (const result of parquetResults) {
   console.log(`| ${result.rows} | ${result.parquetMB} MB | ${result.openMs} ms | +${result.openHeapDeltaMB ?? "-"} MB | ${result.stream.totalMs} ms (${result.stream.rowsPerSecond} rows/s) | ${result.stream.firstRowMs} ms | +${result.stream.heapDeltaMB ?? "-"} MB | ${result.materialized.totalMs} ms | +${result.materialized.heapDeltaMB ?? "-"} MB |`);
+}
+
+console.log("");
+console.log("Materialization memory curve (real Parquet, open() only):");
+console.log("| rows | parquet | open() | heap delta | engine memory | cross-origin isolated |");
+console.log("| ---: | ---: | ---: | ---: | ---: | --- |");
+for (const result of materializeResults) {
+  console.log(`| ${result.rows} | ${result.parquetMB} MB | ${result.openMs} ms | +${result.heapDeltaMB ?? "-"} MB | ${result.engineMemoryMB ?? "-"} MB | ${result.crossOriginIsolated} |`);
 }
 
 await browser.close();

@@ -1,0 +1,101 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>WeiSQL materialization benchmark</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "@duckdb/duckdb-wasm": "/vendor/@duckdb/duckdb-wasm/dist/duckdb-browser.mjs",
+          "@weisql/sdk/errors": "/sdk/errors.js",
+          "apache-arrow": "/vendor/apache-arrow/Arrow.dom.mjs",
+          "flatbuffers": "/vendor/flatbuffers/mjs/flatbuffers.js",
+          "tslib": "/vendor/tslib/tslib.es6.mjs"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <pre id="log"></pre>
+    <script type="module">
+      import { open } from "/sdk/database.js";
+      import { HttpResourceReader } from "/sdk/http-resource-reader.js";
+      import { createDuckDbWasmAdapter } from "/wasm-adapter/index.js";
+
+      const log = (message) => {
+        document.getElementById("log").textContent += `${message}\n`;
+        console.log(message);
+      };
+      const heap = () => performance.memory?.usedJSHeapSize ?? null;
+      const mb = (bytes) => (bytes === null ? null : Number((bytes / (1024 * 1024)).toFixed(1)));
+
+      /**
+       * Materializes a real Parquet table and stops there: no `db.sql` of the
+       * whole result, no streaming. The point is the memory curve of `open()`.
+       */
+      async function main() {
+        const base = new URL("/fixture/", location.href).href;
+        const adapter = createDuckDbWasmAdapter({
+          bundles: {
+            mainModule: "/vendor/@duckdb/duckdb-wasm/dist/duckdb-eh.wasm",
+            mainWorker: "/vendor/@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js",
+          },
+          extensionRepository: `${location.origin}/extensions`,
+        });
+        const before = heap();
+        const started = performance.now();
+        const db = await open({
+          manifestUrl: new URL("manifest.json", base).href,
+          resourceReader: new HttpResourceReader({ baseUrl: base }),
+          sqlAdapter: adapter,
+          verifyChecksums: "all",
+        });
+        const openMs = Math.round(performance.now() - started);
+        const after = heap();
+
+        const rows = await db.sql("select count(*) as n from documents");
+        let engineMemoryMB = null;
+        let engineSource = null;
+        try {
+          const memory = await db.sql("select sum(memory_usage_bytes) as total from duckdb_memory()");
+          const total = Number(memory[0]?.total);
+          if (Number.isFinite(total) && total > 0) {
+            engineMemoryMB = mb(total);
+            engineSource = "duckdb_memory";
+          }
+        } catch {
+          // Function may not exist in this DuckDB-Wasm build.
+        }
+        if (engineMemoryMB === null) {
+          try {
+            const size = await db.sql("select * from pragma_database_size()");
+            const total = Number(size[0]?.memory_usage);
+            if (Number.isFinite(total)) {
+              engineMemoryMB = mb(total);
+              engineSource = "pragma_database_size";
+            }
+          } catch {
+            // Keep null rather than inventing a number.
+          }
+        }
+        const result = {
+          ok: Number(rows[0].n) > 0,
+          rows: Number(rows[0].n),
+          openMs,
+          heapDeltaMB: before === null ? null : mb(Math.max(0, (after ?? 0) - before)),
+          engineMemoryMB,
+          engineSource,
+          crossOriginIsolated: globalThis.crossOriginIsolated === true,
+        };
+        log(JSON.stringify(result));
+        window.__BENCH_RESULT = result;
+        await db.close();
+      }
+
+      main().catch((error) => {
+        window.__BENCH_RESULT = { ok: false, error: `${error.name}: ${error.message}` };
+        log(String(error));
+      });
+    </script>
+  </body>
+</html>

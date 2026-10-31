@@ -24,13 +24,30 @@ pub const MAX_TOP_K: usize = 100_000;
 pub enum SearchError {
     EmptyDataset,
     EmptyDimension,
-    DimensionMismatch { expected: usize, actual: usize },
-    ZeroVector { row: usize },
-    NonFiniteValue { row: usize, dimension: usize },
+    DimensionMismatch {
+        expected: usize,
+        actual: usize,
+    },
+    ZeroVector {
+        row: usize,
+    },
+    NonFiniteValue {
+        row: usize,
+        dimension: usize,
+    },
     QueryZeroVector,
-    QueryNonFiniteValue { dimension: usize },
-    InvalidTopK { top_k: usize, limit: usize },
-    BufferLengthMismatch { rows: usize, dimension: usize, actual: usize },
+    QueryNonFiniteValue {
+        dimension: usize,
+    },
+    InvalidTopK {
+        top_k: usize,
+        limit: usize,
+    },
+    BufferLengthMismatch {
+        rows: usize,
+        dimension: usize,
+        actual: usize,
+    },
 }
 
 impl SearchError {
@@ -71,7 +88,11 @@ impl fmt::Display for SearchError {
             Self::InvalidTopK { top_k, limit } => {
                 write!(f, "top_k must be between 1 and {limit}, got {top_k}")
             }
-            Self::BufferLengthMismatch { rows, dimension, actual } => write!(
+            Self::BufferLengthMismatch {
+                rows,
+                dimension,
+                actual,
+            } => write!(
                 f,
                 "vector buffer has {actual} values but {rows} rows of {dimension} were expected"
             ),
@@ -109,7 +130,44 @@ pub fn validate_dataset(vectors: &[Vec<f32>]) -> Result<usize, SearchError> {
     Ok(dim)
 }
 
-/// Exact brute-force cosine Top-K search.
+/// Distance metric for exact search.
+///
+/// All metrics return a finite distance where smaller means more similar, and
+/// ties are broken by ascending row id.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Metric {
+    /// `1 - cosine similarity`, clamped into `[0, 2]`; rejects zero vectors.
+    Cosine,
+    /// Euclidean distance `sqrt(sum((a - b)^2))`.
+    L2,
+    /// Negative inner product `-dot(a, b)`.
+    Ip,
+}
+
+impl Metric {
+    /// Maps the WASM/FFI code: `0` cosine, `1` L2, `2` inner product.
+    #[must_use]
+    pub fn from_code(code: u32) -> Option<Self> {
+        match code {
+            0 => Some(Self::Cosine),
+            1 => Some(Self::L2),
+            2 => Some(Self::Ip),
+            _ => None,
+        }
+    }
+
+    /// Inverse of [`Metric::from_code`].
+    #[must_use]
+    pub fn code(self) -> u32 {
+        match self {
+            Self::Cosine => 0,
+            Self::L2 => 1,
+            Self::Ip => 2,
+        }
+    }
+}
+
+/// Exact brute-force cosine Top-K search over `Vec`-per-row storage.
 ///
 /// Ties are deterministically broken by ascending row ID. The scan keeps a
 /// fixed-capacity max heap, so memory is `O(top_k)` rather than `O(rows)`, and
@@ -118,13 +176,87 @@ pub fn validate_dataset(vectors: &[Vec<f32>]) -> Result<usize, SearchError> {
 /// Query validation happens before the dataset scan; a dataset with both an
 /// invalid query and an invalid row reports the query error first.
 pub fn exact_cosine_search(vectors: &[Vec<f32>], query: &[f32], top_k: usize) -> Result<Vec<Hit>, SearchError> {
+    exact_search(vectors, query, top_k, Metric::Cosine)
+}
+
+/// Exact cosine search over a single row-major buffer.
+///
+/// This is the zero-copy entry point: it reads the same layout as an on-disk
+/// Float32 block (and the WASM shim) without allocating one `Vec` per row.
+pub fn exact_cosine_search_contiguous(
+    vectors: &[f32],
+    rows: usize,
+    dimension: usize,
+    query: &[f32],
+    top_k: usize,
+) -> Result<Vec<Hit>, SearchError> {
+    exact_search_contiguous(vectors, rows, dimension, query, top_k, Metric::Cosine)
+}
+
+/// Exact Top-K search over `Vec`-per-row storage for any [`Metric`].
+pub fn exact_search(
+    vectors: &[Vec<f32>],
+    query: &[f32],
+    top_k: usize,
+    metric: Metric,
+) -> Result<Vec<Hit>, SearchError> {
+    check_top_k(top_k)?;
+    let dim = common_dimension(vectors)?;
+    search(vectors.len(), dim, vectors.iter().map(Vec::as_slice), query, top_k, metric)
+}
+
+/// Exact Top-K search over one contiguous row-major buffer for any [`Metric`].
+pub fn exact_search_contiguous(
+    vectors: &[f32],
+    rows: usize,
+    dimension: usize,
+    query: &[f32],
+    top_k: usize,
+    metric: Metric,
+) -> Result<Vec<Hit>, SearchError> {
+    check_top_k(top_k)?;
+    if rows == 0 {
+        return Err(SearchError::EmptyDataset);
+    }
+    if dimension == 0 {
+        return Err(SearchError::EmptyDimension);
+    }
+    let expected = rows.checked_mul(dimension).ok_or(SearchError::BufferLengthMismatch {
+        rows,
+        dimension,
+        actual: vectors.len(),
+    })?;
+    if vectors.len() != expected {
+        return Err(SearchError::BufferLengthMismatch {
+            rows,
+            dimension,
+            actual: vectors.len(),
+        });
+    }
+    search(rows, dimension, vectors.chunks_exact(dimension), query, top_k, metric)
+}
+
+fn check_top_k(top_k: usize) -> Result<(), SearchError> {
     if top_k == 0 || top_k > MAX_TOP_K {
         return Err(SearchError::InvalidTopK {
             top_k,
             limit: MAX_TOP_K,
         });
     }
-    let dim = common_dimension(vectors)?;
+    Ok(())
+}
+
+fn search<'a, I>(
+    rows: usize,
+    dim: usize,
+    vectors: I,
+    query: &[f32],
+    top_k: usize,
+    metric: Metric,
+) -> Result<Vec<Hit>, SearchError>
+where
+    I: Iterator<Item = &'a [f32]>,
+{
     if query.len() != dim {
         return Err(SearchError::DimensionMismatch {
             expected: dim,
@@ -132,23 +264,29 @@ pub fn exact_cosine_search(vectors: &[Vec<f32>], query: &[f32], top_k: usize) ->
         });
     }
 
+    let cosine = metric == Metric::Cosine;
+    let l2 = metric == Metric::L2;
     let mut query_norm_squared = 0.0_f64;
     for (dimension, &value) in query.iter().enumerate() {
         if !value.is_finite() {
             return Err(SearchError::QueryNonFiniteValue { dimension });
         }
-        let value = f64::from(value);
-        query_norm_squared += value * value;
+        if cosine {
+            let value = f64::from(value);
+            query_norm_squared += value * value;
+        }
     }
-    if query_norm_squared == 0.0 {
+    if cosine && query_norm_squared == 0.0 {
         return Err(SearchError::QueryZeroVector);
     }
 
-    let capacity = top_k.min(vectors.len());
+    let capacity = top_k.min(rows);
     let mut best = BinaryHeap::with_capacity(capacity);
-    for (id, vector) in vectors.iter().enumerate() {
+    for (id, vector) in vectors.enumerate() {
+        debug_assert_eq!(vector.len(), dim);
         let mut dot = 0.0_f64;
         let mut norm_squared = 0.0_f64;
+        let mut squared_distance = 0.0_f64;
         for (dimension, (&value, &query_value)) in vector.iter().zip(query).enumerate() {
             if !value.is_finite() {
                 return Err(SearchError::NonFiniteValue { row: id, dimension });
@@ -156,14 +294,26 @@ pub fn exact_cosine_search(vectors: &[Vec<f32>], query: &[f32], top_k: usize) ->
             let value = f64::from(value);
             let query_value = f64::from(query_value);
             dot += value * query_value;
-            norm_squared += value * value;
+            if cosine {
+                norm_squared += value * value;
+            }
+            if l2 {
+                let difference = value - query_value;
+                squared_distance += difference * difference;
+            }
         }
-        if norm_squared == 0.0 {
-            return Err(SearchError::ZeroVector { row: id });
-        }
-        let similarity = dot / (norm_squared * query_norm_squared).sqrt();
-        // Clamp floating point drift into the mathematical cosine range.
-        let distance = (1.0_f64 - similarity.clamp(-1.0, 1.0)) as f32;
+        let distance = match metric {
+            Metric::Cosine => {
+                if norm_squared == 0.0 {
+                    return Err(SearchError::ZeroVector { row: id });
+                }
+                let similarity = dot / (norm_squared * query_norm_squared).sqrt();
+                // Clamp floating point drift into the mathematical cosine range.
+                (1.0_f64 - similarity.clamp(-1.0, 1.0)) as f32
+            }
+            Metric::L2 => squared_distance.sqrt() as f32,
+            Metric::Ip => (-dot) as f32,
+        };
         offer(&mut best, Ranked { id, distance }, capacity);
     }
 

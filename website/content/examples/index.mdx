@@ -1,29 +1,40 @@
 ---
 title: 示例
-description: 按场景组织的可复制示例：Node.js、浏览器与数据包构建。
+description: 按场景组织的可复制示例：Node.js、浏览器、前端框架与数据包构建。
 sidebar_position: 35
 hero:
   kicker: "示例"
   title: "复制就能跑的配方"
-  lead: "不追求覆盖全部 API，只给最常见的任务：打开、检索、过滤、SQL、容器、构建与签名。"
-  chips: ["Node.js", "Browser", "Builder", "CLI"]
+  lead: "不追求覆盖全部 API，只给最常见的任务：Node.js、浏览器、前端框架、SQL、容器、构建与签名。"
+  chips: ["Node.js", "Browser", "React", "Builder", "CLI"]
 hide_title: true
 ---
 
 import { CardGrid, DocCard } from "@site/src/components/docs/DocsUI";
 
-## 三组示例
+## 四组示例
 
-<CardGrid columns={3}>
+<CardGrid columns={2}>
   <DocCard title="Node.js" index="01" to="/docs/examples/node">
-    本地目录、向量、过滤、全文、混合、RAG、SQL 与容器。
-  </DocCard>
+
+本地目录、向量、过滤、全文、混合、RAG、SQL 与容器。
+
+</DocCard>
   <DocCard title="浏览器" index="02" to="/docs/examples/browser">
-    HTTP Range、缓存、取消、流式容器与 DuckDB-Wasm。
-  </DocCard>
+
+HTTP Range、缓存、取消、流式容器与 DuckDB-Wasm。
+
+</DocCard>
   <DocCard title="构建与发布" index="03" to="/docs/examples/build">
-    CSV → Parquet、Builder、全文/ANN 索引、打包、校验与签名。
-  </DocCard>
+
+CSV → Parquet、Builder、全文/ANN 索引、打包、校验与签名。
+
+</DocCard>
+  <DocCard title="前端框架" index="04" to="/docs/examples/frameworks">
+
+React Hook、Next.js App Router、Vite 与 SSR 常见问题。
+
+</DocCard>
 </CardGrid>
 
 ## 使用方式

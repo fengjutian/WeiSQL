@@ -161,13 +161,14 @@
 
 ## ADR-020：浏览器验收用真实 Chromium 探针，DuckDB-Wasm 受扩展下载阻塞
 
-- 状态：Accepted and implemented（SDK 浏览器路径）；DuckDB-Wasm 验证阻塞
+- 状态：Accepted and implemented（SDK 浏览器路径）；DuckDB-Wasm 部分已由 ADR-065 取代
 - 决策一：不引入浏览器测试框架堆栈，而是写一个最小探针（`tools/browser-probe`）：Node 静态服务器提供 CORS + Range，Playwright 驱动本机 Chromium 打开页面，页面加载**构建产物** `packages/sdk/dist`（不经过 bundler）并执行真实查询。`npm run probe:browser` 可在失败时返回非零，可接入 CI。
 - 决策二：探针必须能证明「按 Range 读」，而不只是「跑通」。服务器记录每个 `Range` 请求并在结束时打印，避免把整文件下载误判为按需加载。
 - 决策三：`playwright-core` 只作为 devDependency，浏览器二进制复用本机 Playwright 缓存或系统 Chrome/Edge（`CHROME_PATH` 可覆盖），不下载新的浏览器。
 - 决策四：DuckDB-Wasm 的结论只按实测写。实测结果：WASM 在 Chrome 中 577 ms 完成实例化、可注册 HTTP URL，但 `read_parquet` 会从 `extensions.duckdb.org` 下载 parquet 扩展，该主机在本环境不可达，因此浏览器 SQL 路径**未验证**，不得宣称支持。
 - 后果（真实 bug）：探针首次运行即暴露 `TypeError: Failed to execute 'fetch' on 'Window': Illegal invocation` —— `globalThis.fetch` 被当作分离函数调用，浏览器拒绝、Node 的 undici 容忍。`HttpResourceReader` 与 `open()` 均已改为绑定全局接收者，`test/fetch-binding.test.js` 用会检查 `this` 的 stub 锁定该行为。
 - 后果（真实结论）：浏览器路径（Range、L3 校验、精确搜索、缓存、无 Node 全局泄漏）已在 Chrome 中通过；Netlify 部署、WASM 向量搜索与 DuckDB-Wasm 仍未验证。
+- 更新（2026-10-31）：本条关于 DuckDB-Wasm 的结论已由 ADR-065 取代。复测确认主机可达，真正的阻塞是 `extensions.duckdb.org` 不返回 CORS 头；浏览器 SQL 已通过自托管扩展实现并有 `probe:wasm` 验证。
 
 ## ADR-021：校验命令独立成包，退出码即闸门
 
@@ -274,6 +275,7 @@
 - 决策三：发布检查做成脚本（`npm run release:check`）而不是清单文档。它校验版本形状、依赖范围、`files`、`main`/`types`/`exports`、README 与 dist 产物；文档只解释「为什么」，脚本负责「是否」。
 - 决策四：LICENSE 不在脚本里自动生成或猜测，只持续警告。选许可证是法律决策，不是工程默认值。
 - 后果：首次发布前仍有 LICENSE、npm 组织、CI 三项外部阻塞；`probe:*` 与 `bench` 依赖 Chromium/Python，未纳入 CI 之前不能被当作发布闸门。
+- 更新（2026-10-31）：发布包已增至五个（新增 `@weisql/duckdb-wasm-adapter`），同步发版与 `release:check` 策略不变；CI 已建立，`bench:wasm --smoke` 已进入 derived 作业。
 
 ## ADR-032：全文检索先定评分与分词，索引格式用可核对的 JSONL
 
@@ -622,6 +624,16 @@
 - 决策四：无吊销列表。有效期到期即失效；提前作废需要重新签发（并由发布方重新签名 manifest）。
 - 决策五：`trustedRootKeyIds` 与 `trustedKeyIds` 是两套独立信任模式，可同时给出（AND）。`authorizations` 不会被当作「有效签名」计入 `minimumTrustedSignatures`。
 - 后果：消费者可以固定长期 root，发布密钥按季度轮换。未做：CLI `authorize`、多级链、吊销、以及 root 本身的轮换策略。
+
+## ADR-063：量化只做测量，不进格式
+
+- 状态：Accepted（measurement only）
+- 背景：USearch 原生支持 f16/i8 量化；问题不是「能不能做」，而是「值不值得写进格式」。
+- 决策一：先写独立基准 `bench:quantization`，用同一批向量建 f32/f16/i8 索引，报告 Recall@10 与索引体积。结果：f16 −39% 体积 / −4.5 召回点，i8 −58% / −10.5 点（50k × 128，均匀随机）。
+- 决策二：**不修改 Manifest 与 encoding**。量化是有损且不可逆的：一旦数据以 i8 写入，想换回 f32 只能重建；而真实 embedding 的召回损失尚未测量。
+- 决策三：也不给 Adapter 增加 `quantization` 选项。持久化索引必须与构建时的量化一致，否则加载即错配；这需要在 Manifest 的 `index.params` 里表达字符串，属于格式变更。
+- 决策四：记录基准中的一个反常：50k 时 HNSW 构建从 3 s 涨到 236 s。没有解释之前，不基于这个数字做任何优化决策。
+- 后果：得到可复现的「体积—召回」曲线与明确的下一步条件：提供真实语料、解释构建时间、再评估格式扩展。
 
 ## 明确禁止的未经验证声明
 

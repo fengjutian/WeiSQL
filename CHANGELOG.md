@@ -124,7 +124,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - GitHub Actions CI: build, typecheck, tests and release checks on Ubuntu and
   Windows, plus fixture reproducibility, derived indexes and container packing.
   The `derived` job also runs `bench:wasm --smoke` to catch broken
-  adapter/extension wiring.
+  adapter/extension wiring, and `npm run test:contract` to hold both SQL
+  adapters to one declared contract.
 - `@weisql/sdk` exports `./errors` so browser adapters can import `WeiSQLError`
   without pulling the Node-only resource readers into a bundle.
 - `npm run probe:wasm` runs the DuckDB-Wasm probe in Chromium; `npm run
@@ -152,6 +153,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   latency for a narrow and a broad filter.
 - `release:pack` inspects the actual `npm pack` file list for every workspace and
   fails on leaked source/test files, missing LICENSE/README, or dead exports.
+- `bench:quantization` measures f32/f16/i8 index size against Recall@K on the same
+  synthetic vectors; quantization is deliberately not part of the package format.
 - ANN index builder and release checks.
 - Text index builder (`tools/build-text-index.mjs`) reading the Parquet column and
   updating the Manifest.

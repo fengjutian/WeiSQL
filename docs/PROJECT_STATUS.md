@@ -5,7 +5,7 @@
 
 ## 1. 一句话状态
 
-工程原型：Manifest V1 与数据包格式稳定，五个包共 **307 个自动化测试**，CI 覆盖构建/类型/测试/发布元数据，精确检索、ANN、全文、融合、RAG、单文件容器与浏览器 SQL 均有实现与实测数字；**尚未发布 npm 包**，也没有任何未经测量的性能承诺。
+工程原型：Manifest V1 与数据包格式稳定，五个包共 **315 个自动化测试**，CI 覆盖构建/类型/测试/发布元数据，精确检索、ANN、全文、融合、RAG、单文件容器与浏览器 SQL 均有实现与实测数字；**尚未发布 npm 包**，也没有任何未经测量的性能承诺。
 
 ## 2. 能力矩阵
 
@@ -49,16 +49,16 @@
 | 包 | 测试数 | 覆盖重点 |
 | --- | --- | --- |
 | `@weisql/sdk` | 207 | 校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约 |
-| `@weisql/duckdb-adapter` | 20 | 只读边界、参数绑定、两种表加载、取消 |
-| `@weisql/duckdb-wasm-adapter` | 29 | 关键字白名单、CTE 分类与 fail-closed、参数类型收窄、值映射、真实 WASM 引擎集成（打开/绑定/L4/生命周期/取消） |
+| `@weisql/duckdb-adapter` | 21 | 只读边界、参数绑定、两种表加载、两层字节预算、取消 |
+| `@weisql/duckdb-wasm-adapter` | 36 | 关键字白名单、CTE 分类与 fail-closed、参数类型收窄、值映射、两层预算、取消、错误契约、真实 WASM 引擎集成 |
 | `@weisql/usearch-adapter` | 13 | 度量映射、持久化索引、后过滤、生命周期 |
 | `@weisql/cli` | 38 | 校验退出码、`--json`、`pack`/`--compress`、`unpack`、容器校验、`--l4` |
-| **合计** | **307** | |
+| **合计** | **315** | |
 
 CI（`.github/workflows/ci.yml`）：
 
 - `verify`：Ubuntu + Windows 矩阵，`npm ci` → build → typecheck → test → release:check → 示例包校验；
-- `derived`：fixture 可复现性（重生成后 `git status` 必须为空）→ 构建文本/ANN 索引并校验 → 打包容器并校验。
+- `derived`：fixture 可复现性（重生成后 `git status` 必须为空）→ 构建文本/ANN 索引并校验 → 打包容器并校验 → `bench:wasm` 冒烟 → SQL Adapter 共享契约（`test:contract`）。
 
 `probe:*` 与完整的 `bench` / `bench:wasm` **不在 CI 内**（需要 Chromium / Python / 稳定机器）；`bench:wasm --smoke` 会在 `derived` 任务里物化 1k 行，作为扩展与适配器接线的冒烟检查。浏览器与性能结论仍需本地复现并注明环境。
 
@@ -72,6 +72,7 @@ CI（`.github/workflows/ci.yml`）：
 | ANN Recall@10 | 0.385–0.740 | 均匀 0.735；紧聚类 0.385 | **强依赖数据分布**，见 §5.1 |
 | ANN 索引构建 | 2.7–15.2 s | 同上 | 构建时间随分布变化 |
 | 过滤查询（窄过滤） | p50 17.1 ms | 100k 行，尾部 1000 行 | 反向索引把 ID Map 读取从 4.0 MB 降到 480 B |
+| 量化（合成） | f16 −39% / i8 −58% | 50k × 128，均匀随机 | 召回 0.805 → 0.76 / 0.70；真实语料未测 |
 | 全文索引体积 | 74.2 MB（742 B/文档） | 100k 文档、5000 词项、50 tokens/文档 | 其中正文 33.1 MB |
 | 全文查询 p50 | 10.2–10.8 ms | 同上 | 固定开销 ≈8 ms + 每命中随机读 |
 | 全文索引构建 | 4.5 s | 同上 | 含读取 Parquet 文本列 |
@@ -128,7 +129,7 @@ CI（`.github/workflows/ci.yml`）：
 
 ## 7. 关键决策索引
 
-57 条 ADR 记录在 `docs/DECISION_LOG.md`。与外部读者最相关的是：
+66 条 ADR 记录在 `docs/DECISION_LOG.md`。与外部读者最相关的是：
 
 | ADR | 决策 |
 | --- | --- |
@@ -152,7 +153,7 @@ CI（`.github/workflows/ci.yml`）：
 
 | 检查项 | 状态 |
 | --- | --- |
-| 测试 / 类型 / 构建 | ✅ 310 测试，typecheck 通过 |
+| 测试 / 类型 / 构建 | ✅ 315 测试，typecheck 通过 |
 | 打包内容 | ✅ 仅 `dist/` + README + LICENSE，无 src/test 泄漏 |
 | 依赖范围 | ✅ caret 且跟踪本地版本 |
 | 许可证 | ✅ Apache-2.0（根 + 每包） |

@@ -8,6 +8,7 @@
     "build": "npm run build --workspace @weisql/sdk && npm run build --workspace @weisql/duckdb-adapter && npm run build --workspace @weisql/duckdb-wasm-adapter && npm run build --workspace @weisql/usearch-adapter && npm run build --workspace @weisql/cli",
     "test": "npm run build && npm run test --workspace @weisql/sdk && npm run test --workspace @weisql/duckdb-adapter && npm run test --workspace @weisql/duckdb-wasm-adapter && npm run test --workspace @weisql/usearch-adapter && npm run test --workspace @weisql/cli",
     "test:watch": "npm run build && npm run test:watch --workspace @weisql/sdk",
+    "test:contract": "npm run build && node tools/sql-contract/run.mjs",
     "typecheck": "npm run typecheck --workspace @weisql/sdk && npm run typecheck --workspace @weisql/duckdb-adapter && npm run typecheck --workspace @weisql/duckdb-wasm-adapter && npm run typecheck --workspace @weisql/usearch-adapter && npm run typecheck --workspace @weisql/cli",
     "fixture": "npm run build --workspace @weisql/sdk && node examples/build-fixture.mjs",
     "source:parquet": "python tools/make-source-parquet.py",
@@ -19,6 +20,7 @@
     "probe:parity": "node tools/browser-probe/parity.mjs",
     "bench": "node tools/bench/run.mjs",
     "bench:wasm": "node --expose-gc tools/bench/wasm.mjs",
+    "bench:quantization": "node tools/bench/quantization.mjs",
     "release:check": "node tools/release-check.mjs",
     "release:pack": "node tools/check-tarballs.mjs",
     "release:pack:self-test": "node tools/check-tarballs.mjs --self-test"

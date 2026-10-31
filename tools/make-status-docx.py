@@ -181,14 +181,14 @@ def build(target: Path):
     style_run(run, size=22, bold=True, color=ACCENT)
 
     subtitle = document.add_paragraph()
-    run = subtitle.add_run("2026-10-31 · 仓库 HEAD c267b0e · 247 个自动化测试 · 尚未发布 npm")
+    run = subtitle.add_run("2026-10-31 · 仓库 HEAD 3df8871 · 315 个自动化测试 · 尚未发布 npm")
     style_run(run, size=10, color=MUTED)
 
     document.add_heading("1. 一句话状态", level=1)
     paragraph = document.add_paragraph()
     run = paragraph.add_run(
-        "工程原型。Manifest V1 与数据包格式稳定，五个包共 307 个自动化测试，CI 覆盖构建、类型、测试与发布元数据；"
-        "精确检索、ANN、全文、融合、RAG 与单文件容器均有实现与实测数字。尚未发布 npm 包，也没有任何未经测量的性能承诺。"
+        "工程原型。Manifest V1 与数据包格式稳定，五个包共 315 个自动化测试，CI 覆盖构建、类型、测试与发布元数据；"
+        "精确检索、ANN、全文、融合、RAG、单文件容器与浏览器 SQL 均有实现与实测数字。尚未发布 npm 包，也没有任何未经测量的性能承诺。"
     )
     style_run(run, size=10.5)
 
@@ -196,11 +196,11 @@ def build(target: Path):
         document,
         ["维度", "状态"],
         [
-            ["测试", "307 个全绿（SDK 207 / DuckDB 20 / WASM 29 / USearch 13 / CLI 38）"],
-            ["CI", "GitHub Actions：Ubuntu + Windows 行为闸门，另有派生索引与容器作业"],
+            ["测试", "315 个全绿（SDK 207 / DuckDB 21 / WASM 36 / USearch 13 / CLI 38）"],
+            ["CI", "GitHub Actions：Ubuntu + Windows 行为闸门，另有派生索引、容器与 bench:wasm 冒烟作业"],
             ["许可证", "Apache-2.0（根目录与每个包内各一份）"],
             ["发布", "未发布 npm 包（缺组织与访问令牌）"],
-            ["实测", "精确向量、ANN（含分布对照）、全文（含体积拆分）、浏览器一致性"],
+            ["实测", "精确向量、ANN（含分布对照）、全文（含体积拆分）、浏览器一致性、DuckDB-Wasm 物化"],
         ],
         widths=[3.2, 12.6],
     )
@@ -219,6 +219,7 @@ def build(target: Path):
             ["精确向量检索", "✓", "✓", "✓", "129–152 ms p50 @100k×128"],
             ["Hybrid 过滤两策略（等值/IN/范围/日期）", "✓", "✓", "✓", "—"],
             ["DuckDB 只读 SQL（memory / lazy）", "✓", "✓", "✓", "—"],
+            ["DuckDB-Wasm 浏览器 SQL（含只读 CTE）", "✓", "✓ + 探针", "✓", "open() 1.37–1.70 s，查询 < 50 ms"],
             ["USearch ANN（持久化 / 现场构建）", "✓", "✓", "✓", "0.385–0.740 Recall@10"],
             ["ANN 后过滤（显式可选）", "✓", "✓", "✓", "—"],
             ["全文检索 BM25", "✓", "✓", "✓", "p50 ≈10.5 ms @100k 文档"],
@@ -240,6 +241,7 @@ def build(target: Path):
         [
             ["@weisql/sdk", "0.1.0", "无"],
             ["@weisql/duckdb-adapter", "0.1.0", "@duckdb/node-api 2.0.0-r.1"],
+            ["@weisql/duckdb-wasm-adapter", "0.1.0", "@duckdb/duckdb-wasm 1.32.0"],
             ["@weisql/usearch-adapter", "0.1.0", "usearch 2.26.5"],
             ["@weisql/cli", "0.1.0", "@weisql/sdk"],
         ],
@@ -255,11 +257,11 @@ def build(target: Path):
         ["包", "测试数", "覆盖重点"],
         [
             ["@weisql/sdk", "207", "校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约"],
-            ["@weisql/duckdb-adapter", "20", "只读边界、参数绑定、两种表加载、取消"],
-            ["@weisql/duckdb-wasm-adapter", "29", "关键字白名单、参数类型收窄、真实 WASM 引擎集成"],
+            ["@weisql/duckdb-adapter", "21", "只读边界、参数绑定、两种表加载、两层字节预算、取消"],
+            ["@weisql/duckdb-wasm-adapter", "36", "关键字白名单、CTE 分类、值映射、两层预算、取消、错误契约、真实 WASM 集成"],
             ["@weisql/usearch-adapter", "13", "度量映射、持久化索引、后过滤、生命周期"],
             ["@weisql/cli", "38", "校验退出码、--json、pack、unpack、容器校验、--l4"],
-            ["合计", "307", ""],
+            ["合计", "315", ""],
         ],
         widths=[4.6, 1.8, 9.4],
     )
@@ -267,8 +269,8 @@ def build(target: Path):
         document,
         [
             "verify 作业：Ubuntu + Windows 矩阵，npm ci → build → typecheck → test → release:check → 示例包校验。",
-            "derived 作业：fixture 可复现性（重生成后 git status 必须为空）→ 构建文本/ANN 索引并校验 → 打包容器 → 解包后再次校验。",
-            "probe:* 与 bench 不在 CI 内：需要 Chromium / Python / 稳定机器，因此浏览器与性能结论必须在本地复现并注明环境。",
+            "derived 作业：fixture 可复现性（重生成后 git status 必须为空）→ 构建文本/ANN 索引并校验 → 打包容器 → 解包后再次校验 → bench:wasm 冒烟（1k 行物化）。",
+            "probe:* 与完整 bench 不在 CI 内：需要 Chromium / Python / 稳定机器，因此浏览器与性能结论必须在本地复现并注明环境。",
         ],
     )
 
@@ -283,10 +285,13 @@ def build(target: Path):
             ["ANN Recall@10", "0.385–0.740", "均匀 0.735；紧聚类 0.385", "强依赖数据分布"],
             ["ANN 索引构建", "2.7–15.2 s", "同上", "构建时间随分布变化"],
             ["过滤查询（窄过滤）", "p50 17.1 ms", "100k 行，尾部 1000 行", "反向索引把 ID Map 读取从 4.0 MB 降到 480 B"],
+            ["量化（合成）", "f16 −39% / i8 −58% 体积", "50k × 128，均匀随机", "召回 0.805 → 0.76 / 0.70；真实语料未测"],
             ["全文索引体积", "74.2 MB", "100k 文档、5000 词项、50 tokens/文档", "其中正文 33.1 MB"],
             ["全文查询 p50", "10.2–10.8 ms", "同上", "固定开销 ≈8 ms + 每命中随机读"],
             ["全文索引构建", "4.5 s", "同上", "含读取 Parquet 文本列"],
-            ["浏览器一致性", "8 向量 + 5 文本 + RAG + 容器", "Chromium 1248 vs Node 24", "3 条记录、2 维，不能外推"],
+            ["浏览器一致性", "8 向量 + 5 文本 + 9 SQL + RAG + 容器", "Chromium 1248 vs Node 24", "3 条记录、2 维，不能外推"],
+            ["DuckDB-Wasm 物化 500k 行", "298 ms，RSS ~+76 MB", "18.8 MB Parquet，Node 内同一 WASM", "约 4× Parquet；浏览器未测"],
+            ["浏览器 SQL 取消", "202 ms 查询 → 51 ms 返回", "abort 于 50 ms", "引擎未停（engineMayStillRun）"],
         ],
         widths=[3.6, 3.8, 5.4, 3.0],
     )
@@ -320,7 +325,6 @@ def build(target: Path):
             ["npm 发布", "缺少组织与访问令牌；LICENSE 已确定为 Apache-2.0"],
             ["真实数据集 Recall@K", "需要真实 embedding 语料"],
             ["多机 / 冷缓存基准", "需要第二台机器与清缓存手段"],
-            ["DuckDB-Wasm", "Parquet 扩展需从外部下载，当前不可达"],
             ["真实 CDN / CORS 验收", "需要实际部署环境"],
         ],
         widths=[5.0, 10.8],
@@ -338,13 +342,17 @@ def build(target: Path):
             ["融合质量需要相关性标注", "k 只做了稳定性测量，未回答哪个 k 排序更好"],
             ["时间戳与嵌套列的源数据推断", "转换工具只覆盖标量类型"],
             ["中文分词", "CJK 逐字，精度换可预测性"],
+            ["浏览器 SQL 参数类型", "JSON 绑定；Date、二进制与超范围 bigint 明确拒绝"],
+            ["浏览器 SQL 大结果", "一次性返回全部行，没有行数上限或流式返回"],
+            ["浏览器大表与冷启动", "只测了 Node 内的同一 WASM 构建（500k 行），浏览器内存与 34 MB 首载未测"],
+            ["COI / 多线程", "已试不可用：parquet 扩展与共享内存 ABI 不兼容（ADR-063）"],
         ],
         widths=[6.4, 9.4],
     )
 
     document.add_heading("7. 关键决策", level=1)
     paragraph = document.add_paragraph()
-    run = paragraph.add_run("完整 45 条记录见仓库 docs/DECISION_LOG.md；下表列出与外部读者最相关的决策。")
+    run = paragraph.add_run("完整 66 条记录见仓库 docs/DECISION_LOG.md；下表列出与外部读者最相关的决策。")
     style_run(run, size=10, color=MUTED)
     add_table(
         document,
@@ -362,6 +370,10 @@ def build(target: Path):
             ["037", "ANN 过滤只提供显式后过滤"],
             ["039", ".wsql 不压缩、整文件入内存"],
             ["040 / 044 / 045", "Apache-2.0 每包自带许可证；容器防穿越；不可信输入错误契约"],
+            ["057", "Builder 在构建时签名，发布链路少一步补签"],
+            ["065 / 066", "浏览器 SQL 用 DuckDB-Wasm、扩展同源自托管；066 用 tokenizer 支持只读 CTE"],
+            ["063 / 064", "COI 多线程因扩展不兼容不采用；取消只承诺立即停止等待"],
+            ["067", "物化预算分单表与整包两层，且在建库前检查"],
         ],
         widths=[3.6, 12.2],
     )
@@ -371,7 +383,7 @@ def build(target: Path):
         document,
         ["检查项", "状态"],
         [
-            ["测试 / 类型 / 构建", "✓ 307 测试，typecheck 通过"],
+            ["测试 / 类型 / 构建", "✓ 315 测试，typecheck 通过"],
             ["打包内容", "✓ 仅 dist/ + README + LICENSE，无 src/test 泄漏"],
             ["依赖范围", "✓ caret 且跟踪本地版本"],
             ["许可证", "✓ Apache-2.0（根 + 每包）"],
@@ -386,9 +398,11 @@ def build(target: Path):
     document.add_heading("9. 建议的下一步", level=1)
     for index, item in enumerate(
         [
-            "配置 npm 令牌 → npm publish --dry-run 核对四个包 → 正式发布。",
+            "配置 npm 令牌 → npm publish --dry-run 核对五个包 → 正式发布。",
             "在真实 embedding 数据上测 Recall@K，替换第 5.1 节的合成数字。",
-            "第二台机器复现基准，形成区间而非单点。",
+            "补齐 SQL Adapter 的共享契约测试，覆盖 Node 与 DuckDB-Wasm 两个实现。",
+            "为 db.sql 增加行数上限或流式返回，避免大结果把浏览器打爆。",
+            "第二台机器复现基准，并在真实 CDN 上验收 CORS / Range / 缓存。",
             "视需要再做压缩算法协商或源数据的时间戳推断。",
         ],
         start=1,

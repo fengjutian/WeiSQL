@@ -16,6 +16,19 @@ export const QUERIES = [
   { name: "zero query", vector: [0, 0], topK: 3 },
 ];
 
+/** BM25 queries; the text index name comes from the generator's default. */
+export const TEXT_INDEX = "documents_title_text";
+
+export const TEXT_QUERIES = [
+  { name: "text dna", query: "dna", topK: 3 },
+  { name: "text 细胞", query: "细胞", topK: 2 },
+  { name: "text punctuation", query: "DNA!", topK: 2 },
+  { name: "text unknown", query: "zzzz", topK: 3 },
+  { name: "text empty", query: "   ", topK: 3 },
+];
+
+export const RAG_QUERY = { query: "dna", topK: 3, maxCharacters: 100 };
+
 /** Manifest mutations whose validation error codes must match across runtimes. */
 export const INVALID_MANIFESTS = [
   { name: "wrong format", mutate: manifest => { manifest.format = "sqlite"; } },
@@ -39,4 +52,24 @@ export function summarizeHits(hits) {
 
 export function summarizeError(error) {
   return { code: error?.code ?? "NO_CODE", message: String(error?.message ?? error) };
+}
+
+export function summarizeTextHits(hits) {
+  return {
+    ids: hits.map(hit => hit.id),
+    rows: hits.map(hit => hit.row),
+    scores: hits.map(hit => Number(hit.score)),
+    backend: hits.length > 0 ? hits[0].diagnostics?.backend ?? null : null,
+  };
+}
+
+export function summarizeRag(result) {
+  return {
+    ids: result.evidences.map(evidence => evidence.id),
+    texts: result.evidences.map(evidence => evidence.text),
+    ranks: result.evidences.map(evidence => evidence.rank),
+    truncated: result.truncated,
+    usedCharacters: result.usedCharacters,
+    droppedHits: result.droppedHits,
+  };
 }

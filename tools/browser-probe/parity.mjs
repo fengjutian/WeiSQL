@@ -12,15 +12,16 @@ import { fileURLToPath } from "node:url";
 
 import { chromium } from "playwright-core";
 
-import { NodeFileResourceReader, open, validateManifest } from "@weisql/sdk";
+import { ContainerReader, NodeFileResourceReader, open, validateManifest } from "@weisql/sdk";
 
-import { INVALID_MANIFESTS, QUERIES, summarizeError, summarizeHits } from "./parity-queries.mjs";
+import { INVALID_MANIFESTS, QUERIES, RAG_QUERY, TEXT_INDEX, TEXT_QUERIES, summarizeError, summarizeHits, summarizeRag, summarizeTextHits } from "./parity-queries.mjs";
+import { prepareProbePackage } from "./prepare-package.mjs";
 import { createProbeServer } from "./server.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..");
-const FIXTURE = path.join(REPO_ROOT, "examples", "fixture");
 const DISTANCE_TOLERANCE = 1e-6;
+const SCORE_TOLERANCE = 1e-9;
 
 function findChromium() {
   const cache = path.join(os.homedir(), "AppData", "Local", "ms-playwright");
@@ -43,9 +44,9 @@ function findChromium() {
   ].filter(Boolean).find(candidate => existsSync(candidate));
 }
 
-async function runNode() {
-  const manifest = JSON.parse(await readFile(path.join(FIXTURE, "manifest.json"), "utf8"));
-  const reader = new NodeFileResourceReader({ rootDirectory: FIXTURE });
+async function runNode(packageDirectory, containerPath) {
+  const manifest = JSON.parse(await readFile(path.join(packageDirectory, "manifest.json"), "utf8"));
+  const reader = new NodeFileResourceReader({ rootDirectory: packageDirectory });
   const db = await open({ manifest, resourceReader: reader, verifyChecksums: "all" });
   const queries = [];
   for (const query of QUERIES) {
@@ -55,6 +56,23 @@ async function runNode() {
     } catch (error) {
       queries.push({ name: query.name, ok: false, error: summarizeError(error) });
     }
+  }
+
+  const textQueries = [];
+  for (const query of TEXT_QUERIES) {
+    try {
+      const hits = await db.text.search(TEXT_INDEX, query.query, { topK: query.topK });
+      textQueries.push({ name: query.name, ok: true, ...summarizeTextHits(hits) });
+    } catch (error) {
+      textQueries.push({ name: query.name, ok: false, error: summarizeError(error) });
+    }
+  }
+
+  let rag;
+  try {
+    rag = { ok: true, ...summarizeRag(await db.rag.search({ text: { name: TEXT_INDEX, query: RAG_QUERY.query }, topK: RAG_QUERY.topK, maxCharacters: RAG_QUERY.maxCharacters })) };
+  } catch (error) {
+    rag = { ok: false, error: summarizeError(error) };
   }
   await db.close();
 
@@ -68,7 +86,16 @@ async function runNode() {
       return { name, accepted: false, code: error?.code ?? "NO_CODE" };
     }
   });
-  return { environment: "node", queries, invalid };
+
+  const containerReader = new ContainerReader(new Uint8Array(await readFile(containerPath)));
+  const containerManifest = JSON.parse(new TextDecoder().decode(await containerReader.read("manifest.json")));
+  const digests = (await containerReader.verify()).length;
+  const containerDb = await open({ manifest: containerManifest, resourceReader: containerReader, verifyChecksums: "all" });
+  const containerVector = summarizeHits(await containerDb.vector.search("document_embeddings", new Float32Array([1, 0]), { topK: 2 }));
+  const containerText = summarizeTextHits(await containerDb.text.search(TEXT_INDEX, "dna", { topK: 2 }));
+  await containerDb.close();
+
+  return { environment: "node", queries, textQueries, rag, invalid, container: { digests, vector: containerVector, text: containerText } };
 }
 
 async function runBrowser(port, executablePath) {
@@ -96,16 +123,25 @@ const check = (label, condition, detail) => {
   if (!condition) failures.push(`${label}: ${detail}`);
 };
 
-const nodeResult = await runNode();
 const executablePath = findChromium();
 if (!executablePath) {
   console.error("No Chromium-based browser found. Set CHROME_PATH or install one.");
   process.exit(2);
 }
-const probe = createProbeServer();
+
+// Both environments must read identical bytes, including the derived text index
+// and the packed container, so the package is built once and served to both.
+const probePackage = await prepareProbePackage();
+const nodeResult = await runNode(probePackage.packageDirectory, probePackage.containerPath);
+const probe = createProbeServer(probePackage.packageDirectory, probePackage.containerPath);
 const port = await probe.listen();
-const browserResult = await runBrowser(port, executablePath);
-await probe.close();
+let browserResult;
+try {
+  browserResult = await runBrowser(port, executablePath);
+} finally {
+  await probe.close();
+  await probePackage.cleanup();
+}
 
 if (browserResult.fatal) {
   console.error(`browser run failed: ${browserResult.fatal}`);
@@ -135,6 +171,46 @@ for (const [index, query] of QUERIES.entries()) {
   });
 }
 
+for (const [index, query] of TEXT_QUERIES.entries()) {
+  const left = nodeResult.textQueries[index];
+  const right = browserResult.textQueries[index];
+  check(`${query.name} status`, left.ok === right.ok, `node ok=${left.ok} browser ok=${right.ok}`);
+  if (left.ok && right.ok) {
+    check(`${query.name} ids`, JSON.stringify(left.ids) === JSON.stringify(right.ids), `${JSON.stringify(left.ids)} vs ${JSON.stringify(right.ids)}`);
+    check(`${query.name} rows`, JSON.stringify(left.rows) === JSON.stringify(right.rows), `${JSON.stringify(left.rows)} vs ${JSON.stringify(right.rows)}`);
+    check(`${query.name} backend`, left.backend === right.backend, `${left.backend} vs ${right.backend}`);
+    const scoreMismatch = left.scores.find((value, position) => Math.abs(value - right.scores[position]) > SCORE_TOLERANCE);
+    check(`${query.name} scores`, scoreMismatch === undefined, `${JSON.stringify(left.scores)} vs ${JSON.stringify(right.scores)}`);
+  } else if (!left.ok && !right.ok) {
+    check(`${query.name} error code`, left.error.code === right.error.code, `${left.error.code} vs ${right.error.code}`);
+  }
+  rows.push({
+    query: query.name,
+    node: left.ok ? left.ids.join(",") || "(none)" : `error:${left.error.code}`,
+    browser: right.ok ? right.ids.join(",") || "(none)" : `error:${right.error.code}`,
+    match: failures.filter(failure => failure.startsWith(`${query.name} `)).length === 0,
+  });
+}
+
+check("rag status", nodeResult.rag.ok === browserResult.rag.ok, `node ok=${nodeResult.rag.ok} browser ok=${browserResult.rag.ok}`);
+if (nodeResult.rag.ok && browserResult.rag.ok) {
+  for (const field of ["ids", "texts", "ranks", "truncated", "usedCharacters", "droppedHits"]) {
+    check(`rag ${field}`, JSON.stringify(nodeResult.rag[field]) === JSON.stringify(browserResult.rag[field]),
+      `${JSON.stringify(nodeResult.rag[field])} vs ${JSON.stringify(browserResult.rag[field])}`);
+  }
+}
+
+check("container digest count", nodeResult.container.digests === browserResult.container.digests,
+  `${nodeResult.container.digests} vs ${browserResult.container.digests}`);
+check("container digests clean", nodeResult.container.digests === 0 && browserResult.container.digests === 0,
+  `${nodeResult.container.digests} vs ${browserResult.container.digests}`);
+for (const kind of ["vector", "text"]) {
+  const left = nodeResult.container[kind];
+  const right = browserResult.container[kind];
+  check(`container ${kind} ids`, JSON.stringify(left.ids) === JSON.stringify(right.ids), `${JSON.stringify(left.ids)} vs ${JSON.stringify(right.ids)}`);
+  check(`container ${kind} rows`, JSON.stringify(left.rows) === JSON.stringify(right.rows), `${JSON.stringify(left.rows)} vs ${JSON.stringify(right.rows)}`);
+}
+
 for (const [index, invalid] of INVALID_MANIFESTS.entries()) {
   const left = nodeResult.invalid[index];
   const right = browserResult.invalid[index];
@@ -145,7 +221,7 @@ for (const [index, invalid] of INVALID_MANIFESTS.entries()) {
 }
 
 console.log("ENVIRONMENT PARITY");
-console.log(`node:    ${nodeResult.queries.length} queries, ${nodeResult.invalid.length} manifest cases`);
+console.log(`node:    ${nodeResult.queries.length} vector + ${nodeResult.textQueries.length} text queries, ${nodeResult.invalid.length} manifest cases, 1 container`);
 console.log(`browser: ${executablePath}`);
 console.log("");
 const widths = {
@@ -160,7 +236,8 @@ for (const row of rows) {
 }
 console.log("");
 if (failures.length === 0) {
-  console.log(`RESULT: ${rows.length} queries and ${INVALID_MANIFESTS.length} manifest cases match (distance tolerance ${DISTANCE_TOLERANCE})`);
+  console.log(`RESULT: ${QUERIES.length} vector + ${TEXT_QUERIES.length} text queries, RAG evidence, 1 container and ${INVALID_MANIFESTS.length} manifest cases match`);
+  console.log(`        (distance tolerance ${DISTANCE_TOLERANCE}, BM25 score tolerance ${SCORE_TOLERANCE})`);
   process.exit(0);
 }
 console.log(`RESULT: ${failures.length} mismatch(es)`);

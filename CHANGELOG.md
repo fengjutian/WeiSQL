@@ -60,6 +60,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - GitHub Actions CI: build, typecheck, tests and release checks on Ubuntu and
   Windows, plus fixture reproducibility, derived indexes and container packing.
 - Browser probe, playground example, cross-environment parity check.
+- Parity probe extended to full-text, RAG evidence and the `.wsql` container,
+  against a package it builds at run time.
 - Benchmark harness with exact and ANN (`--ann`) modes.
 - ANN index builder and release checks.
 - Text index builder (`tools/build-text-index.mjs`) reading the Parquet column and

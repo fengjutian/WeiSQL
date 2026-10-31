@@ -10,7 +10,18 @@
       import { open } from "/sdk/database.js";
       import { validateManifest } from "/sdk/manifest.js";
       import { HttpResourceReader } from "/sdk/http-resource-reader.js";
-      import { INVALID_MANIFESTS, QUERIES, summarizeError, summarizeHits } from "/parity/parity-queries.mjs";
+      import { ContainerReader } from "/sdk/wsql-container.js";
+      import {
+        INVALID_MANIFESTS,
+        QUERIES,
+        RAG_QUERY,
+        TEXT_INDEX,
+        TEXT_QUERIES,
+        summarizeError,
+        summarizeHits,
+        summarizeRag,
+        summarizeTextHits,
+      } from "/parity/parity-queries.mjs";
 
       const log = (message) => {
         document.getElementById("log").textContent += `${message}\n`;
@@ -33,6 +44,23 @@
           }
         }
 
+        const textQueries = [];
+        for (const query of TEXT_QUERIES) {
+          try {
+            const hits = await db.text.search(TEXT_INDEX, query.query, { topK: query.topK });
+            textQueries.push({ name: query.name, ok: true, ...summarizeTextHits(hits) });
+          } catch (error) {
+            textQueries.push({ name: query.name, ok: false, error: summarizeError(error) });
+          }
+        }
+
+        let rag;
+        try {
+          rag = { ok: true, ...summarizeRag(await db.rag.search({ text: { name: TEXT_INDEX, query: RAG_QUERY.query }, topK: RAG_QUERY.topK, maxCharacters: RAG_QUERY.maxCharacters })) };
+        } catch (error) {
+          rag = { ok: false, error: summarizeError(error) };
+        }
+
         const invalid = INVALID_MANIFESTS.map(({ name, mutate }) => {
           const copy = structuredClone(manifest);
           mutate(copy);
@@ -44,7 +72,24 @@
           }
         });
 
-        window.__PARITY_RESULT = { environment: "browser", queries, invalid };
+        // The container path is the same bytes the Node runner reads from disk.
+        const containerBytes = new Uint8Array(await (await fetch("/container.wsql")).arrayBuffer());
+        const containerReader = new ContainerReader(containerBytes);
+        const containerManifest = JSON.parse(new TextDecoder().decode(await containerReader.read("manifest.json")));
+        const digests = (await containerReader.verify()).length;
+        const containerDb = await open({ manifest: containerManifest, resourceReader: containerReader, verifyChecksums: "all" });
+        const containerVector = summarizeHits(await containerDb.vector.search("document_embeddings", new Float32Array([1, 0]), { topK: 2 }));
+        const containerText = summarizeTextHits(await containerDb.text.search(TEXT_INDEX, "dna", { topK: 2 }));
+        await containerDb.close();
+
+        window.__PARITY_RESULT = {
+          environment: "browser",
+          queries,
+          textQueries,
+          rag,
+          invalid,
+          container: { digests, vector: containerVector, text: containerText },
+        };
         log(JSON.stringify(window.__PARITY_RESULT));
         await db.close();
       }

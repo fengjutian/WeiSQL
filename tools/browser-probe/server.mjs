@@ -29,13 +29,14 @@ const MIME = {
   ".offsets": "application/octet-stream",
 };
 
-export function createProbeServer(fixtureDirectory = DEFAULT_FIXTURE) {
+export function createProbeServer(fixtureDirectory = DEFAULT_FIXTURE, containerPath = undefined) {
   const rangeLog = [];
 
   const resolveTarget = (urlPath) => {
     if (urlPath === "/" || urlPath === "/index.html" || urlPath === "/sdk.html") return path.join(HERE, "sdk.html");
     if (urlPath === "/playground" || urlPath === "/playground/") return path.join(PLAYGROUND, "index.html");
     if (urlPath === "/parity" || urlPath === "/parity/") return path.join(HERE, "parity.html");
+    if (urlPath === "/container.wsql") return containerPath;
     if (urlPath.startsWith("/parity/")) return path.join(HERE, urlPath.slice("/parity/".length));
     if (urlPath.startsWith("/playground/")) return path.join(PLAYGROUND, urlPath.slice("/playground/".length));
     if (urlPath.startsWith("/sdk/")) return path.join(SDK_DIST, urlPath.slice("/sdk/".length));

@@ -57,7 +57,7 @@
 
 CI（`.github/workflows/ci.yml`）：
 
-- `verify`：Ubuntu + Windows 矩阵，`npm ci` → build → typecheck → test → release:check → 示例包校验；
+- `verify`：Ubuntu + Windows 矩阵，`npm ci` → build → typecheck → test → release:check → SQL 适配器契约 → 示例包校验；
 - `derived`：fixture 可复现性（重生成后 `git status` 必须为空）→ 构建文本/ANN 索引并校验 → 打包容器并校验 → `bench:wasm` 冒烟 → SQL Adapter 共享契约（`test:contract`）；
 - `browser`：Ubuntu 上复用 runner 自带的 Chrome，依次跑 `probe:browser`、`probe:wasm`、`probe:playground`、`probe:parity`。
 

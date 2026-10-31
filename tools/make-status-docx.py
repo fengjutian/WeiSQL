@@ -206,7 +206,7 @@ def build(target: Path):
         ["维度", "状态"],
         [
             ["测试", "323 个全绿（SDK 209 / DuckDB 25 / WASM 38 / USearch 13 / CLI 38）"],
-            ["CI", "GitHub Actions：Ubuntu + Windows 行为闸门，另有派生索引、容器与 bench:wasm 冒烟作业"],
+            ["CI", "GitHub Actions：Ubuntu + Windows 行为闸门（含 SQL 契约），另有派生索引、容器、bench:wasm 冒烟与 Chromium 探针作业"],
             ["许可证", "Apache-2.0（根目录与每个包内各一份）"],
             ["发布", "未发布 npm 包（缺组织与访问令牌）"],
             ["实测", "精确向量、ANN（含分布对照）、全文（含体积拆分）、浏览器一致性、DuckDB-Wasm 物化"],

@@ -38,6 +38,11 @@ jobs:
       - run: npm run release:check
       - run: npm run release:pack
       - run: npm run bench:self-test
+
+      # Same contract on both operating systems: the blockers here are the WASM
+      # extension download and native DuckDB bindings, not the SQL text.
+      - name: SQL adapter contract
+        run: npm run test:contract
       - name: Validate the example package
         run: node packages/cli/dist/bin.js validate examples/fixture
 

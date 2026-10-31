@@ -372,6 +372,11 @@ const rows = await db.sql(
   "select id, title from documents where category = ? order by id",
   ["genetics"],
 );
+
+// 大结果不必先放进数组：逐行消费，可随时 break。
+for await (const row of await db.sqlStream("select id, title from documents")) {
+  console.log(row.id);
+}
 ```
 
 边界与取舍：
@@ -573,7 +578,7 @@ tools/                     源 Parquet、ANN/全文索引生成、基准与浏�
 6. ~~DuckDB-Wasm（浏览器 SQL 引擎）~~（已完成，`packages/duckdb-wasm-adapter`：扩展自托管 + tokenizer 判定的只读边界，含只读 CTE）
 7. 真实 embedding 数据集的 Recall@K、多机基准复现与静态 CDN/CORS 验收
 8. ~~Playground 接入浏览器 SQL 与类别过滤~~（已完成，`probe:playground` 断言）
-9. `db.sql()` 的流式返回、浏览器 OPFS 持久化
+9. 浏览器 OPFS 持久化、CDN 冷缓存下的首载验收（本地冷启动已测，见 `bench:wasm-cold`）
 
 第 7 步是当前瓶颈：Node 端的性能结论不能外推到 WASM；性能与召回数字也不能从单机合成数据外推。
 

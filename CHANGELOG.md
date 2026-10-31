@@ -142,7 +142,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   Windows, plus fixture reproducibility, derived indexes and container packing.
   The `derived` job also runs `bench:wasm --smoke` to catch broken
   adapter/extension wiring, and `npm run test:contract` to hold both SQL
-  adapters to one declared contract. A `browser` job runs `probe:browser`,
+  adapters to one declared contract; the `verify` matrix runs the same contract
+  on both operating systems. A `browser` job runs `probe:browser`,
   `probe:wasm`, `probe:playground` and `probe:parity` on the runner's Chrome.
 - `@weisql/sdk` exports `./errors` so browser adapters can import `WeiSQLError`
   without pulling the Node-only resource readers into a bundle.

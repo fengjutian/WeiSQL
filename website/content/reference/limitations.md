@@ -4,7 +4,7 @@ description: 按外部条件阻塞、设计未定与明确不做三类，列出�
 sidebar_position: 53
 ---
 
-本页只列“现在还不能依赖”的部分。能做什么见 [能力矩阵](/reference/capabilities)；本页回答的是“哪里会出问题、为什么、怎么绕开”。
+本页只列“现在还不能依赖”的部分。能做什么见 [能力矩阵](/docs/reference/capabilities)；本页回答的是“哪里会出问题、为什么、怎么绕开”。
 
 :::tip 先看最可能影响上线的三条
 - **真实数据集 Recall@K 未测**：0.385–0.740 只来自合成数据，且强依赖分布。
@@ -99,7 +99,7 @@ npm run bench -- --ann                               # 你自己的召回与延�
 npm run probe:parity                                 # 两端结果是否一致
 ```
 
-如果某项能力没有出现在 [能力矩阵](/reference/capabilities) 里，就按“未验证”处理。
+如果某项能力没有出现在 [能力矩阵](/docs/reference/capabilities) 里，就按“未验证”处理。
 
 ## 为什么会有这些限制
 
@@ -142,11 +142,11 @@ npm run probe:parity                                 # 两端结果是否一致
 
 ## 限制会变
 
-每完成一项测量或上游能力发生变化，这张表就应更新。具体状态以 [能力矩阵](/reference/capabilities) 为准；本页只解释原因与影响，不承担排期。
+每完成一项测量或上游能力发生变化，这张表就应更新。具体状态以 [能力矩阵](/docs/reference/capabilities) 为准；本页只解释原因与影响，不承担排期。
 
 ## 相关页面
 
-- [能力矩阵](/reference/capabilities)
-- [环境与引擎兼容性](/reference/compatibility)
-- [CLI](/tooling/cli)
-- [基准测试](/tooling/benchmarks)
+- [能力矩阵](/docs/reference/capabilities)
+- [环境与引擎兼容性](/docs/reference/compatibility)
+- [CLI](/docs/tooling/cli)
+- [基准测试](/docs/tooling/benchmarks)

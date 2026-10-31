@@ -74,7 +74,7 @@ WeiSQL 两者都不是。它的核心不是“把引擎搬进浏览器”，而�
 
 ## 能力一览
 
-下面只给结论，状态与实测条件见 [能力矩阵](/reference/capabilities)。
+下面只给结论，状态与实测条件见 [能力矩阵](/docs/reference/capabilities)。
 
 | 能力 | 状态 | 说明 |
 | --- | --- | --- |
@@ -143,8 +143,8 @@ await db.close();
 
 ## 接下来读什么
 
-- 想先跑起来：[快速开始](/start/quickstart)
-- 想建立正确的心智模型：[核心概念](/start/concepts)
-- 想看整体分层：[架构总览](/start/architecture)
-- 想确认某项能力是否可用：[能力矩阵](/reference/capabilities)
-- 想知道哪些事还没做：[已知限制](/reference/limitations)
+- 想先跑起来：[快速开始](/docs/start/quickstart)
+- 想建立正确的心智模型：[核心概念](/docs/start/concepts)
+- 想看整体分层：[架构总览](/docs/start/architecture)
+- 想确认某项能力是否可用：[能力矩阵](/docs/reference/capabilities)
+- 想知道哪些事还没做：[已知限制](/docs/reference/limitations)

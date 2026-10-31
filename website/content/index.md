@@ -14,16 +14,16 @@ WeiSQL AI 是一个**只读数据运行时**。它把 Parquet 表、Float32 向�
 
 | 目标 | 从这里开始 |
 | --- | --- |
-| 先搞清楚它适不适合我的场景 | [什么是 WeiSQL AI](/start/what-is-weisql) |
-| 5 分钟内跑起来 | [快速开始](/start/quickstart) |
-| 理解数据包、Manifest、L1–L4 | [核心概念](/start/concepts) |
-| 看整体分层与请求链路 | [架构](/start/architecture) |
-| 查技术选型与版本 | [技术栈](/start/tech-stack) |
-| 在 Node.js 里查向量 / SQL | [打开与生命周期](/sdk/open-and-lifecycle)、[SQL 查询](/sdk/sql) |
-| 在浏览器里做检索 | [资源读取与缓存](/sdk/resource-readers)、[DuckDB-Wasm](/adapters/duckdb-wasm) |
-| 构建并校验自己的数据包 | [构建数据包](/tooling/build-package)、[CLI](/tooling/cli) |
-| 部署到 CDN / Netlify | [部署到 CDN](/tooling/deploy-cdn) |
-| 看哪些能力还没验证 | [限制与路线](/reference/limitations) |
+| 先搞清楚它适不适合我的场景 | [什么是 WeiSQL AI](/docs/start/what-is-weisql) |
+| 5 分钟内跑起来 | [快速开始](/docs/start/quickstart) |
+| 理解数据包、Manifest、L1–L4 | [核心概念](/docs/start/concepts) |
+| 看整体分层与请求链路 | [架构](/docs/start/architecture) |
+| 查技术选型与版本 | [技术栈](/docs/start/tech-stack) |
+| 在 Node.js 里查向量 / SQL | [打开与生命周期](/docs/sdk/open-and-lifecycle)、[SQL 查询](/docs/sdk/sql) |
+| 在浏览器里做检索 | [资源读取与缓存](/docs/sdk/resource-readers)、[DuckDB-Wasm](/docs/adapters/duckdb-wasm) |
+| 构建并校验自己的数据包 | [构建数据包](/docs/tooling/build-package)、[CLI](/docs/tooling/cli) |
+| 部署到 CDN / Netlify | [部署到 CDN](/docs/tooling/deploy-cdn) |
+| 看哪些能力还没验证 | [限制与路线](/docs/reference/limitations) |
 
 ## 能力速览
 
@@ -43,7 +43,7 @@ WeiSQL AI 是一个**只读数据运行时**。它把 Parquet 表、Float32 向�
 | Manifest 签名 | 已实现 | Ed25519、多签、根授权与信任固定 |
 
 :::caution 当前状态
-项目仍是**工程原型**（包版本 0.1.0），尚未发布到 npm，也没有未经测量的性能承诺。仓库内 321 个自动化测试覆盖已实现能力；未验证项在[限制与路线](/reference/limitations)中单独列出。
+项目仍是**工程原型**（包版本 0.1.0），尚未发布到 npm，也没有未经测量的性能承诺。仓库内 321 个自动化测试覆盖已实现能力；未验证项在[限制与路线](/docs/reference/limitations)中单独列出。
 :::
 
 ## 文档地图

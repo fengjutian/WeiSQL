@@ -124,7 +124,7 @@ Runtime ── 内置 ──> 精确检索 / BM25 / RRF / RAG
 
 ## 相关页面
 
-- [核心概念](/start/concepts)
-- [Manifest 字段速查](/reference/manifest)
-- [能力矩阵](/reference/capabilities)
-- [环境与引擎兼容性](/reference/compatibility)
+- [核心概念](/docs/start/concepts)
+- [Manifest 字段速查](/docs/reference/manifest)
+- [能力矩阵](/docs/reference/capabilities)
+- [环境与引擎兼容性](/docs/reference/compatibility)

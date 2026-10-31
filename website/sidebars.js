@@ -1,6 +1,7 @@
 /** @type {import('@docusaurus/plugin-content-docs').SidebarsConfig} */
 const sidebars = {
   docs: [
+    { type: "link", label: "← 返回首页", href: "/" },
     { type: "doc", id: "index", label: "文档首页" },
     {
       type: "category",

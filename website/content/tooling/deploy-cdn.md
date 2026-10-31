@@ -83,7 +83,7 @@ curl -sI -H "Origin: https://app.example.com" \
 
 ### 浏览器 SQL 的扩展
 
-如果页面使用 [DuckDB-Wasm Adapter](/adapters/duckdb-wasm)，`parquet` 扩展必须与页面同源托管。上游 `extensions.duckdb.org` 不返回 CORS 头，跨域下载会失败，`open()` 返回 `SQL_UNSUPPORTED`（`phase: "extension"`）。用 `npm run vendor:wasm-extension` 生成缓存，把 `/extensions/<version>/wasm_eh/` 一起部署，并设置 `extensionRepository`。
+如果页面使用 [DuckDB-Wasm Adapter](/docs/adapters/duckdb-wasm)，`parquet` 扩展必须与页面同源托管。上游 `extensions.duckdb.org` 不返回 CORS 头，跨域下载会失败，`open()` 返回 `SQL_UNSUPPORTED`（`phase: "extension"`）。用 `npm run vendor:wasm-extension` 生成缓存，把 `/extensions/<version>/wasm_eh/` 一起部署，并设置 `extensionRepository`。
 
 ### 缓存与发布版本
 
@@ -118,10 +118,10 @@ curl -sI -H "Origin: https://app.example.com" \
 
 ## 延伸阅读
 
-- [资源读取器](/sdk/resource-readers)：HTTP Range、缓存与取消的客户端语义。
-- [容器与完整性](/sdk/containers)：`ContainerReader` 与 `StreamingContainerReader`。
-- [DuckDB-Wasm Adapter](/adapters/duckdb-wasm)：扩展同源托管的完整要求。
-- [CLI](/tooling/cli)：`validate`、`pack`、`inspect` 的用法。
-- [兼容性](/reference/compatibility)：运行时与托管能力矩阵。
+- [资源读取器](/docs/sdk/resource-readers)：HTTP Range、缓存与取消的客户端语义。
+- [容器与完整性](/docs/sdk/containers)：`ContainerReader` 与 `StreamingContainerReader`。
+- [DuckDB-Wasm Adapter](/docs/adapters/duckdb-wasm)：扩展同源托管的完整要求。
+- [CLI](/docs/tooling/cli)：`validate`、`pack`、`inspect` 的用法。
+- [兼容性](/docs/reference/compatibility)：运行时与托管能力矩阵。
 - [容器格式](https://github.com/fengjutian/WeiSQL/blob/main/docs/WSQL_CONTAINER.md)。
 - [Runtime 兼容性](https://github.com/fengjutian/WeiSQL/blob/main/docs/RUNTIME_COMPATIBILITY.md)。

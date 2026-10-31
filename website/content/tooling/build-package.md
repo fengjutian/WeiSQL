@@ -163,8 +163,8 @@ node tools/source-to-parquet.mjs rows.json  --output source/documents.parquet
 
 ## 延伸阅读
 
-- [Manifest 参考](/reference/manifest)：`buildPackage` 写出的字段。
-- [数据包概念](/start/concepts)：表、向量、ID Map 与索引的关系。
+- [Manifest 参考](/docs/reference/manifest)：`buildPackage` 写出的字段。
+- [数据包概念](/docs/start/concepts)：表、向量、ID Map 与索引的关系。
 - [源数据转换](https://github.com/fengjutian/WeiSQL/blob/main/docs/SOURCE_CONVERSION.md)。
 - [Builder 规范](https://github.com/fengjutian/WeiSQL/blob/main/docs/MANIFEST_VALIDATOR_BUILDER_SPEC.md)。
-- [CLI](/tooling/cli)：构建完成后的 `validate` 与 `pack`。
+- [CLI](/docs/tooling/cli)：构建完成后的 `validate` 与 `pack`。

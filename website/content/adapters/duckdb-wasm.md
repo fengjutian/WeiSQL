@@ -167,10 +167,10 @@ tokenizer 不可用或抛错时退回严格白名单，此时 `WITH` 被拒绝�
 
 ## 延伸阅读
 
-- [DuckDB Adapter（Node.js）](/adapters/duckdb)：同一 SQL 契约的 Node 实现与差异。
-- [SQL 查询](/sdk/sql)：`db.sql()` 的通用语义。
-- [部署到 CDN](/tooling/deploy-cdn)：静态托管、Range 与 CORS。
-- [兼容性](/reference/compatibility)：浏览器与 Node 的能力矩阵。
-- [能力与限制](/reference/limitations)：当前未验证项。
+- [DuckDB Adapter（Node.js）](/docs/adapters/duckdb)：同一 SQL 契约的 Node 实现与差异。
+- [SQL 查询](/docs/sdk/sql)：`db.sql()` 的通用语义。
+- [部署到 CDN](/docs/tooling/deploy-cdn)：静态托管、Range 与 CORS。
+- [兼容性](/docs/reference/compatibility)：浏览器与 Node 的能力矩阵。
+- [能力与限制](/docs/reference/limitations)：当前未验证项。
 - [DuckDB-Wasm Adapter 设计](https://github.com/fengjutian/WeiSQL/blob/main/docs/DUCKDB_WASM_ADAPTER.md)。
 - [跨环境对照](https://github.com/fengjutian/WeiSQL/blob/main/docs/ENVIRONMENT_PARITY.md)。

@@ -84,7 +84,7 @@ Manifest 描述的是**数据布局**，不是引擎配置：
 
 一个关键约束：`data.bytes` 必须等于 `count × dimension × 4`。这个公式不是文档建议，而是校验器会执行的规则。它让“维度写错”这类错误在读取前就暴露。
 
-Manifest 的字段速查见 [Manifest 参考](/reference/manifest)。
+Manifest 的字段速查见 [Manifest 参考](/docs/reference/manifest)。
 
 ## 四层校验
 
@@ -158,12 +158,12 @@ Adapter 是可替换的引擎实现，SDK 本身不绑定任何引擎。
 | “有 SHA-256 就说明数据可信” | 它只证明内容与声明一致，不证明发布者身份 |
 | “SQL 不可用说明数据坏了” | 多半是没注入 Adapter，错误码是 `SQL_UNSUPPORTED` |
 | “过滤是查询后再丢弃” | 默认策略先过滤再比较，否则不能声明 `exact` |
-| “浏览器和 Node 能力相同” | 结果语义一致，能力边界不同，见 [兼容性](/reference/compatibility) |
+| “浏览器和 Node 能力相同” | 结果语义一致，能力边界不同，见 [兼容性](/docs/reference/compatibility) |
 | “包大就一定会全量下载” | 多文件包按 Range 读取；`.wsql` 整包读取才会全量下载 |
 
 ## 延伸阅读
 
-- Manifest 字段与常见校验失败：[Manifest 参考](/reference/manifest)
-- Adapter 与 Reader 的具体实现：[架构总览](/start/architecture)
-- 各能力的实现状态：[能力矩阵](/reference/capabilities)
-- 尚未完成的部分：[已知限制](/reference/limitations)
+- Manifest 字段与常见校验失败：[Manifest 参考](/docs/reference/manifest)
+- Adapter 与 Reader 的具体实现：[架构总览](/docs/start/architecture)
+- 各能力的实现状态：[能力矩阵](/docs/reference/capabilities)
+- 尚未完成的部分：[已知限制](/docs/reference/limitations)

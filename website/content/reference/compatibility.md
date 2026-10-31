@@ -138,4 +138,4 @@ Node 端没有这个问题，但换来了原生绑定：`@duckdb/node-api` 提�
 | 需要时间戳或二进制参数 | 目前优先选 Node |
 | 需要 ANN 且能接受召回不确定 | USearch Adapter，必须用目标数据先测 Recall@K |
 
-相关页面：[DuckDB Adapter](/adapters/duckdb)、[DuckDB-Wasm Adapter](/adapters/duckdb-wasm)、[已知限制](/reference/limitations)。
+相关页面：[DuckDB Adapter](/docs/adapters/duckdb)、[DuckDB-Wasm Adapter](/docs/adapters/duckdb-wasm)、[已知限制](/docs/reference/limitations)。

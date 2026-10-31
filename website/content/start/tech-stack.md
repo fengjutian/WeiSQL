@@ -24,7 +24,7 @@ WeiSQL 的选型围绕一个目标：**让数据包在浏览器和 Node.js 之�
 | 摘要 | 零依赖增量 SHA-256 | — | L3 资源完整性 | 只证明一致性，不证明来源 |
 | 签名 | Ed25519（WebCrypto） | — | Manifest 发布者身份 | 密钥管理由使用方负责 |
 | 测试 | `node:test` + Playwright + cargo test | — | 321 个自动化测试 | 性能数字仍需本地复现 |
-| 文档 | Docusaurus + jieba 搜索 | 3.10 | 本站 | 见[选型 ADR](/engineering/docs-framework-adr) |
+| 文档 | Docusaurus + jieba 搜索 | 3.10 | 本站 | 见[选型 ADR](/docs/engineering/docs-framework-adr) |
 
 ## 2. 包与依赖方向
 
@@ -88,7 +88,7 @@ DuckDB 很强，但把它写进 SDK 会带来三个问题：浏览器与 Node �
 | USearch | 2.26.5；索引与 Adapter 版本兼容策略尚未完成 |
 | 数据包格式 | Manifest `1.0.0`；容器 `1.0.0` / `1.1.0` |
 
-更细的差异见[兼容性](/reference/compatibility)。
+更细的差异见[兼容性](/docs/reference/compatibility)。
 
 ## 8. 开发命令
 

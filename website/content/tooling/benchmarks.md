@@ -197,10 +197,10 @@ CI 的 `browser` 作业会依次跑这四个探针；`derived` 作业会跑 `ben
 
 ## 延伸阅读
 
-- [USearch Adapter](/adapters/usearch)：召回、过滤与持久化索引。
-- [向量检索](/sdk/vector-search)：精确检索的 I/O 模型。
-- [全文与混合检索](/sdk/text-and-hybrid)：BM25 与 RRF 的语义。
-- [部署到 CDN](/tooling/deploy-cdn)：为什么本机数字不能代表 CDN。
-- [限制](/reference/limitations)：未验证项清单。
+- [USearch Adapter](/docs/adapters/usearch)：召回、过滤与持久化索引。
+- [向量检索](/docs/sdk/vector-search)：精确检索的 I/O 模型。
+- [全文与混合检索](/docs/sdk/text-and-hybrid)：BM25 与 RRF 的语义。
+- [部署到 CDN](/docs/tooling/deploy-cdn)：为什么本机数字不能代表 CDN。
+- [限制](/docs/reference/limitations)：未验证项清单。
 - [基准测量装置](https://github.com/fengjutian/WeiSQL/blob/main/docs/BENCHMARK_HARNESS.md)。
 - [基准测试协议](https://github.com/fengjutian/WeiSQL/blob/main/docs/BENCHMARK_PROTOCOL_V1.md)。

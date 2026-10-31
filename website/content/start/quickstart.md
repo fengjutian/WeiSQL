@@ -102,7 +102,7 @@ const hits = await db.vector.search("document_embeddings", queryVector, { topK: 
 await db.close();
 ```
 
-服务端必须支持 HTTP Range：返回 `206 Partial Content` 且 `Content-Range` 与请求一致。返回 `200` 的整文件响应会被判定为不支持 Range，而不是被悄悄当成局部数据。完整要求见[部署到 CDN](/tooling/deploy-cdn)。
+服务端必须支持 HTTP Range：返回 `206 Partial Content` 且 `Content-Range` 与请求一致。返回 `200` 的整文件响应会被判定为不支持 Range，而不是被悄悄当成局部数据。完整要求见[部署到 CDN](/docs/tooling/deploy-cdn)。
 
 仓库里已经有一个可直接体验的页面：
 
@@ -137,14 +137,14 @@ await db.close();
 
 参数必须通过 `params` 绑定，不要拼接字符串。没有注入 Adapter 时 `sql()` 返回 `SQL_UNSUPPORTED`，不会返回模拟数据。
 
-浏览器端使用 `@weisql/duckdb-wasm-adapter`，并把 parquet 扩展同源托管；见 [DuckDB-Wasm](/adapters/duckdb-wasm)。
+浏览器端使用 `@weisql/duckdb-wasm-adapter`，并把 parquet 扩展同源托管；见 [DuckDB-Wasm](/docs/adapters/duckdb-wasm)。
 
 ## 5. 下一步
 
-- 想理解数据包长什么样：[核心概念](/start/concepts) 与 [Manifest 速查](/reference/manifest)
-- 想构建自己的数据包：[构建数据包](/tooling/build-package)
-- 想部署：[部署到 CDN](/tooling/deploy-cdn)
-- 想知道边界：[限制与路线](/reference/limitations)
+- 想理解数据包长什么样：[核心概念](/docs/start/concepts) 与 [Manifest 速查](/docs/reference/manifest)
+- 想构建自己的数据包：[构建数据包](/docs/tooling/build-package)
+- 想部署：[部署到 CDN](/docs/tooling/deploy-cdn)
+- 想知道边界：[限制与路线](/docs/reference/limitations)
 
 ## 常见问题
 

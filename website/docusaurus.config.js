@@ -95,8 +95,13 @@ const config = {
             label: "文档",
           },
           {
-            to: "/start/quickstart",
+            to: "/docs/start/quickstart",
             label: "快速开始",
+            position: "left",
+          },
+          {
+            to: "/docs/start/architecture",
+            label: "架构",
             position: "left",
           },
           {
@@ -106,16 +111,25 @@ const config = {
           },
         ],
       },
+      announcementBar: {
+        id: "pre-release",
+        content:
+          'WeiSQL AI 0.1.0 · 工程原型，尚未发布 npm。<a href="/docs/reference/limitations">查看当前限制</a>',
+        backgroundColor: "#0f766e",
+        textColor: "#ffffff",
+        isCloseable: true,
+      },
       footer: {
         style: "dark",
         links: [
           {
             title: "文档",
             items: [
-              { label: "快速开始", to: "/start/quickstart" },
-              { label: "核心概念", to: "/start/concepts" },
-              { label: "SDK 使用", to: "/sdk/open-and-lifecycle" },
-              { label: "已知限制", to: "/reference/limitations" },
+              { label: "文档首页", to: "/docs" },
+              { label: "快速开始", to: "/docs/start/quickstart" },
+              { label: "核心概念", to: "/docs/start/concepts" },
+              { label: "SDK 使用", to: "/docs/sdk/open-and-lifecycle" },
+              { label: "已知限制", to: "/docs/reference/limitations" },
             ],
           },
           {
@@ -146,8 +160,8 @@ const config = {
         copyright: `Copyright © ${new Date().getFullYear()} WeiSQL AI · Apache-2.0`,
       },
       prism: {
-        theme: themes.github,
-        darkTheme: themes.dracula,
+        theme: themes.vsDark,
+        darkTheme: themes.vsDark,
         additionalLanguages: ["bash", "json"],
       },
       docs: {

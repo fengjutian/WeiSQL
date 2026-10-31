@@ -189,5 +189,5 @@ Manifest 是数据包的公开契约。本页给结论和速查表，不复制�
 
 - 完整规范与外链原文：[Manifest V1 规范](https://github.com/fengjutian/WeiSQL/blob/main/docs/MANIFEST_SPEC_V1.md)
 - JSON Schema：[MANIFEST_SCHEMA_V1.json](https://github.com/fengjutian/WeiSQL/blob/main/docs/MANIFEST_SCHEMA_V1.json)
-- 校验命令用法：[CLI](/tooling/cli)
-- 数据包生成：[构建数据包](/tooling/build-package)
+- 校验命令用法：[CLI](/docs/tooling/cli)
+- 数据包生成：[构建数据包](/docs/tooling/build-package)

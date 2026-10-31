@@ -157,7 +157,7 @@ Runtime 拥有注入 Reader 的生命周期：`open()` 成功后由 `close()` �
 - 打开时不校验 Parquet 内容；列一致性由 SQL Adapter 的 L4 校验负责。
 - `verifyChecksums: "none"` 不访问任何资源，因此损坏的数据包要到第一次查询才暴露。
 - 打开过程中的网络错误统一映射为 `RESOURCE_NOT_FOUND`，不区分 404 与连接失败。
-- 真实 CDN 的 CORS 与缓存行为未验证，见[兼容性](/reference/compatibility)。
+- 真实 CDN 的 CORS 与缓存行为未验证，见[兼容性](/docs/reference/compatibility)。
 
 ## 延伸阅读
 

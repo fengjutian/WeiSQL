@@ -115,4 +115,4 @@ CI 覆盖构建、类型、测试、发布元数据、派生文件可复现性�
 - 不能推出“CDN 上一定工作”：真实 CORS 与缓存行为未验收。
 - 不能推出“npm 可直接安装”：五个包尚未发布。
 
-相关页面：[兼容性](/reference/compatibility)、[已知限制](/reference/limitations)、[基准测试](/tooling/benchmarks)。
+相关页面：[兼容性](/docs/reference/compatibility)、[已知限制](/docs/reference/limitations)、[基准测试](/docs/tooling/benchmarks)。

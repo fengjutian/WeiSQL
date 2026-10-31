@@ -146,10 +146,10 @@ npm run bench -- --ann --expansion-search 512
 
 ## 延伸阅读
 
-- [向量检索](/sdk/vector-search)：`vector.search()` 的公共语义与诊断字段。
-- [过滤与混合检索](/sdk/text-and-hybrid)：`filter` 的取值与 `exact-filter-first`。
-- [构建数据包](/tooling/build-package)：Manifest 与索引文件的生成链路。
-- [基准测试](/tooling/benchmarks)：`--ann` 如何用精确结果做 ground truth。
-- [限制](/reference/limitations)：ANN 召回与过滤的边界。
+- [向量检索](/docs/sdk/vector-search)：`vector.search()` 的公共语义与诊断字段。
+- [过滤与混合检索](/docs/sdk/text-and-hybrid)：`filter` 的取值与 `exact-filter-first`。
+- [构建数据包](/docs/tooling/build-package)：Manifest 与索引文件的生成链路。
+- [基准测试](/docs/tooling/benchmarks)：`--ann` 如何用精确结果做 ground truth。
+- [限制](/docs/reference/limitations)：ANN 召回与过滤的边界。
 - [USearch Adapter 设计](https://github.com/fengjutian/WeiSQL/blob/main/docs/USEARCH_ADAPTER.md)。
 - [ANN 可行性探测](https://github.com/fengjutian/WeiSQL/blob/main/docs/ANN_FEASIBILITY.md)。

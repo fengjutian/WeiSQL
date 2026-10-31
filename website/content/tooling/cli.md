@@ -22,7 +22,7 @@ npx weisql pack ./examples/fixture --output ./examples/fixture.wsql
 npx weisql inspect ./examples/fixture
 ```
 
-成功时最后一行是 `OK`；失败时 stderr 打印 `FAILED (n issues)` 与逐条 `[stage] CODE: message`。仓库当前尚未发布 npm 包，本地开发可直接用 `node packages/cli/dist/bin.js` 替代 `npx weisql`，参见 [快速开始](/start/quickstart)。
+成功时最后一行是 `OK`；失败时 stderr 打印 `FAILED (n issues)` 与逐条 `[stage] CODE: message`。仓库当前尚未发布 npm 包，本地开发可直接用 `node packages/cli/dist/bin.js` 替代 `npx weisql`，参见 [快速开始](/docs/start/quickstart)。
 
 ## 命令一览
 
@@ -96,7 +96,7 @@ npx weisql unpack ./my-package.wsql --output ./extracted
 - `unpack` **先校验全部摘要再写盘**，被篡改的容器不会留下半可信目录；`--output` 省略时用去掉扩展名的文件名；
 - 容器路径包含 `..`、绝对路径、反斜杠或空段时，解析阶段即拒绝。
 
-`pack` 不接受 `--mode`，传了会以用法错误退出。容器格式与读取方式见 [容器与完整性](/sdk/containers)。
+`pack` 不接受 `--mode`，传了会以用法错误退出。容器格式与读取方式见 [容器与完整性](/docs/sdk/containers)。
 
 ## 签名与授权
 
@@ -154,9 +154,9 @@ CI 可以直接依赖这三个码：校验失败与参数写错必须区分开�
 
 ## 延伸阅读
 
-- [构建数据包](/tooling/build-package)：`buildPackage()` 如何生成可校验的包。
-- [容器与完整性](/sdk/containers)：`.wsql` 布局与 `ContainerReader`。
-- [完整性与签名](/sdk/integrity-and-signing)：Ed25519 签名与信任策略。
-- [部署到 CDN](/tooling/deploy-cdn)：打包之后的上传与托管要求。
-- [Manifest 参考](/reference/manifest)：各字段的语义。
+- [构建数据包](/docs/tooling/build-package)：`buildPackage()` 如何生成可校验的包。
+- [容器与完整性](/docs/sdk/containers)：`.wsql` 布局与 `ContainerReader`。
+- [完整性与签名](/docs/sdk/integrity-and-signing)：Ed25519 签名与信任策略。
+- [部署到 CDN](/docs/tooling/deploy-cdn)：打包之后的上传与托管要求。
+- [Manifest 参考](/docs/reference/manifest)：各字段的语义。
 - [容器格式](https://github.com/fengjutian/WeiSQL/blob/main/docs/WSQL_CONTAINER.md)。

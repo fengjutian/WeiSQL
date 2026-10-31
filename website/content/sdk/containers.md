@@ -138,7 +138,7 @@ npx weisql validate ./my-package.wsql
 npx weisql unpack ./my-package.wsql --output ./extracted
 ```
 
-`pack` 递归收集目录并按路径排序，要求存在 `manifest.json`；`--only-declared` 只打 Manifest 声明的资源并报告被跳过的文件。`validate` 检测目标是文件时自动走容器分支：先校验每个条目的摘要，再按 Manifest 做 L1/L2/L3。`unpack` 先校验全部摘要再写盘，被篡改的容器不会留下半可信目录。更多命令见 [CLI](/tooling/cli)。
+`pack` 递归收集目录并按路径排序，要求存在 `manifest.json`；`--only-declared` 只打 Manifest 声明的资源并报告被跳过的文件。`validate` 检测目标是文件时自动走容器分支：先校验每个条目的摘要，再按 Manifest 做 L1/L2/L3。`unpack` 先校验全部摘要再写盘，被篡改的容器不会留下半可信目录。更多命令见 [CLI](/docs/tooling/cli)。
 
 ## 失败语义
 

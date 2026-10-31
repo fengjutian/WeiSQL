@@ -6,11 +6,11 @@ sidebar_position: 30
 
 `@weisql/duckdb-adapter` 把 Node.js 端的 DuckDB 接到 SDK 的 `SqlAdapter` 接口上，让 `db.sql()` 执行真实 SQL，同时保持只读边界。读完后你应当能选对表加载模式、正确绑定参数，并解释一次查询为什么被拒绝。
 
-SDK 本身不依赖任何 SQL 引擎，这个包通过 `open({ sqlAdapter })` 注入。它只适用于 Node.js 20+，依赖 `@duckdb/node-api` 的原生预编译绑定，不能用于浏览器；浏览器请用 [DuckDB-Wasm Adapter](/adapters/duckdb-wasm)。
+SDK 本身不依赖任何 SQL 引擎，这个包通过 `open({ sqlAdapter })` 注入。它只适用于 Node.js 20+，依赖 `@duckdb/node-api` 的原生预编译绑定，不能用于浏览器；浏览器请用 [DuckDB-Wasm Adapter](/docs/adapters/duckdb-wasm)。
 
 ## 最小示例
 
-以下按发布后的包名书写。仓库当前尚未发布 npm 包，本地运行需先构建，参见 [快速开始](/start/quickstart)。
+以下按发布后的包名书写。仓库当前尚未发布 npm 包，本地运行需先构建，参见 [快速开始](/docs/start/quickstart)。
 
 ```ts
 import { readFile } from "node:fs/promises";
@@ -156,7 +156,7 @@ npx weisql inspect ./demo
 npx weisql validate ./demo --l4
 ```
 
-`inspect` 不打开 Runtime，只汇总表、向量、签名与未被声明的文件；`validate --l4` 会通过 `@weisql/duckdb-adapter` 读取 Parquet 并核对列名、类型与行数。没有安装适配器时返回 `[l4] SQL_UNSUPPORTED`，而不是崩溃。详见 [CLI](/tooling/cli)。
+`inspect` 不打开 Runtime，只汇总表、向量、签名与未被声明的文件；`validate --l4` 会通过 `@weisql/duckdb-adapter` 读取 Parquet 并核对列名、类型与行数。没有安装适配器时返回 `[l4] SQL_UNSUPPORTED`，而不是崩溃。详见 [CLI](/docs/tooling/cli)。
 
 ## 常见错误
 
@@ -170,9 +170,9 @@ npx weisql validate ./demo --l4
 
 ## 延伸阅读
 
-- [SQL 查询](/sdk/sql)：`db.sql()` 的公开语义与 `maxRows`。
-- [打开与生命周期](/sdk/open-and-lifecycle)：`open()` 的注入点与关闭行为。
-- [错误码](/sdk/errors)：`SQL_UNSUPPORTED`、`INVALID_ARGUMENT` 等稳定错误码。
-- [能力与兼容性](/reference/compatibility)：Node 与浏览器的能力差异。
+- [SQL 查询](/docs/sdk/sql)：`db.sql()` 的公开语义与 `maxRows`。
+- [打开与生命周期](/docs/sdk/open-and-lifecycle)：`open()` 的注入点与关闭行为。
+- [错误码](/docs/sdk/errors)：`SQL_UNSUPPORTED`、`INVALID_ARGUMENT` 等稳定错误码。
+- [能力与兼容性](/docs/reference/compatibility)：Node 与浏览器的能力差异。
 - [DuckDB Adapter 设计](https://github.com/fengjutian/WeiSQL/blob/main/docs/DUCKDB_ADAPTER.md)。
 - [表加载模式](https://github.com/fengjutian/WeiSQL/blob/main/docs/TABLE_LOADING_OPTIONS.md)。

@@ -155,7 +155,7 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   Parquet packages (HTTP Range + L3 + materialize) against `db.sql()`.
 - Browser probes now also cover read-only CTEs and browser-side filtered vector
   search (`exact-filter-first`); the playground gained SQL and category filters,
-  plus a streaming toggle that runs the same query through `db.sqlStream()`.
+  plus a streaming toggle that renders rows as they arrive from `db.sqlStream()`.
 - Browser probe, playground example, cross-environment parity check.
 - Playground now demonstrates full-text search and RAG evidence against a package
   it builds at start-up, and can switch between directory, `.wsql` and streaming

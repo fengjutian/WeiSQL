@@ -2,7 +2,14 @@
 title: 资源读取器
 description: 说明 ResourceReader 的半开区间契约、HTTP 与 Node 文件实现、缓存装饰器的并发与淘汰语义，以及自定义读取器的边界。
 sidebar_position: 21
+hero:
+  kicker: "SDK · 资源层"
+  title: "字节只从 Reader 进来"
+  lead: "HTTP、Node 文件、容器与缓存都实现同一个契约；Range 是左闭右开区间。"
+  chips: ["HTTP", "Node fs", "cache", "container"]
+hide_title: true
 ---
+
 
 本页讲 Runtime 与 Adapter 共用的字节访问层：`ResourceReader` 的接口契约、内置的 HTTP 与 Node.js 文件实现，以及 `CachedResourceReader` 的缓存行为。读完后你能选对读取器，并在出现 200 响应、路径逃逸或短读时定位原因。
 

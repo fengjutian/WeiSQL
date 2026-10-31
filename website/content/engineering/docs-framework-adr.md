@@ -2,7 +2,14 @@
 title: ADR：文档站框架选型
 description: 记录 WeiSQL 文档站选择 Docusaurus 3.10 与离线中文搜索的决策过程、候选对比、后果与备选触发条件。
 sidebar_position: 60
+hero:
+  kicker: "工程 · ADR"
+  title: "为什么是 Docusaurus"
+  lead: "中文搜索、React 与 Netlify 约束下的取舍。"
+  chips: ["Docusaurus", "jieba", "Netlify"]
+hide_title: true
 ---
+
 
 | 项目 | 内容 |
 | --- | --- |

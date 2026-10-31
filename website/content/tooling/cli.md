@@ -2,7 +2,14 @@
 title: CLI
 description: 用 weisql 命令校验、打包、解包、检查与签名数据包，掌握每个选项、默认值和退出码。
 sidebar_position: 40
+hero:
+  kicker: "工具链 · CLI"
+  title: "validate / pack / sign，一条命令链"
+  lead: "校验、打包、检查与签名都走同一套 Manifest 规则。"
+  chips: ["validate", "pack", "sign", "--json"]
+hide_title: true
 ---
+
 
 `@weisql/cli` 是数据包的命令行入口：校验目录或 `.wsql` 容器、打包解包、生成与验证签名、授权发布密钥，以及在不打开 Runtime 的情况下检查包内容。读完本页你应当能把 `validate` 接进 CI，并选对容器与签名相关命令。
 

@@ -2,7 +2,14 @@
 title: 部署到 CDN
 description: 把 WeiSQL 数据包发布到静态托管或 CDN，检查 Range、CORS、缓存与目录/单文件两种发布形态。
 sidebar_position: 42
+hero:
+  kicker: "工具链 · 部署"
+  title: "静态托管需要什么"
+  lead: "Range、CORS、缓存与版本切换，决定浏览器端能否按需读取。"
+  chips: ["206", "CORS", "cache"]
+hide_title: true
 ---
+
 
 WeiSQL 数据包是静态文件：没有数据库服务，也没有需要常驻的后端。部署工作主要是把目录或 `.wsql` 文件放到支持 HTTP Range 的静态托管上，并确认 CORS 暴露了客户端需要的响应头。读完本页你应当能选对发布形态，并用几条命令验证托管行为。
 

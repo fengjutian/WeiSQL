@@ -2,7 +2,14 @@
 title: 完整性与签名
 description: 配置 verifyChecksums 做 L3 校验，并用 Ed25519 对 Manifest 签名、固定发布者、要求多签背书或通过根密钥授权。
 sidebar_position: 27
+hero:
+  kicker: "SDK · 信任"
+  title: "完整性校验与发布者签名"
+  lead: "L3 证明内容与 Manifest 一致；Ed25519 证明谁发布过它。"
+  chips: ["SHA-256", "Ed25519", "L3", "trust"]
+hide_title: true
 ---
+
 
 本页讲两件不同的事：资源完整性（字节是否与 Manifest 声明一致）和 Manifest 签名（发布者身份是否可信）。读完后你能选择校验级别，并用 CLI 或 SDK 完成签名、验签与密钥授权。
 

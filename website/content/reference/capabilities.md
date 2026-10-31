@@ -2,7 +2,14 @@
 title: 能力矩阵
 description: 按 SDK、Node.js、浏览器与 Adapter 分组列出已实现、已测试与未验证的能力，并标注每条结论的实测条件。
 sidebar_position: 51
+hero:
+  kicker: "参考"
+  title: "能力矩阵：能用，还是只是写了？"
+  lead: "按 SDK、Node、浏览器与 Adapter 分组，区分已测试、探针与未验证。"
+  chips: ["已测试", "探针", "未验证"]
+hide_title: true
 ---
+
 
 本页回答“这项能力现在能不能用、被验证到什么程度”。所有状态以仓库当前的实现与测试为准，性能数字只在标注的条件下成立。
 

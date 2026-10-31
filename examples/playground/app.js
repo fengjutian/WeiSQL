@@ -216,26 +216,22 @@ async function runSql() {
     const sqlDb = await ensureSqlDb();
     const streaming = $("sql-stream").checked;
     const started = performance.now();
-    const rows = [];
-    if (streaming) {
-      // Incremental delivery: rows arrive by Arrow batch instead of one array.
-      for await (const row of await sqlDb.sqlStream($("sql-query").value)) rows.push(row);
-    } else {
-      rows.push(...await sqlDb.sql($("sql-query").value));
-    }
-    const elapsed = Math.round(performance.now() - started);
     const head = $("sql-head");
     const body = $("sql-results");
     head.replaceChildren();
     body.replaceChildren();
-    if (rows.length === 0) {
+    const rows = [];
+    let rendered = false;
+
+    const showEmpty = () => {
       const row = document.createElement("tr");
       const cell = document.createElement("td");
       cell.className = "muted";
       cell.textContent = "查询成功，没有返回行";
       row.append(cell);
       body.append(row);
-    } else {
+    };
+    const renderHeader = () => {
       const header = document.createElement("tr");
       for (const key of Object.keys(rows[0])) {
         const cell = document.createElement("th");
@@ -243,16 +239,38 @@ async function runSql() {
         header.append(cell);
       }
       head.append(header);
-      for (const row of rows) {
-        const tr = document.createElement("tr");
-        for (const value of Object.values(row)) {
-          const cell = document.createElement("td");
-          cell.textContent = value === null ? "NULL" : String(value);
-          tr.append(cell);
+    };
+    const appendRow = (row) => {
+      const tr = document.createElement("tr");
+      for (const value of Object.values(row)) {
+        const cell = document.createElement("td");
+        cell.textContent = value === null ? "NULL" : String(value);
+        tr.append(cell);
+      }
+      body.append(tr);
+    };
+
+    if (streaming) {
+      // Incremental delivery: render each row as it arrives instead of waiting
+      // for the whole result set.
+      for await (const row of await sqlDb.sqlStream($("sql-query").value)) {
+        rows.push(row);
+        if (!rendered) {
+          renderHeader();
+          rendered = true;
         }
-        body.append(tr);
+        appendRow(row);
+      }
+      if (!rendered) showEmpty();
+    } else {
+      rows.push(...await sqlDb.sql($("sql-query").value));
+      if (rows.length === 0) showEmpty();
+      else {
+        renderHeader();
+        for (const row of rows) appendRow(row);
       }
     }
+    const elapsed = Math.round(performance.now() - started);
     setText("sql-status", `${rows.length} 行 · ${elapsed} ms · ${sqlDb.capabilities().sql ? "DuckDB-Wasm" : "?"}${streaming ? " · 流式" : ""}`);
     window.__PLAYGROUND_STATE = {
       ...(window.__PLAYGROUND_STATE ?? {}),

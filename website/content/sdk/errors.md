@@ -2,7 +2,14 @@
 title: 错误处理
 description: 按 code 而不是消息文本处理 WeiSQLError，查清 16 个公共错误码的触发层、details 字段与浏览器/Node 的一致语义。
 sidebar_position: 28
+hero:
+  kicker: "SDK · 错误"
+  title: "按 code 分支，不匹配消息文本"
+  lead: "16 个稳定错误码，覆盖 Manifest、资源、检索、SQL 与生命周期。"
+  chips: ["WeiSQLError", "code", "details"]
+hide_title: true
 ---
+
 
 本页是错误码速查：`WeiSQLError` 的结构、每个公共 `code` 的触发条件与 `details`，以及哪些错误应该重试、哪些必须停止。读完后你能写出不依赖错误消息的稳定分支。
 

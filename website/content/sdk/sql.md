@@ -2,7 +2,14 @@
 title: SQL 查询
 description: 用 db.sql() 与 db.sqlStream() 执行参数绑定的只读 SQL，选择 Node 或浏览器 DuckDB Adapter，理解只读边界与行数预算。
 sidebar_position: 25
+hero:
+  kicker: "SDK · SQL"
+  title: "只读 SQL，通过 Adapter 注入"
+  lead: "参数绑定、语句级只读边界与流式读取；SDK 本身不绑定引擎。"
+  chips: ["DuckDB", "DuckDB-Wasm", "maxRows", "sqlStream"]
+hide_title: true
 ---
+
 
 本页讲 `db.sql()` / `db.sqlStream()` 的调用契约与两个官方 SQL Adapter 的行为差异。读完后你能正确绑定参数、设置 `maxRows`，并判断当前环境支持哪些语句与参数类型。
 

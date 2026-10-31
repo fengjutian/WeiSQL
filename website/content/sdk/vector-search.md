@@ -2,7 +2,14 @@
 title: 向量检索
 description: 使用 vector.search() 做精确向量检索，理解距离方向、过滤表达式、两种混合策略与 exact 声明。
 sidebar_position: 22
+hero:
+  kicker: "SDK · 检索"
+  title: "精确向量，先过滤再比较"
+  lead: "Cosine / L2 / IP 统一为越小越相似；过滤发生在 Top-K 之前。"
+  chips: ["Float32", "Top-K", "filter", "exact"]
+hide_title: true
 ---
+
 
 本页讲 `db.vector.search()` 的调用方式、距离语义、过滤 DSL 与两种混合策略。读完后你能判断一次查询是否真的是“过滤子集上的最近 K”，并知道哪些诊断字段能证明这一点。
 

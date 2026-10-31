@@ -2,7 +2,14 @@
 title: 基准测试
 description: 运行可复现的精确检索、ANN、全文与 DuckDB-Wasm 基准，理解测量条件、数字边界与探针分工。
 sidebar_position: 43
+hero:
+  kicker: "工具链 · 测量"
+  title: "基准是测量设备，不是性能承诺"
+  lead: "p50/p95、I/O、内存与 Recall@K 都要带条件报告。"
+  chips: ["bench", "probe", "p50"]
+hide_title: true
 ---
+
 
 `npm run bench` 是一台测量装置，不是性能承诺：它生成固定种子的合成数据包，先做完整性闸门，再测 `open()`、查询延迟、I/O 字节与峰值内存。读完本页你应当能复现一组数字，并说明这些数字为什么不能外推到真实语料、浏览器或 CDN。
 

@@ -2,7 +2,14 @@
 title: 环境与引擎兼容性
 description: 对照 Node.js 与浏览器、DuckDB 与 DuckDB-Wasm 在取消、参数、扩展和内存预算上的差异，说明哪些结论可以外推。
 sidebar_position: 52
+hero:
+  kicker: "参考 · 兼容性"
+  title: "Node 与浏览器，能力不等价"
+  lead: "结果语义一致，但参数、取消、扩展与预算不同。"
+  chips: ["Node", "Chromium", "cancel"]
+hide_title: true
 ---
+
 
 “同一份 SDK 代码”不等于“同一套能力”。本页把差异摊开，方便你在选运行时之前就知道会踩到什么。
 

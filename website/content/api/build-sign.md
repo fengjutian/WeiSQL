@@ -2,7 +2,14 @@
 title: Builder、完整性与签名 API
 description: buildPackage、validateManifest、verifyManifestResources 与 Ed25519 签名、验签、根密钥授权函数的完整签名、选项、默认值和返回类型。
 sidebar_position: 75
+hero:
+  kicker: "API · 构建与签名"
+  title: "从 Parquet 到可信发布"
+  lead: "Builder、L3 校验、Ed25519 与根授权。"
+  chips: ["buildPackage", "L3", "Ed25519"]
+hide_title: true
 ---
+
 
 本页汇总“生成并认证数据包”的公开 API：Builder 写出 Manifest 与资源，`verifyManifestResources()` 做 L3 校验，签名函数为 Manifest 绑定发布者身份。读完后你应该能按源码签名正确调用，并知道每个错误来自哪个阶段。
 

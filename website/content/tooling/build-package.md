@@ -2,7 +2,14 @@
 title: 构建数据包
 description: 用 buildPackage 从已有 Parquet、向量和业务 ID 生成可校验的数据包，理解阶段、覆盖、签名与警告。
 sidebar_position: 41
+hero:
+  kicker: "工具链 · 构建"
+  title: "从 Parquet 到可发布数据包"
+  lead: "Builder 生成向量、ID Map、摘要，并在发布前重新读取暂存区做自检。"
+  chips: ["buildPackage()", "L3", "atomic"]
+hide_title: true
 ---
+
 
 `buildPackage()` 是 V1 的数据包构建入口：接收已经存在的 Parquet 文件、原始向量和业务 ID，生成 Float32 向量文件、ID Map、真实字节数与 SHA-256 的 Manifest，并在发布前把整个暂存区重新读一遍做 L1/L2/L3 自检。读完本页你应当能构造一次成功构建，并解释失败时包为什么没有落盘。
 

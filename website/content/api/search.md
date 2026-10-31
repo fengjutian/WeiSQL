@@ -2,7 +2,14 @@
 title: 检索 API
 description: db.vector.search、db.text.search、db.hybrid.search 与 db.rag.search 的完整签名、选项默认值、过滤写法、返回字段与诊断信息。
 sidebar_position: 73
+hero:
+  kicker: "API · 检索"
+  title: "四个检索入口的签名"
+  lead: "向量、全文、混合与 RAG 的选项、默认值与诊断。"
+  chips: ["vector", "text", "hybrid", "rag"]
+hide_title: true
 ---
+
 
 本页是四类检索入口的参考：签名、选项、默认值、返回值与诊断字段。行为细节与取舍见对应的使用指南；这里只写契约与边界。
 

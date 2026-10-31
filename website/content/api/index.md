@@ -2,7 +2,14 @@
 title: API 总览
 description: 按包与用途索引 WeiSQL 的公开 TypeScript API，并说明导入路径、稳定性、类型约定与各 API 参考页的分工。
 sidebar_position: 70
+hero:
+  kicker: "API"
+  title: "公开 API，一眼能查"
+  lead: "五个包的导入路径、公共导出与类型约定；每个入口都有签名参考。"
+  chips: ["@weisql/sdk", "Runtime", "Adapters"]
+hide_title: true
 ---
+
 
 本页是 WeiSQL API 参考的入口：先给出五个包的导入路径和稳定性边界，再按用途列出公开导出，并说明贯穿所有 API 的类型约定。读完后你应该能判断一个功能属于哪个包、该看哪一页 API 参考。
 

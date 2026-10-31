@@ -2,7 +2,14 @@
 title: SQL API
 description: db.sql() 与 db.sqlStream() 的签名、SQLValue 与 QueryOptions、maxRows 的两种执行方式，以及 SqlAdapter 契约与 Node/浏览器差异。
 sidebar_position: 74
+hero:
+  kicker: "API · SQL"
+  title: "sql 与 sqlStream 的契约"
+  lead: "参数、maxRows、Adapter 接口与两端差异。"
+  chips: ["sql", "sqlStream", "maxRows"]
+hide_title: true
 ---
+
 
 本页是 SQL 入口与 Adapter 契约的参考。SDK 只定义接口，不绑定引擎；`db.sql()` 的行为最终由注入的 `SqlAdapter` 决定。
 

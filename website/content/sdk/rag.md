@@ -2,7 +2,14 @@
 title: RAG 证据组装
 description: 用 rag.search() 在字符预算内返回带名次与来源的证据片段，理解截断边界、文档来源和“不调用模型”的职责边界。
 sidebar_position: 24
+hero:
+  kicker: "SDK · RAG"
+  title: "在字符预算内组装证据"
+  lead: "rag.search() 只返回带来源与名次的片段，不调用模型、不拼 prompt。"
+  chips: ["evidence", "budget", "boundary"]
+hide_title: true
 ---
+
 
 本页讲 `db.rag.search()`：它把向量与全文的融合结果转成受字符预算约束的证据片段。读完后你能正确设置预算、判断片段是否被截断，并明确它不会替你调用模型或拼 prompt。
 

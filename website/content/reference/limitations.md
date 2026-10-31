@@ -2,7 +2,14 @@
 title: 已知限制
 description: 按外部条件阻塞、设计未定与明确不做三类，列出当前未实现或未验证的能力及其影响。
 sidebar_position: 53
+hero:
+  kicker: "参考 · 边界"
+  title: "哪些事现在还不能依赖"
+  lead: "按外部阻塞、设计未定与明确不做分组，避免过度承诺。"
+  chips: ["未验证", "未实现", "明确不做"]
+hide_title: true
 ---
+
 
 本页只列“现在还不能依赖”的部分。能做什么见 [能力矩阵](/docs/reference/capabilities)；本页回答的是“哪里会出问题、为什么、怎么绕开”。
 

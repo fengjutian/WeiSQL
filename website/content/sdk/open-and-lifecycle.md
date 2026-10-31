@@ -2,7 +2,14 @@
 title: 打开数据库与生命周期
 description: 用 open() 创建只读 Runtime，说明 Manifest 来源、Reader 归属、状态机与幂等 close() 的边界。
 sidebar_position: 20
+hero:
+  kicker: "SDK · 生命周期"
+  title: "打开、查询、关闭"
+  lead: "open() 是唯一入口；Reader 与 Adapter 在这里注入，生命周期由 Runtime 持有。"
+  chips: ["open()", "capabilities()", "close()"]
+hide_title: true
 ---
+
 
 本页说明如何用 `open()` 打开一个只读数据包，以及返回的 `WeiSQLDatabase` 在打开、就绪、关闭各阶段的行为。读完后你应该能安全地选择 Manifest 来源、注入 Reader 与 Adapter，并在应用退出时正确释放资源。
 

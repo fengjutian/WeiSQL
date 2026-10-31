@@ -2,7 +2,14 @@
 title: 术语表
 description: 统一 WeiSQL 文档中的 25 个核心术语，避免“索引”“校验”“精确”等词在不同页面含义漂移。
 sidebar_position: 54
+hero:
+  kicker: "参考 · 术语"
+  title: "把词义钉死"
+  lead: "数据包、Manifest、L1–L4、exact、RRF 等 25 个术语。"
+  chips: ["package", "L3", "RRF"]
+hide_title: true
 ---
+
 
 同一批概念在不同页面反复出现，这里给出一份口径。术语按“数据与格式、校验、运行时、检索”四组排列，共 25 条。
 

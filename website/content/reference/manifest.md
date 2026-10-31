@@ -2,7 +2,14 @@
 title: Manifest 字段速查
 description: 汇总 V1 Manifest 的顶层字段、表与向量集合约束、最小示例，以及最常见的校验失败与排查方向。
 sidebar_position: 50
+hero:
+  kicker: "参考 · 格式"
+  title: "Manifest 字段速查"
+  lead: "格式、路径、字节公式与签名字段；机器可读 Schema 在仓库里。"
+  chips: ["formatVersion", "paths", "sha256"]
+hide_title: true
 ---
+
 
 Manifest 是数据包的公开契约。本页给结论和速查表，不复制完整 Schema；机器可读定义见仓库里的 `docs/MANIFEST_SCHEMA_V1.json`。
 

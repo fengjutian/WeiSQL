@@ -2,7 +2,14 @@
 title: DuckDB-Wasm Adapter（浏览器）
 description: 在浏览器中通过 DuckDB-Wasm 执行只读 SQL，理解同源扩展托管、只读白名单、参数限制与 best-effort 取消。
 sidebar_position: 31
+hero:
+  kicker: "适配器 · 浏览器"
+  title: "在 Worker 里跑只读 SQL"
+  lead: "WASM、自托管 parquet 扩展与关键字白名单构成边界。"
+  chips: ["WASM", "parquet", "best-effort"]
+hide_title: true
 ---
+
 
 `@weisql/duckdb-wasm-adapter` 把 DuckDB-Wasm 的 Worker 接到同一个 `SqlAdapter` 接口，让 `db.sql()` 在浏览器里查询数据包。读完本页你应当能部署同源 `parquet` 扩展、判断一条 SQL 会不会被拒绝，并解释浏览器端取消为什么只是 best-effort。
 

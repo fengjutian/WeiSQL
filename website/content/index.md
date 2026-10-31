@@ -2,7 +2,14 @@
 title: WeiSQL AI 文档
 description: 面向静态网站与嵌入式 AI 应用的只读数据运行时：把数据包发布到 CDN，在浏览器或 Node.js 中按需查询。
 sidebar_position: 0
+hero:
+  kicker: "手册"
+  title: "从数据包到查询，一份完整手册"
+  lead: "按任务组织：先跑通，再理解概念，然后查 SDK、API 与边界。"
+  chips: ["开始", "SDK", "API", "参考"]
+hide_title: true
 ---
+
 
 WeiSQL AI 是一个**只读数据运行时**。它把 Parquet 表、Float32 向量、ID Map 与索引打包成一个可版本化的数据包，随应用发布到静态托管或 CDN；浏览器和 Node.js 通过 HTTP Range 按需读取，不需要单独部署数据库服务。
 

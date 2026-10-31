@@ -2,7 +2,14 @@
 title: USearch ANN Adapter
 description: 在 Node.js 中用 USearch HNSW 做近似向量检索，理解召回依赖分布、过滤限制、持久化索引与取消语义。
 sidebar_position: 32
+hero:
+  kicker: "适配器 · ANN"
+  title: "用 HNSW 换延迟，但要说清召回"
+  lead: "结果永远 exact: false；召回必须用目标数据测。"
+  chips: ["HNSW", "Recall@K", "post-filter"]
+hide_title: true
 ---
+
 
 `@weisql/usearch-adapter` 用 USearch 的 HNSW 索引实现 `VectorAdapter`，通过 `open({ vectorAdapter })` 注入后，`db.vector.search()` 走近似检索。读完本页你应当能判断是否该用 ANN、如何生成持久化索引，以及为什么召回数字必须和目标数据一起报告。
 

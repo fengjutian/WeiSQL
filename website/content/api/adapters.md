@@ -2,7 +2,14 @@
 title: Adapter 工厂 API
 description: createDuckDbAdapter、createDuckDbWasmAdapter 与 createUSearchAdapter 的完整签名、选项默认值、能力字段和注入示例。
 sidebar_position: 76
+hero:
+  kicker: "API · Adapters"
+  title: "三个工厂，一个注入点"
+  lead: "DuckDB、DuckDB-Wasm、USearch 的选项与能力。"
+  chips: ["createDuckDbAdapter", "createUSearchAdapter"]
+hide_title: true
 ---
+
 
 本页是三个 Adapter 工厂的 API 参考：它们都返回实现了 SDK 契约的对象，通过 `open({ sqlAdapter })` 或 `open({ vectorAdapter })` 注入。读完后你应该能对照源码选择工厂、填写选项，并正确解读 `capabilities`。
 

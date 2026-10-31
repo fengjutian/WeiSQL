@@ -2,7 +2,14 @@
 title: DuckDB Adapter（Node.js）
 description: 在 Node.js 中把只读 DuckDB 接入 WeiSQL Runtime，理解物化方式、只读边界、参数绑定与取消语义。
 sidebar_position: 30
+hero:
+  kicker: "适配器 · Node"
+  title: "把 DuckDB 接到只读 Runtime"
+  lead: "表从 Reader 字节物化，只读边界由语句分类保证。"
+  chips: ["memory", "lazy", "L4", "native"]
+hide_title: true
 ---
+
 
 `@weisql/duckdb-adapter` 把 Node.js 端的 DuckDB 接到 SDK 的 `SqlAdapter` 接口上，让 `db.sql()` 执行真实 SQL，同时保持只读边界。读完后你应当能选对表加载模式、正确绑定参数，并解释一次查询为什么被拒绝。
 

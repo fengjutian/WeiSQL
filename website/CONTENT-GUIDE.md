@@ -40,6 +40,19 @@ sidebar_position: 22
 - `FlowSteps`：步骤卡片，`columns={2}` 或默认 3 列；
 - `Callout`：提示块，`tone="amber"` 表示警告。
 
+如果页面只需要一个 Hero、正文仍是普通 Markdown，可以直接用 frontmatter，不必改成 MDX：
+
+```yaml
+hero:
+  kicker: SDK · 检索
+  title: 精确向量，先过滤再比较
+  lead: 一句话说明本页解决什么问题。
+  chips: [Float32, Top-K, filter]
+hide_title: true
+```
+
+`src/theme/DocItem/Content` 会读取 `hero` 并渲染 `PageHero`；没有 `hero` 的页面保持默认标题。
+
 示例：
 
 ```mdx

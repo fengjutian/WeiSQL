@@ -2,7 +2,14 @@
 title: Runtime API
 description: 速查 open() 的选项、校验顺序与错误码，WeiSQLDatabase 的完整接口、RuntimeState 五态，以及 capabilities() 八个布尔字段的触发条件。
 sidebar_position: 71
+hero:
+  kicker: "API · Runtime"
+  title: "open() 与它的对象"
+  lead: "选项、状态机、能力声明与关闭语义。"
+  chips: ["open()", "capabilities()", "close()"]
+hide_title: true
 ---
+
 
 本页是 Runtime 的签名速查：`open()` 的选项与校验顺序、`WeiSQLDatabase` 接口、状态机取值和 `capabilities()` 判定条件。生命周期讲解见 [打开数据库与生命周期](/docs/sdk/open-and-lifecycle)。
 

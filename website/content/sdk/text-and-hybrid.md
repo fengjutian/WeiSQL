@@ -2,7 +2,14 @@
 title: 全文检索与混合检索
 description: 使用 text.search() 做 BM25 关键词检索，再用 hybrid.search() 按 RRF 融合向量与文本结果，并正确解读两路名次与原始分数。
 sidebar_position: 23
+hero:
+  kicker: "SDK · 检索"
+  title: "BM25 与 RRF 融合"
+  lead: "全文检索按词打分，融合只使用名次；两类分数不能直接比较。"
+  chips: ["BM25", "CJK", "RRF", "k=60"]
+hide_title: true
 ---
+
 
 本页讲全文检索和 RRF 融合检索：`text.search()` 如何用 BM25 排序，`hybrid.search()` 如何按名次而不是分数融合两路结果。读完后你能读懂 `score` 的方向、`ranks` 的含义，并知道哪些比较是不成立的。
 

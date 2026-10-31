@@ -2,7 +2,14 @@
 title: 单文件容器
 description: 使用 .wsql 容器把数据包合成一个文件，选择整包内存读取或流式 Range 读取，并理解 gzip 条目、校验与失败语义。
 sidebar_position: 26
+hero:
+  kicker: "SDK · 分发"
+  title: "把数据包合成一个文件"
+  lead: ".wsql 支持整包与流式读取；压缩条目内的 Range 需要先解压。"
+  chips: [".wsql", "gzip", "stream"]
+hide_title: true
 ---
+
 
 本页讲 `.wsql` 单文件容器的布局、两个运行时读取器与 CLI 打包流程。读完后你能在“整包下载”和“只读头部 + 按文件 Range”之间做选择，并知道压缩条目对 Range 的代价。
 

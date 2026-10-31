@@ -2,7 +2,14 @@
 title: Readers API
 description: 速查 ResourceReader 契约、HTTP 与 Node 文件读取器的选项和失败语义、缓存读取器的统计字段，以及 .wsql 容器读取器与字节源的签名。
 sidebar_position: 72
+hero:
+  kicker: "API · Readers"
+  title: "字节访问的四个方法"
+  lead: "HTTP、Node、缓存与容器的签名和失败语义。"
+  chips: ["ByteRange", "LRU", "container"]
+hide_title: true
 ---
+
 
 本页是资源读取层的签名速查：`ResourceReader` 契约、内置读取器的选项与错误边界、缓存统计字段，以及 `.wsql` 容器读取器与字节源。使用场景见 [资源读取器](/docs/sdk/resource-readers) 与 [单文件容器](/docs/sdk/containers)。
 

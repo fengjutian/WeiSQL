@@ -33,15 +33,18 @@ export async function exactVectorSearch(input: ExactVectorSearchInput): Promise<
   if (collectionCount === 0) return [];
   const best = new TopKMaxHeap<ExactVectorHit>(Math.min(search.topK, collectionCount));
 
-  // Selective path: when the filter is narrow, read only the allowed rows (in
-  // contiguous runs) instead of streaming every block. The 1/8 threshold keeps
-  // broad filters on the sequential path, where block reads amortise better.
+  // Selective path: read only the allowed rows, merged into contiguous runs.
+  // The decision counts both bytes and per-request overhead: a scattered filter
+  // can read far fewer bytes yet issue thousands of tiny requests, which
+  // measured ~14x slower than one sequential scan (bench --filter).
   const allowedRows = search.allowedRows;
-  if (allowedRows !== undefined && allowedRows.size > 0 && allowedRows.size * 8 <= collectionCount) {
-    const rows = [...allowedRows]
+  const runs = allowedRows === undefined || allowedRows.size === 0
+    ? undefined
+    : contiguousRuns([...allowedRows]
       .filter(row => Number.isSafeInteger(row) && row >= 0 && row < collectionCount)
-      .sort((left, right) => left - right);
-    for (const [start, end] of contiguousRuns(rows)) {
+      .sort((left, right) => left - right));
+  if (runs !== undefined && runs.length > 0 && selectiveReadIsCheaper(runs, allowedRows!.size, collectionCount, dimension, blockSize)) {
+    for (const [start, end] of runs) {
       checkCancelled(search.signal);
       const block = await reader.readBlock(start, end - start, signalOptions(search.signal));
       checkCancelled(search.signal);
@@ -81,6 +84,30 @@ export async function exactVectorSearch(input: ExactVectorSearchInput): Promise<
 
 function checkCancelled(signal: AbortSignal | undefined): void {
   if (signal?.aborted) throw new WeiSQLError("QUERY_CANCELLED", "Vector search was cancelled");
+}
+
+/**
+ * Estimated per-range-request cost in byte-equivalents.
+ *
+ * Measured on a 100k × 128 package: a scattered 1/8 filter read 6.4 MB in 54,395
+ * requests (4.2 s) while one sequential scan read 51.2 MB in 490 requests
+ * (341 ms). One request therefore costs about as much as reading 11 KB, so 12 KB
+ * is used — a value that rejects scattered filters and keeps contiguous runs.
+ */
+const RANGE_REQUEST_OVERHEAD_BYTES = 12_288;
+
+/** Compares estimated cost of run reads against one sequential block scan. */
+function selectiveReadIsCheaper(
+  runs: readonly [number, number][],
+  allowedCount: number,
+  collectionCount: number,
+  dimension: number,
+  blockSize: number,
+): boolean {
+  const rowBytes = dimension * 4;
+  const selective = allowedCount * rowBytes + runs.length * RANGE_REQUEST_OVERHEAD_BYTES;
+  const sequential = collectionCount * rowBytes + Math.ceil(collectionCount / blockSize) * RANGE_REQUEST_OVERHEAD_BYTES;
+  return selective < sequential;
 }
 
 /** Groups sorted rows into inclusive-exclusive runs, so neighbours share one read. */

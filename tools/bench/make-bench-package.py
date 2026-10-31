@@ -66,9 +66,14 @@ def main() -> None:
         tokens = rng_text.choice(vocabulary, size=length, p=weights)
         bodies.append(" ".join(tokens.tolist()))
 
+    # A scattered numeric column, so a filter can select a fraction of rows
+    # without them being contiguous (an id range would always be a single run).
+    rng_score = np.random.default_rng(args.seed + 2)
+    scores = rng_score.integers(0, 100_000, size=rows).tolist()
+
     table = pa.Table.from_pylist(
         [
-            {"id": ids[index], "title": titles[index], "category": categories[index % len(categories)], "body": bodies[index]}
+            {"id": ids[index], "title": titles[index], "category": categories[index % len(categories)], "body": bodies[index], "score": int(scores[index])}
             for index in range(rows)
         ],
         schema=pa.schema(
@@ -77,6 +82,7 @@ def main() -> None:
                 pa.field("title", pa.string(), nullable=False),
                 pa.field("category", pa.string(), nullable=False),
                 pa.field("body", pa.string(), nullable=False),
+                pa.field("score", pa.int32(), nullable=False),
             ]
         ),
     )
@@ -134,6 +140,7 @@ def main() -> None:
                     {"name": "title", "type": "string", "nullable": False},
                     {"name": "category", "type": "string", "nullable": False},
                     {"name": "body", "type": "string", "nullable": False},
+                    {"name": "score", "type": "int32", "nullable": False},
                 ],
                 "primaryKey": ["id"],
             }

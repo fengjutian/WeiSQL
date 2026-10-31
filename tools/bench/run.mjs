@@ -429,11 +429,16 @@ if (options.filter) {
   };
 
   const hasCategory = table !== undefined && table.columns.some(column => column.name === "category");
+  const hasScore = table !== undefined && table.columns.some(column => column.name === "score");
   const tailStart = `doc-${String(Math.max(0, collection.count - 1000)).padStart(6, "0")}`;
   filtered = {
     selective: await measure(`id >= ${tailStart} (contiguous tail, 1000 rows)`, { id: { gte: tailStart } }),
     ...(hasCategory ? { broad: await measure("category = alpha (~1/3, scattered)", { category: "alpha" }) } : {}),
-    caveat: "vector bytes are measured per query; the ID Map scan is reported separately because it is a fixed cost",
+    ...(hasScore ? {
+      scatteredEighth: await measure("score >= 87500 (scattered ~1/8)", { score: { gte: 87500 } }),
+      scatteredQuarter: await measure("score >= 75000 (scattered ~1/4)", { score: { gte: 75000 } }),
+    } : {}),
+    caveat: "vector bytes and requests are per query; the ID Map scan is reported separately because it is a fixed cost",
   };
 }
 

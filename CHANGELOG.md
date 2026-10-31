@@ -34,8 +34,9 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   Reciprocal Rank Fusion, reporting per-source ranks and raw values.
 - Filters support membership (`IN`), ranges and `ne`, plus `date`/`timestamp`
   values; `json` equality is still rejected explicitly.
-- Exact filtered search reads only the allowed vector rows when the filter is
-  narrow (≤ 1/8 of the collection), merging contiguous rows into one read.
+- Exact filtered search reads only the allowed vector rows, merging contiguous
+  rows into one read, and picks between that and a sequential scan with a
+  request-aware cost model (scattered filters used to issue thousands of reads).
 - Vector collections carry an optional sorted `id → row` index; filtered search
   loads it once and binary-searches instead of scanning the whole ID Map. L3
   verifies its bytes and, in `all` mode, that it is a sorted row permutation.
@@ -149,7 +150,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   `npm run bench:wasm` measures materialization and filtered queries at 50k–500k
   rows (Node WASM; time and RSS, not a performance promise);
   `npm run bench:wasm-stream` measures browser `sqlStream()` first-row latency,
-  throughput and heap growth.
+  throughput and heap growth on synthetic rows, then on a 200k-row Parquet
+  package (HTTP Range + L3 + materialize) against `db.sql()`.
 - Browser probes now also cover read-only CTEs and browser-side filtered vector
   search (`exact-filter-first`); the playground gained SQL and category filters,
   plus a streaming toggle that runs the same query through `db.sqlStream()`.

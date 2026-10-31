@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import { stat } from "node:fs/promises";
+import path from "node:path";
 
 import { packPackage } from "./pack.js";
+import { unpackContainer } from "./unpack.js";
 import { validateContainer, validatePackage } from "./validate.js";
 import type { ValidationResult } from "./validate.js";
 import type { IntegrityMode } from "@weisql/sdk";
@@ -11,10 +13,11 @@ const USAGE = `Usage: weisql <command> [options]
 Commands:
   validate <directory|file.wsql>   Validate a package or a packed container
   pack <directory>                 Pack a package into a single .wsql container
+  unpack <file.wsql>               Extract a container after verifying its digests
 
 Options:
   --mode <none|manifest|all>   Integrity mode for validate (default: all)
-  --output <file>              Output path for pack (default: <basename>.wsql)
+  --output <file|directory>    Output path for pack / unpack
   --json                       Print machine-readable JSON
   --help, -h                   Show this help
 
@@ -107,7 +110,7 @@ async function main(argv: readonly string[]): Promise<number> {
     console.log(USAGE);
     return parsed.help ? 0 : 2;
   }
-  if (parsed.command !== "validate" && parsed.command !== "pack") {
+  if (parsed.command !== "validate" && parsed.command !== "pack" && parsed.command !== "unpack") {
     console.error(`error: unknown command '${parsed.command}'`);
     console.error(USAGE);
     return 2;
@@ -116,6 +119,25 @@ async function main(argv: readonly string[]): Promise<number> {
     console.error(`error: ${parsed.command} requires a path`);
     console.error(USAGE);
     return 2;
+  }
+
+  if (parsed.command === "unpack") {
+    const target = parsed.output ?? path.basename(parsed.target, path.extname(parsed.target));
+    try {
+      const unpacked = await unpackContainer({ file: parsed.target, directory: path.resolve(target) });
+      if (parsed.json) console.log(JSON.stringify(unpacked, null, 2));
+      else {
+        console.log(`container: ${unpacked.file}`);
+        console.log(`directory: ${unpacked.directory} (${unpacked.digestsVerified} digests verified)`);
+        console.log(`files:     ${unpacked.files.length} (${unpacked.bytes} bytes)`);
+        for (const file of unpacked.files) console.log(`  ${file}`);
+        console.log("OK");
+      }
+      return 0;
+    } catch (cause) {
+      console.error(`error: ${cause instanceof Error ? cause.message : String(cause)}`);
+      return 1;
+    }
   }
 
   if (parsed.command === "pack") {

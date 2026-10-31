@@ -391,6 +391,15 @@
 - 决策三：不因为测得召回更低就调参掩盖。0.385 是真实结果，说明聚类数据上的近重复点让集合重叠对微小误差极其敏感；调参只恢复到 0.76，说明「加大 expansion 就万事大吉」也是错的。
 - 后果：`BENCHMARK_HARNESS.md` §2.1 记录完整对照表；`USEARCH_ADAPTER.md` 与 `ANN_FEASIBILITY.md` 的召回表述改为「取决于分布，必须实测」。仍然没有任何真实数据集结论。
 
+## ADR-044：容器条目路径在解析阶段就做防穿越校验
+
+- 状态：Accepted and implemented
+- 背景：`unpack` 需要把条目写到磁盘。容器头部是**不可信输入**，一个 `../../etc/passwd` 条目如果在写盘时才检查，就已经晚了。
+- 决策一：`assertSafeContainerPath()` 在 `parseContainer` 与 `createContainer` 两处都调用：路径必须相对、只含 `A-Za-z0-9._/-`、无 `..`/`.` 段、无空段、无尾部斜杠、长度 ≤1024。非法容器在解析阶段即 `RESOURCE_INTEGRITY_FAILED`。
+- 决策二：`unpack` 在写任何文件前先校验全部摘要；篡改的容器不会留下部分文件。写入时再做一次 `path.resolve` 包含性检查，作为第二道防线。
+- 决策三：`createContainer` 对非法路径抛 `INVALID_ARGUMENT`，与解析阶段的 `RESOURCE_INTEGRITY_FAILED` 区分：前者是调用方错误，后者是数据不可信。
+- 后果：`weisql unpack` 可用，且容器格式在「读」和「写」两侧都拒绝路径穿越。CI 的派生作业增加「解包后再次校验」这一环。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

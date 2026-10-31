@@ -38,6 +38,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - `weisql validate <dir|file.wsql>` with `--mode` / `--json` and exit codes 0/1/2.
 - `weisql pack <dir> --output <file>` produces a `.wsql` container; validating a
   container checks both the container digests and the Manifest resources.
+- `weisql unpack <file.wsql>` verifies every digest before writing anything, and
+  rejects entry paths that could escape the output directory.
 
 ### `@weisql/duckdb-adapter` 0.1.0
 

@@ -47,9 +47,10 @@ file bytes...           按头部顺序紧邻排列
 ```bash
 weisql pack ./my-package --output ./my-package.wsql
 weisql validate ./my-package.wsql
+weisql unpack ./my-package.wsql --output ./extracted
 ```
 
-`pack` 递归收集目录（按路径排序），要求存在 `manifest.json`。`validate` 检测目标是文件时自动走容器分支：先校验容器每个条目的摘要，再按 Manifest 做 L1/L2/L3。
+`pack` 递归收集目录（按路径排序），要求存在 `manifest.json`。`validate` 检测目标是文件时自动走容器分支：先校验容器每个条目的摘要，再按 Manifest 做 L1/L2/L3。`unpack` **先校验全部摘要再写盘**，所以被篡改的容器不会留下半可信的目录。
 
 ### 运行时
 
@@ -71,6 +72,7 @@ const db = await open({ manifest, resourceReader: reader, verifyChecksums: "all"
 | --- | --- |
 | 魔数不符、头部长度越界、头部非 JSON | `RESOURCE_INTEGRITY_FAILED` |
 | 条目 offset 不连续、路径重复、摘要格式错误 | `RESOURCE_INTEGRITY_FAILED` |
+| 条目路径包含 `..`、绝对路径、反斜杠或空段 | `RESOURCE_INTEGRITY_FAILED`（解析阶段即拒绝） |
 | 数据区有尾部多余字节 | `RESOURCE_INTEGRITY_FAILED` |
 | 文件内容被篡改 | 容器摘要不符 → `RESOURCE_INTEGRITY_FAILED`（`validate` 报 issue） |
 | 未知 `formatVersion` | `FORMAT_VERSION_UNSUPPORTED` |

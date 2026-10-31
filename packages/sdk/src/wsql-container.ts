@@ -64,6 +64,11 @@ export async function createContainer(files: readonly ContainerFile[], options: 
   let offset = 0;
   for (const file of files) {
     if (file.path.length === 0) throw new WeiSQLError("INVALID_ARGUMENT", "Container file paths must not be empty");
+    try {
+      assertSafeContainerPath(file.path);
+    } catch {
+      throw new WeiSQLError("INVALID_ARGUMENT", "Container file paths must stay inside the extraction root", { path: file.path });
+    }
     if (seen.has(file.path)) throw new WeiSQLError("INVALID_ARGUMENT", `Duplicate container path '${file.path}'`);
     seen.add(file.path);
     entries.push({ path: file.path, offset, bytes: file.bytes.byteLength, sha256: await sha256Hex(file.bytes) });
@@ -82,6 +87,25 @@ export async function createContainer(files: readonly ContainerFile[], options: 
     position += file.bytes.byteLength;
   }
   return output;
+}
+
+/**
+ * Rejects entry paths that could escape the extraction root.
+ *
+ * A container header is untrusted input: an entry named `../../etc/passwd` must
+ * fail while parsing, not when someone writes it to disk.
+ */
+export function assertSafeContainerPath(containerPath: string): void {
+  const invalid = (reason: string) => new WeiSQLError("RESOURCE_INTEGRITY_FAILED", `Unsafe container path: ${reason}`, { path: containerPath });
+  if (containerPath.length === 0) throw invalid("empty");
+  if (containerPath.length > 1024) throw invalid("longer than 1024 characters");
+  if (!/^[A-Za-z0-9._/-]+$/.test(containerPath)) throw invalid("only letters, digits, '.', '_', '-' and '/' are allowed");
+  if (containerPath.startsWith("/")) throw invalid("must be relative");
+  if (containerPath.includes("\\")) throw invalid("backslashes are not allowed");
+  if (containerPath.endsWith("/")) throw invalid("must name a file");
+  const segments = containerPath.split("/");
+  if (segments.some(segment => segment.length === 0)) throw invalid("empty path segment");
+  if (segments.some(segment => segment === "." || segment === "..")) throw invalid("'.' and '..' segments are not allowed");
 }
 
 export interface ParsedContainer {
@@ -127,6 +151,7 @@ export function parseContainer(bytes: Uint8Array): ParsedContainer {
     if (typeof entry !== "object" || entry === null) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container entry must be an object", { index });
     const record = entry as { path?: unknown; offset?: unknown; bytes?: unknown; sha256?: unknown };
     if (typeof record.path !== "string" || record.path.length === 0) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container entry is missing a path", { index });
+    assertSafeContainerPath(record.path);
     if (seen.has(record.path)) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container lists a path twice", { path: record.path });
     seen.add(record.path);
     if (!Number.isSafeInteger(record.offset) || (record.offset as number) < 0) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container entry has an invalid offset", { path: record.path });

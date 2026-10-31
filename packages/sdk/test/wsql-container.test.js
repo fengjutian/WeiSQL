@@ -74,6 +74,24 @@ test("rejects duplicate paths and empty containers", async () => {
   await assert.rejects(createContainer([{ path: "", bytes: new Uint8Array(1) }]), { code: "INVALID_ARGUMENT" });
 });
 
+test("rejects unsafe entry paths on both write and read", async () => {
+  await assert.rejects(createContainer([{ path: "../evil.txt", bytes: new Uint8Array(1) }]), { code: "INVALID_ARGUMENT" });
+  await assert.rejects(createContainer([{ path: "/abs.txt", bytes: new Uint8Array(1) }]), { code: "INVALID_ARGUMENT" });
+  await assert.rejects(createContainer([{ path: "a\\b.txt", bytes: new Uint8Array(1) }]), { code: "INVALID_ARGUMENT" });
+
+  // Craft a header that a malicious packer could produce.
+  const header = JSON.stringify({
+    formatVersion: "1.0.0",
+    files: [{ path: "../evil.txt", offset: 0, bytes: 1, sha256: "0".repeat(64) }],
+  });
+  const headerBytes = encoder.encode(header);
+  const bytes = new Uint8Array(12 + headerBytes.byteLength + 1);
+  bytes.set(encoder.encode(CONTAINER_MAGIC), 0);
+  new DataView(bytes.buffer).setUint32(8, headerBytes.byteLength, true);
+  bytes.set(headerBytes, 12);
+  assert.throws(() => parseContainer(bytes), { code: "RESOURCE_INTEGRITY_FAILED" });
+});
+
 test("rejects non-contiguous entries and unknown paths", async () => {
   const header = JSON.stringify({
     formatVersion: "1.0.0",

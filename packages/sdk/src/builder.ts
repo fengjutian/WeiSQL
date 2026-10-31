@@ -6,6 +6,7 @@ import { WeiSQLError } from "./errors.js";
 import { verifyManifestResources } from "./integrity.js";
 import type { IntegrityReport } from "./integrity.js";
 import { validateManifest } from "./manifest.js";
+import { signManifest } from "./signing.js";
 import { NodeFileResourceReader } from "./node-file-resource-reader.js";
 import { Sha256, toHex } from "./sha256.js";
 import type { ColumnDescriptor, FileDescriptor, VectorMetric, WeiSQLManifest } from "./types.js";
@@ -45,6 +46,11 @@ export interface BuildPackageOptions {
   tables: readonly BuilderTableInput[];
   vectorCollections: readonly BuilderVectorInput[];
   metadata?: NonNullable<WeiSQLManifest["metadata"]>;
+  /**
+   * Sign the Manifest while building it. Supplying both keys keeps the package
+   * signed from the moment it is published, instead of relying on a later pass.
+   */
+  signing?: { privateKeyPem: string; publicKeyPem: string };
   /** Replaces an existing output directory only after the new package passed verification. */
   overwrite?: boolean;
   /** Optional stable job identifier for diagnostics; a random one is generated otherwise. */
@@ -66,6 +72,7 @@ export interface BuildReport {
   manifest: WeiSQLManifest;
   artifacts: readonly BuildArtifact[];
   integrity: IntegrityReport;
+  signature?: { keyId: string };
   warnings: readonly string[];
   startedAt: string;
   finishedAt: string;
@@ -117,6 +124,7 @@ export async function buildPackage(options: BuildPackageOptions): Promise<BuildR
       manifest,
       artifacts,
       integrity,
+      ...(manifest.signature === undefined ? {} : { signature: { keyId: manifest.signature.keyId } }),
       warnings,
       startedAt,
       finishedAt: new Date().toISOString(),
@@ -158,6 +166,7 @@ interface NormalizedConfig {
   tables: NormalizedTable[];
   vectors: NormalizedVector[];
   metadata: NonNullable<WeiSQLManifest["metadata"]> | undefined;
+  signing: { privateKeyPem: string; publicKeyPem: string } | undefined;
 }
 
 async function validateOptions(options: BuildPackageOptions, outputDirectory: string, warnings: string[]): Promise<NormalizedConfig> {
@@ -263,7 +272,7 @@ async function validateOptions(options: BuildPackageOptions, outputDirectory: st
     });
   }
 
-  return { datasetId: options.datasetId, tables, vectors, metadata: options.metadata };
+  return { datasetId: options.datasetId, tables, vectors, metadata: options.metadata, signing: options.signing };
 }
 
 async function assertPublishTarget(outputDirectory: string, overwrite: boolean): Promise<void> {
@@ -416,7 +425,12 @@ function buildManifest(config: NormalizedConfig, written: WrittenDescriptors): W
 }
 
 async function writeAndVerifyManifest(stagingDirectory: string, config: NormalizedConfig, written: WrittenDescriptors): Promise<WeiSQLManifest> {
-  const manifest = validateManifest(buildManifest(config, written));
+  const unsigned = buildManifest(config, written);
+  const manifest = validateManifest(
+    config.signing === undefined
+      ? unsigned
+      : await signManifest(unsigned, { privateKeyPem: config.signing.privateKeyPem, publicKeyPem: config.signing.publicKeyPem }),
+  );
   const serialized = `${JSON.stringify(manifest, null, 2)}\n`;
   await writeFile(path.join(stagingDirectory, "manifest.json"), serialized, "utf8");
 

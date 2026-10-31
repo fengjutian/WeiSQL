@@ -12,10 +12,12 @@ import {
   NodeFileResourceReader,
   Sha256,
   buildPackage,
+  generateSigningKeyPair,
   open,
   sha256Hex,
   validateIdMapContent,
   verifyManifestResources,
+  verifyManifestSignature,
 } from "../dist/index.js";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
@@ -285,3 +287,26 @@ test("Builder refuses to publish into the working directory", async () => {
   await assert.rejects(buildPackage(buildOptions(process.cwd())), { code: "INVALID_ARGUMENT" });
 });
 
+test("Builder signs the Manifest when keys are supplied", async (t) => {
+  const keys = await generateSigningKeyPair();
+  const { target, report } = await buildTempPackage(t, {
+    signing: { privateKeyPem: keys.privateKeyPem, publicKeyPem: keys.publicKeyPem },
+  });
+
+  assert.equal(report.signature?.keyId, keys.keyId);
+  const manifest = JSON.parse(await readFile(path.join(target, "manifest.json"), "utf8"));
+  assert.equal(manifest.signature.keyId, keys.keyId);
+  assert.deepEqual(await verifyManifestSignature(manifest, { trustedKeyIds: [keys.keyId] }), { valid: true, keyId: keys.keyId });
+
+  // Tampering with the signed fields invalidates the signature.
+  const tampered = structuredClone(manifest);
+  tampered.datasetId = "another-dataset";
+  assert.equal((await verifyManifestSignature(tampered)).reason, "bad-signature");
+});
+
+test("Builder leaves the Manifest unsigned without keys", async (t) => {
+  const { target, report } = await buildTempPackage(t);
+  assert.equal(report.signature, undefined);
+  const manifest = JSON.parse(await readFile(path.join(target, "manifest.json"), "utf8"));
+  assert.equal(manifest.signature, undefined);
+});

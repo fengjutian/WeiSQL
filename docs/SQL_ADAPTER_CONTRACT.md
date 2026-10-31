@@ -1,6 +1,6 @@
 # WeiSQL AI SQL Adapter 契约
 
-- 状态：V1 契约已实现；Node.js DuckDB Adapter 首版完成（`@weisql/duckdb-adapter`），DuckDB-Wasm 待实现
+- 状态：V1 契约已实现；Node.js DuckDB Adapter（`@weisql/duckdb-adapter`）与 DuckDB-Wasm 浏览器 Adapter（`@weisql/duckdb-wasm-adapter`）均已完成
 - 首个目标实现：DuckDB（Node.js）与 DuckDB-Wasm（浏览器）
 
 ## 1. 职责
@@ -118,10 +118,12 @@ Adapter 必须将引擎错误转换为 WeiSQL 稳定错误码，不向公共 API
 8. 打开失败不会留下半初始化资源；
 9. 只读策略拒绝写入与外部副作用。
 
-当前仓库提供公共 `SqlAdapter` 类型、Runtime 初始化/查询/关闭接线，以及 Node.js DuckDB 只读实现（`packages/duckdb-adapter`，14 个契约测试）。DuckDB-Wasm 尚未实现；测试中的内存 Fake Adapter 仅用于校验 Runtime 生命周期，不证明引擎能力。
+当前仓库提供公共 `SqlAdapter` 类型、Runtime 初始化/查询/关闭接线，以及两个真实引擎实现：Node.js DuckDB（`packages/duckdb-adapter`）与浏览器 DuckDB-Wasm（`packages/duckdb-wasm-adapter`）。两者都通过同一套契约测试的核心项，但只读边界与参数类型不同，差异见各自文档。
 
 Node.js 实现的关键取舍见 `DUCKDB_ADAPTER.md`，其中两条最容易被误读：
 
 - 只读由 DuckDB 的 `StatementType` 强制（只放行 `SELECT`/`EXPLAIN`），不是关键字过滤；
 - 为在 `enable_external_access=false` 下仍能查询，表在 `open()` 时被物化进内存库，代价是内存占用等于表数据量。
+
+浏览器实现的差异见 `DUCKDB_WASM_ADAPTER.md`：DuckDB-Wasm 不暴露 `StatementType`，所以用首关键字白名单并拒绝 `WITH`；参数受 JSON 绑定限制；parquet 扩展必须同源自托管。
 

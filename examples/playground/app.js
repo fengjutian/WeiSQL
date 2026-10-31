@@ -6,7 +6,7 @@ import { HttpResourceReader } from "/sdk/http-resource-reader.js";
 const $ = id => document.getElementById(id);
 const setText = (id, value) => { $(id).textContent = value; };
 
-const state = { db: undefined, reader: undefined, cache: undefined, manifest: undefined, collection: undefined, presets: [], query: undefined, mode: "directory", loadedBytes: undefined, textIndex: undefined };
+const state = { db: undefined, sqlDb: undefined, reader: undefined, cache: undefined, manifest: undefined, collection: undefined, presets: [], query: undefined, mode: "directory", loadedBytes: undefined, textIndex: undefined };
 
 function renderDefinitionList(element, entries) {
   element.replaceChildren();
@@ -183,6 +183,63 @@ async function assembleEvidence() {
   }
 }
 
+async function runSql() {
+  setText("sql-status", "运行中…");
+  setText("error", "");
+  try {
+    if (state.sqlDb === undefined) {
+      setText("sql-status", "加载 DuckDB-Wasm…");
+      const { createDuckDbWasmAdapter } = await import("/wasm-adapter/index.js");
+      const adapter = createDuckDbWasmAdapter({
+        bundles: {
+          mainModule: "/vendor/@duckdb/duckdb-wasm/dist/duckdb-eh.wasm",
+          mainWorker: "/vendor/@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js",
+        },
+        // Same origin: extensions.duckdb.org sends no CORS headers (ADR-057).
+        extensionRepository: `${location.origin}/extensions`,
+      });
+      state.sqlDb = await open({ manifest: state.manifest, resourceReader: state.reader, sqlAdapter: adapter });
+    }
+    const started = performance.now();
+    const rows = await state.sqlDb.sql($("sql-query").value);
+    const elapsed = Math.round(performance.now() - started);
+    const head = $("sql-head");
+    const body = $("sql-results");
+    head.replaceChildren();
+    body.replaceChildren();
+    if (rows.length === 0) {
+      const row = document.createElement("tr");
+      const cell = document.createElement("td");
+      cell.className = "muted";
+      cell.textContent = "查询成功，没有返回行";
+      row.append(cell);
+      body.append(row);
+    } else {
+      const header = document.createElement("tr");
+      for (const key of Object.keys(rows[0])) {
+        const cell = document.createElement("th");
+        cell.textContent = key;
+        header.append(cell);
+      }
+      head.append(header);
+      for (const row of rows) {
+        const tr = document.createElement("tr");
+        for (const value of Object.values(row)) {
+          const cell = document.createElement("td");
+          cell.textContent = value === null ? "NULL" : String(value);
+          tr.append(cell);
+        }
+        body.append(tr);
+      }
+    }
+    setText("sql-status", `${rows.length} 行 · ${elapsed} ms · ${state.sqlDb.capabilities().sql ? "DuckDB-Wasm" : "?"}`);
+    window.__PLAYGROUND_STATE = { ...(window.__PLAYGROUND_STATE ?? {}), sqlIds: rows.map(row => row.id).filter(Boolean) };
+  } catch (error) {
+    setText("sql-status", "失败");
+    setText("error", String(error && error.message ? error.message : error));
+  }
+}
+
 async function readDirectory() {
   const base = new URL("/fixture/", location.href).href;
   const cache = new CachedResourceReader({
@@ -221,6 +278,13 @@ async function activate(mode) {
   for (const id of ["mode-directory", "mode-container", "mode-streaming"]) $(id).disabled = true;
   try {
     if (state.db !== undefined) await state.db.close();
+    if (state.sqlDb !== undefined) {
+      await state.sqlDb.close();
+      state.sqlDb = undefined;
+    }
+    setText("sql-status", "");
+    $("sql-head").replaceChildren();
+    $("sql-results").replaceChildren();
     const loaded = mode === "container"
       ? await readContainer()
       : mode === "streaming"
@@ -274,6 +338,7 @@ async function main() {
   $("search").addEventListener("click", () => void search());
   $("text-search").addEventListener("click", () => void textSearch());
   $("rag").addEventListener("click", () => void assembleEvidence());
+  $("sql-run").addEventListener("click", () => void runSql());
   await activate("directory");
 }
 

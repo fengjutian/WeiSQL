@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { chromium } from "playwright-core";
+import { ensureParquetExtension } from "../fetch-duckdb-wasm-extension.mjs";
 import { prepareProbePackage } from "./prepare-package.mjs";
 import { createProbeServer } from "./server.mjs";
 
@@ -17,6 +18,7 @@ mkdirSync(path.dirname(target), { recursive: true });
 // Serve the same text-indexed package the probe uses, so the screenshot shows
 // the full-text and RAG sections instead of their disabled state.
 const probePackage = await prepareProbePackage();
+await ensureParquetExtension("wasm_eh");
 const probe = createProbeServer(probePackage.packageDirectory, probePackage.containerPath);
 const port = await probe.listen();
 const browser = await chromium.launch({ executablePath, args: ["--no-sandbox"] });
@@ -25,6 +27,8 @@ await page.goto(`http://127.0.0.1:${port}/playground/`, { waitUntil: "domcontent
 await page.waitForFunction(() => window.__PLAYGROUND_STATE?.ok === true, undefined, { timeout: 60_000 });
 await page.click("#rag");
 await page.waitForFunction(() => (window.__PLAYGROUND_STATE?.ragTexts ?? []).length > 0, undefined, { timeout: 20_000 });
+await page.click("#sql-run");
+await page.waitForFunction(() => (window.__PLAYGROUND_STATE?.sqlIds ?? []).length === 3, undefined, { timeout: 120_000 });
 await page.screenshot({ path: target, fullPage: true });
 console.log(`screenshot: ${target}`);
 await browser.close();

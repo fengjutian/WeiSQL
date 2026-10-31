@@ -1,0 +1,98 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>WeiSQL DuckDB-Wasm probe</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "@duckdb/duckdb-wasm": "/vendor/@duckdb/duckdb-wasm/dist/duckdb-browser.mjs",
+          "@weisql/sdk/errors": "/sdk/errors.js",
+          "apache-arrow": "/vendor/apache-arrow/Arrow.dom.mjs",
+          "flatbuffers": "/vendor/flatbuffers/mjs/flatbuffers.js",
+          "tslib": "/vendor/tslib/tslib.es6.mjs"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <pre id="log"></pre>
+    <script type="module">
+      import { open } from "/sdk/database.js";
+      import { HttpResourceReader } from "/sdk/http-resource-reader.js";
+      import { createDuckDbWasmAdapter } from "/wasm-adapter/index.js";
+
+      const log = (message) => {
+        document.getElementById("log").textContent += `${message}\n`;
+        console.log(message);
+      };
+
+      /**
+       * Verifies in a real browser that DuckDB-Wasm can be the SQL engine:
+       *   1. the adapter loads its own worker/WASM and the parquet extension,
+       *   2. tables are materialized from bytes read through the SDK reader,
+       *   3. parameter binding works and writes are rejected,
+       *   4. the Runtime reports `sql` as an available capability.
+       */
+      async function main() {
+        const started = performance.now();
+        const base = new URL("/fixture/", location.href).href;
+        const reader = new HttpResourceReader({ baseUrl: base });
+        const adapter = createDuckDbWasmAdapter({
+          bundles: {
+            mainModule: "/vendor/@duckdb/duckdb-wasm/dist/duckdb-eh.wasm",
+            mainWorker: "/vendor/@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js",
+          },
+          // extensions.duckdb.org does not send CORS headers, so the parquet
+          // extension is served from this origin (see ADR-044).
+          extensionRepository: `${location.origin}/extensions`,
+        });
+
+        const db = await open({
+          manifestUrl: new URL("manifest.json", base).href,
+          resourceReader: reader,
+          sqlAdapter: adapter,
+          verifyChecksums: "all",
+        });
+        const openMs = Math.round(performance.now() - started);
+
+        const capabilities = db.capabilities();
+        const rows = await db.sql("select id, title from documents where category = ? order by id", ["genetics"]);
+        const filtered = await db.sql("select id from documents order by id limit 1");
+        const nulls = await db.sql("select ? is null as is_null", [null]);
+
+        let writeError;
+        try {
+          await db.sql("delete from documents");
+        } catch (error) {
+          writeError = error.code;
+        }
+
+        const result = {
+          ok:
+            capabilities.sql === true &&
+            adapter.capabilities.engine === "duckdb-wasm" &&
+            rows.length === 2 &&
+            rows[0].id === "doc-001" &&
+            rows[1].title === "RNA 转录" &&
+            filtered.length === 1 &&
+            nulls[0].is_null === true &&
+            writeError === "SQL_UNSUPPORTED",
+          openMs,
+          capabilities,
+          rows,
+          writeError,
+        };
+        log(JSON.stringify(result));
+        window.__PROBE_RESULT = result;
+        await db.close();
+      }
+
+      main().catch((error) => {
+        const result = { ok: false, error: `${error.name}: ${error.message}`, code: error.code, details: error.details };
+        log(JSON.stringify(result));
+        window.__PROBE_RESULT = result;
+      });
+    </script>
+  </body>
+</html>

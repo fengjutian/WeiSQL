@@ -9,6 +9,7 @@ import path from "node:path";
 
 import { chromium } from "playwright-core";
 
+import { ensureParquetExtension } from "../fetch-duckdb-wasm-extension.mjs";
 import { createProbeServer } from "./server.mjs";
 import { prepareProbePackage } from "./prepare-package.mjs";
 
@@ -41,6 +42,8 @@ if (!executablePath) {
 }
 
 const probePackage = await prepareProbePackage();
+// The playground's SQL panel loads the parquet extension from this origin.
+await ensureParquetExtension("wasm_eh");
 const probe = createProbeServer(probePackage.packageDirectory, probePackage.containerPath);
 const port = await probe.listen();
 const browser = await chromium.launch({ executablePath, args: ["--no-sandbox", "--disable-dev-shm-usage"] });
@@ -150,6 +153,20 @@ if (!streamingState.textIds.includes("doc-001")) {
   await fail(`streaming mode text search failed: ${JSON.stringify(streamingState.textIds)}`);
 }
 
+// Browser SQL: the same package must answer a real DuckDB-Wasm query.
+try {
+  await page.click("#sql-run");
+  await page.waitForFunction(() => (window.__PLAYGROUND_STATE?.sqlIds ?? []).length === 3, undefined, { timeout: 120_000 });
+} catch (error) {
+  await fail(`SQL interaction failed: ${String(error).slice(0, 300)}\n${await page.locator("#sql-status").innerText()}`);
+}
+
+const sqlState = await page.evaluate(() => window.__PLAYGROUND_STATE);
+if (sqlState.sqlIds.join(",") !== "doc-001,doc-002,doc-003") {
+  await fail(`SQL results were ${JSON.stringify(sqlState.sqlIds)}`);
+}
+const sqlRows = await page.locator("#sql-results tr").count();
+
 console.log(JSON.stringify({
   browser: executablePath,
   initial,
@@ -164,6 +181,7 @@ console.log(JSON.stringify({
   ragRows,
   container: { mode: containerState.mode, ids: containerState.ids, loadedBytes: containerState.loadedBytes, textIds: containerState.textIds },
   streaming: { mode: streamingState.mode, ids: streamingState.ids, textIds: streamingState.textIds },
+  sql: { ids: sqlState.sqlIds, rows: sqlRows },
 }, null, 2));
 
 await browser.close();

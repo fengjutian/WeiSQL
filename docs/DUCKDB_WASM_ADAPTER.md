@@ -133,7 +133,8 @@ fixture 3 行、扩展已缓存。
 - 集成：用 `@duckdb/duckdb-wasm/blocking` 在 Node 里跑**同一个 WASM 引擎**，
   覆盖打开、参数绑定、注入、只读拒绝、外部访问、L4、预算、生命周期（9 个用例）。
   测试需要网络下载一次 parquet 扩展（缓存在 `~/.duckdb`）。
-- 浏览器：`npm run probe:wasm` 在真实 Chromium 中断言 `db.sql()` 结果、参数绑定与写入拒绝。
+- 浏览器：`npm run probe:wasm` 在真实 Chromium 中断言 `db.sql()` 结果、参数绑定与写入拒绝；
+  `npm run probe:playground` 还会在 Playground 里点「运行」，断言返回同样的三行。
 
 ## 10. 未验证 / 明确不做
 

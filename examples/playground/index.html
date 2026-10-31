@@ -4,6 +4,17 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>WeiSQL Playground</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "@duckdb/duckdb-wasm": "/vendor/@duckdb/duckdb-wasm/dist/duckdb-browser.mjs",
+          "@weisql/sdk/errors": "/sdk/errors.js",
+          "apache-arrow": "/vendor/apache-arrow/Arrow.dom.mjs",
+          "flatbuffers": "/vendor/flatbuffers/mjs/flatbuffers.js",
+          "tslib": "/vendor/tslib/tslib.es6.mjs"
+        }
+      }
+    </script>
     <style>
       :root { color-scheme: light dark; --line: #8884; }
       * { box-sizing: border-box; }
@@ -33,7 +44,7 @@
   <body>
     <main>
       <h1>WeiSQL Playground</h1>
-      <p class="sub">向量检索、全文检索与 RAG 证据组装的浏览器端示例。数据包与代码均从本地静态服务按需读取，无后端。</p>
+      <p class="sub">向量检索、全文检索、RAG 证据组装与 DuckDB-Wasm SQL 的浏览器端示例。数据包与代码均从本地静态服务按需读取，无后端。</p>
 
       <section>
         <h2>数据包</h2>
@@ -94,12 +105,25 @@
       </section>
 
       <section>
+        <h2>SQL（DuckDB-Wasm）</h2>
+        <div class="row">
+          <input id="sql-query" type="search" style="flex:1;min-width:280px" value="select id, title, category from documents order by id" aria-label="SQL 查询" />
+          <button id="sql-run">运行</button>
+          <span class="muted" id="sql-status"></span>
+        </div>
+        <table>
+          <thead id="sql-head"><tr><th>首次运行会加载 DuckDB-Wasm 与 parquet 扩展</th></tr></thead>
+          <tbody id="sql-results"><tr><td class="muted">只读；WITH 与写语句会被拒绝。</td></tr></tbody>
+        </table>
+      </section>
+
+      <section>
         <h2>诊断</h2>
         <dl id="diagnostics"></dl>
       </section>
 
       <p class="muted">
-        SQL 与混合过滤需要 DuckDB-Wasm；当前环境无法下载其 parquet 扩展，因此这里演示向量检索、全文检索与 RAG 证据组装——三者都在浏览器内完成。
+        向量检索、全文检索、RAG 证据与 SQL 都在浏览器内完成。SQL 走 DuckDB-Wasm，parquet 扩展由本地静态服务同源提供；首次点击会下载约 34 MB 的 WASM。
       </p>
       <p class="error" id="error"></p>
     </main>

@@ -1,4 +1,4 @@
-﻿# Rust build artifacts
+# Rust build artifacts
 target/
 **/target/
 
@@ -52,3 +52,6 @@ coverage/
 # Local scratch space and npm cache
 /.scratch/
 /.npm-cache/
+
+# Local tool caches (DuckDB-Wasm extension)
+.cache/

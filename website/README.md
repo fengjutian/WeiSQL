@@ -35,8 +35,8 @@ website/
 ## 部署到 Netlify
 
 1. Netlify 新建站点并连接本仓库；
-2. 构建命令 `npm run build`，发布目录 `build`，Base directory `website`（或直接使用根目录的 `netlify.toml`）；
-3. Node 版本 22（`netlify.toml` 已声明）；
+2. **Base directory 留空**，让 Netlify 读取仓库根目录的 `netlify.toml`（其中已声明 `base = "website"`）；
+3. 构建命令 `npm run build`，发布目录 `build`；Node 版本 22 已由配置声明；
 4. 首次部署后，把 `docusaurus.config.js` 里的 `url` 改成实际域名。
 
 ## 搜索

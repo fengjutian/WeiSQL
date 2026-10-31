@@ -30,6 +30,8 @@ export interface ValidatePackageOptions {
   trustedKeyIds?: readonly string[];
   /** How many pinned keys must have signed; only meaningful with `signature`. */
   minimumTrustedSignatures?: number;
+  /** Root fingerprints pinned instead of individual signer keys. */
+  trustedRootKeyIds?: readonly string[];
   signal?: AbortSignal;
 }
 
@@ -142,7 +144,7 @@ async function runL4(manifest: WeiSQLManifest, reader: ResourceReader, signal: A
 
 async function checkSignature(
   manifest: WeiSQLManifest,
-  options: { trustedKeyIds?: readonly string[]; minimumTrustedSignatures?: number },
+  options: { trustedKeyIds?: readonly string[]; minimumTrustedSignatures?: number; trustedRootKeyIds?: readonly string[] },
   result: ValidationResult,
   issues: ValidationIssue[],
 ): Promise<void> {
@@ -150,6 +152,7 @@ async function checkSignature(
     result.signature = await verifyManifestSignature(manifest, {
       ...(options.trustedKeyIds === undefined ? {} : { trustedKeyIds: options.trustedKeyIds }),
       ...(options.minimumTrustedSignatures === undefined ? {} : { minimumTrustedSignatures: options.minimumTrustedSignatures }),
+      ...(options.trustedRootKeyIds === undefined ? {} : { trustedRootKeyIds: options.trustedRootKeyIds }),
     });
     if (!result.signature.valid) {
       issues.push({
@@ -191,6 +194,10 @@ export interface ValidateContainerOptions {
   signature?: boolean;
   /** Pin expected publisher fingerprints; only meaningful with `signature`. */
   trustedKeyIds?: readonly string[];
+  /** How many pinned keys must have signed; only meaningful with `signature`. */
+  minimumTrustedSignatures?: number;
+  /** Root fingerprints pinned instead of individual signer keys. */
+  trustedRootKeyIds?: readonly string[];
   signal?: AbortSignal;
 }
 

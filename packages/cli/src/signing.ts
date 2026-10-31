@@ -3,7 +3,7 @@ import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { ContainerReader, countersignManifest, createContainer, generateSigningKeyPair, signManifest, validateManifest, verifyManifestSignature } from "@weisql/sdk";
+import { ContainerReader, addAuthorization, authorizeSigner, countersignManifest, createContainer, generateSigningKeyPair, manifestSignatures, signManifest, validateManifest, verifyManifestSignature } from "@weisql/sdk";
 import type { VerifyManifestSignatureResult, WeiSQLManifest } from "@weisql/sdk";
 
 export interface SigningKeyFiles {
@@ -86,6 +86,8 @@ export interface VerifySignatureOptions {
   trustedKeyIds?: readonly string[];
   /** How many pinned keys must have signed (endorsement policy). */
   minimumTrustedSignatures?: number;
+  /** Root fingerprints pinned instead of individual signer keys. */
+  trustedRootKeyIds?: readonly string[];
 }
 
 export interface VerifySignatureResult extends VerifyManifestSignatureResult {
@@ -116,8 +118,122 @@ export async function verifyPackageSignature(options: VerifySignatureOptions): P
   const result = await verifyManifestSignature(manifest, {
     ...(options.trustedKeyIds === undefined ? {} : { trustedKeyIds: options.trustedKeyIds }),
     ...(options.minimumTrustedSignatures === undefined ? {} : { minimumTrustedSignatures: options.minimumTrustedSignatures }),
+    ...(options.trustedRootKeyIds === undefined ? {} : { trustedRootKeyIds: options.trustedRootKeyIds }),
   });
   return { ...result, target, kind, datasetId: manifest.datasetId };
+}
+
+export interface AuthorizePackageOptions {
+  target: string;
+  /** Root private key; the root public key is derived with node:crypto. */
+  rootPrivateKeyPath: string;
+  /** The release key being authorized. */
+  signerPublicKeyPath: string;
+  /** Validity window length in days, starting now. */
+  days: number;
+  /** When given, the package is re-signed with this key in the same step. */
+  signerPrivateKeyPath?: string;
+  now?: number;
+}
+
+export interface AuthorizePackageResult {
+  target: string;
+  kind: "directory" | "container";
+  rootKeyId: string;
+  keyId: string;
+  validFrom: string;
+  validUntil: string;
+  resigned: boolean;
+  keyIds: readonly string[];
+  datasetId: string;
+}
+
+/**
+ * Adds a root-key authorization. Because the delegation is part of the signed
+ * payload, adding one to an already-signed package invalidates the signature;
+ * the caller must pass the signer key so the package leaves valid.
+ */
+export async function authorizePackage(options: AuthorizePackageOptions): Promise<AuthorizePackageResult> {
+  if (!Number.isSafeInteger(options.days) || options.days < 1 || options.days > 3650) {
+    throw new Error("--days must be an integer between 1 and 3650");
+  }
+  const target = path.resolve(options.target);
+  const isContainer = path.extname(target).toLowerCase() === ".wsql";
+  const rootPrivateKeyPem = await readFile(options.rootPrivateKeyPath, "utf8");
+  const rootPublicKeyPem = createPublicKey(rootPrivateKeyPem).export({ type: "spki", format: "pem" }).toString();
+  const signerPublicKeyPem = await readFile(options.signerPublicKeyPath, "utf8");
+  const start = options.now ?? Date.now();
+  const authorization = await authorizeSigner({
+    rootPrivateKeyPem,
+    rootPublicKeyPem,
+    signerPublicKeyPem,
+    validFrom: new Date(start).toISOString(),
+    validUntil: new Date(start + options.days * 86_400_000).toISOString(),
+  });
+
+  const signerPrivateKeyPem = options.signerPrivateKeyPath === undefined
+    ? undefined
+    : await readFile(options.signerPrivateKeyPath, "utf8");
+
+  const apply = async (manifest: WeiSQLManifest): Promise<WeiSQLManifest> => {
+    let next = addAuthorization(manifest, authorization);
+    if (signerPrivateKeyPem !== undefined) {
+      next = await signManifest(next, { privateKeyPem: signerPrivateKeyPem, publicKeyPem: signerPublicKeyPem });
+      return next;
+    }
+    if (manifestSignatures(next).length > 0) {
+      throw new Error("existing signatures no longer cover the manifest; pass --key to re-sign");
+    }
+    return next;
+  };
+
+  if (!isContainer) {
+    const manifestPath = path.join(target, "manifest.json");
+    const manifest = validateManifest(JSON.parse(await readFile(manifestPath, "utf8")));
+    const next = await apply(manifest);
+    await writeFile(manifestPath, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+    return {
+      target,
+      kind: "directory",
+      rootKeyId: authorization.rootKeyId,
+      keyId: authorization.keyId,
+      validFrom: authorization.validFrom,
+      validUntil: authorization.validUntil,
+      resigned: signerPrivateKeyPem !== undefined,
+      keyIds: manifestKeys(next),
+      datasetId: manifest.datasetId,
+    };
+  }
+
+  const reader = new ContainerReader(new Uint8Array(await readFile(target)));
+  try {
+    const manifest = validateManifest(JSON.parse(new TextDecoder().decode(await reader.read("manifest.json"))));
+    const next = await apply(manifest);
+    const files = [];
+    for (const entry of reader.header.files) {
+      files.push({
+        path: entry.path,
+        bytes: entry.path === "manifest.json"
+          ? new TextEncoder().encode(`${JSON.stringify(next, null, 2)}\n`)
+          : await reader.read(entry.path),
+      });
+    }
+    const container = await createContainer(files, { compress: reader.header.compression === "gzip" });
+    await writeFile(target, container);
+    return {
+      target,
+      kind: "container",
+      rootKeyId: authorization.rootKeyId,
+      keyId: authorization.keyId,
+      validFrom: authorization.validFrom,
+      validUntil: authorization.validUntil,
+      resigned: signerPrivateKeyPem !== undefined,
+      keyIds: manifestKeys(next),
+      datasetId: manifest.datasetId,
+    };
+  } finally {
+    await reader.close();
+  }
 }
 
 /** Unused helper kept for symmetry with the container tests. */

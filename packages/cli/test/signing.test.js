@@ -7,7 +7,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import { validatePackage } from "../dist/index.js";
+import { validatePackage, verifyPackageSignature } from "../dist/index.js";
 import { verifyManifestSignature } from "@weisql/sdk";
 
 const run = promisify(execFile);
@@ -136,4 +136,60 @@ test("validate --require enforces a two-signer endorsement policy", async (t) =>
 
   const { stdout } = await run(process.execPath, [BIN, "validate", pkg, "--signature", "--trusted", firstId, "--trusted", secondId, "--require", "2", "--json"]);
   assert.equal(JSON.parse(stdout).ok, true);
+});
+
+
+test("authorize delegates a release key to a root key", async (t) => {
+  const { directory, pkg } = await workspace(t);
+  const root = path.join(directory, "root");
+  const release = path.join(directory, "release");
+  const { stdout: rootKey } = await run(process.execPath, [BIN, "keygen", "--output", root, "--json"]);
+  const { stdout: releaseKey } = await run(process.execPath, [BIN, "keygen", "--output", release, "--json"]);
+  const rootId = JSON.parse(rootKey).keyId;
+  const releaseId = JSON.parse(releaseKey).keyId;
+
+  const { stdout: authorized } = await run(process.execPath, [
+    BIN, "authorize", pkg,
+    "--root", `${root}.key.pem`,
+    "--signer", `${release}.pub.pem`,
+    "--key", `${release}.key.pem`,
+    "--days", "30",
+    "--json",
+  ]);
+  const result = JSON.parse(authorized);
+  assert.equal(result.rootKeyId, rootId);
+  assert.equal(result.keyId, releaseId);
+  assert.equal(result.resigned, true);
+
+  const verified = await verifyPackageSignature({ target: pkg, trustedRootKeyIds: [rootId] });
+  assert.equal(verified.valid, true);
+  assert.equal(verified.authorized, true);
+
+  const pinned = await validatePackage({ directory: pkg, signature: true, trustedRootKeyIds: [rootId] });
+  assert.equal(pinned.ok, true);
+
+  const stranger = await validatePackage({ directory: pkg, signature: true, trustedRootKeyIds: [`sha256:${"0".repeat(64)}`] });
+  assert.equal(stranger.signature?.reason, "unauthorized-root");
+
+  // Adding a delegation to a signed package requires re-signing.
+  await assert.rejects(
+    run(process.execPath, [BIN, "authorize", pkg, "--root", `${root}.key.pem`, "--signer", `${release}.pub.pem`]),
+    /already authorized/,
+  );
+});
+
+test("authorize works on a .wsql container", async (t) => {
+  const { directory, pkg } = await workspace(t);
+  const container = path.join(directory, "package.wsql");
+  const root = path.join(directory, "root");
+  const release = path.join(directory, "release");
+  const { stdout: rootKey } = await run(process.execPath, [BIN, "keygen", "--output", root, "--json"]);
+  const rootId = JSON.parse(rootKey).keyId;
+  await run(process.execPath, [BIN, "keygen", "--output", release]);
+  await run(process.execPath, [BIN, "pack", pkg, "--output", container]);
+  await run(process.execPath, [BIN, "authorize", container, "--root", `${root}.key.pem`, "--signer", `${release}.pub.pem`, "--key", `${release}.key.pem`]);
+
+  const verified = await verifyPackageSignature({ target: container, trustedRootKeyIds: [rootId] });
+  assert.equal(verified.valid, true);
+  assert.equal(verified.authorized, true);
 });

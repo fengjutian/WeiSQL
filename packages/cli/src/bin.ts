@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { packPackage } from "./pack.js";
 import { inspectPackage } from "./inspect.js";
-import { generateKeyFiles, signPackage, verifyPackageSignature } from "./signing.js";
+import { authorizePackage, generateKeyFiles, signPackage, verifyPackageSignature } from "./signing.js";
 import { unpackContainer } from "./unpack.js";
 import { validateContainer, validatePackage } from "./validate.js";
 import type { ValidationResult } from "./validate.js";
@@ -19,6 +19,7 @@ Commands:
   keygen [--output <prefix>]       Create an Ed25519 signing key pair
   sign <dir|file.wsql> --key <pem> Sign the Manifest
   verify-signature <dir|file.wsql> Verify the Manifest signature
+  authorize <dir|file.wsql>       Authorize a release key with a root key
   inspect <dir|file.wsql>           Summarize a package without opening it
 
 Options:
@@ -30,6 +31,10 @@ Options:
   --key <pem>                  Private key for sign
   --public <pem>               Public key for sign (derived when omitted)
   --add                        Add a co-signature instead of replacing (key rotation)
+  --root <pem>                 Root private key for authorize
+  --signer <pem>               Release public key to authorize
+  --days <n>                   Authorization validity in days (default 365)
+  --trusted-root <keyId>       Pin a root fingerprint (repeatable)
   --compress                   Gzip entries when packing (container format 1.1.0)
   --only-declared              Pack only the Manifest and declared resources
   --output <file|directory>    Output path for pack / unpack
@@ -56,12 +61,16 @@ interface ParsedArguments {
   publicKeyPath: string | undefined;
   trustedKeyIds: string[];
   minimumTrustedSignatures: number | undefined;
+  trustedRootKeyIds: string[];
+  rootPath: string | undefined;
+  signerPublicPath: string | undefined;
+  days: number;
   json: boolean;
   help: boolean;
 }
 
 function parseArguments(argv: readonly string[]): ParsedArguments | string {
-  const parsed: ParsedArguments = { command: undefined, target: undefined, mode: "all", output: undefined, l4: false, signature: false, compress: false, onlyDeclared: false, addSignature: false, keyPath: undefined, publicKeyPath: undefined, trustedKeyIds: [], minimumTrustedSignatures: undefined, json: false, help: false };
+  const parsed: ParsedArguments = { command: undefined, target: undefined, mode: "all", output: undefined, l4: false, signature: false, compress: false, onlyDeclared: false, addSignature: false, keyPath: undefined, publicKeyPath: undefined, trustedKeyIds: [], minimumTrustedSignatures: undefined, trustedRootKeyIds: [], rootPath: undefined, signerPublicPath: undefined, days: 365, json: false, help: false };
   for (let index = 0; index < argv.length; index++) {
     const argument = argv[index]!;
     if (argument === "--help" || argument === "-h") {
@@ -104,6 +113,34 @@ function parseArguments(argv: readonly string[]): ParsedArguments | string {
       if (value === undefined || !/^\d+$/.test(value) || Number(value) < 1) return "--require needs a positive integer";
       if (argument === "--require") index++;
       parsed.minimumTrustedSignatures = Number(value);
+      continue;
+    }
+    if (argument === "--trusted-root" || argument.startsWith("--trusted-root=")) {
+      const value = argument === "--trusted-root" ? argv[index + 1] : argument.slice("--trusted-root=".length);
+      if (value === undefined || value === "") return "--trusted-root requires a key id";
+      if (argument === "--trusted-root") index++;
+      parsed.trustedRootKeyIds.push(value);
+      continue;
+    }
+    if (argument === "--root" || argument.startsWith("--root=")) {
+      const value = argument === "--root" ? argv[index + 1] : argument.slice("--root=".length);
+      if (value === undefined || value === "") return "--root requires a path";
+      if (argument === "--root") index++;
+      parsed.rootPath = value;
+      continue;
+    }
+    if (argument === "--signer" || argument.startsWith("--signer=")) {
+      const value = argument === "--signer" ? argv[index + 1] : argument.slice("--signer=".length);
+      if (value === undefined || value === "") return "--signer requires a path";
+      if (argument === "--signer") index++;
+      parsed.signerPublicPath = value;
+      continue;
+    }
+    if (argument === "--days" || argument.startsWith("--days=")) {
+      const value = argument === "--days" ? argv[index + 1] : argument.slice("--days=".length);
+      if (value === undefined || !/^\d+$/.test(value) || Number(value) < 1) return "--days needs a positive integer";
+      if (argument === "--days") index++;
+      parsed.days = Number(value);
       continue;
     }
     if (argument === "--key" || argument.startsWith("--key=")) {
@@ -168,6 +205,7 @@ function summarize(result: ValidationResult): string[] {
   }
   if (result.signature !== undefined) {
     lines.push(`signature: ${result.signature.valid ? `valid (${result.signature.keyIds.join(", ")})` : `invalid (${result.signature.reason ?? "unknown"})`}`);
+    if (result.signature.authorized === true) lines.push(`authorized: root ${result.signature.authorizations?.filter(item => item.valid).map(item => item.rootKeyId).join(", ") ?? ""}`);
   }
   return lines;
 }
@@ -188,7 +226,7 @@ async function main(argv: readonly string[]): Promise<number> {
     console.log(USAGE);
     return parsed.help ? 0 : 2;
   }
-  if (!["validate", "pack", "unpack", "keygen", "sign", "verify-signature", "inspect"].includes(parsed.command)) {
+  if (!["validate", "pack", "unpack", "keygen", "sign", "verify-signature", "authorize", "inspect"].includes(parsed.command)) {
     console.error(`error: unknown command '${parsed.command}'`);
     console.error(USAGE);
     return 2;
@@ -216,6 +254,35 @@ async function main(argv: readonly string[]): Promise<number> {
     return 2;
   }
   const target = parsed.target;
+
+  if (parsed.command === "authorize") {
+    if (parsed.rootPath === undefined || parsed.signerPublicPath === undefined) {
+      console.error("error: authorize requires --root <root-private.pem> and --signer <release-public.pem>");
+      return 2;
+    }
+    try {
+      const result = await authorizePackage({
+        target,
+        rootPrivateKeyPath: parsed.rootPath,
+        signerPublicKeyPath: parsed.signerPublicPath,
+        days: parsed.days,
+        ...(parsed.keyPath === undefined ? {} : { signerPrivateKeyPath: parsed.keyPath }),
+      });
+      if (parsed.json) console.log(JSON.stringify(result, null, 2));
+      else {
+        console.log(`target:    ${result.target} (${result.kind})`);
+        console.log(`root:      ${result.rootKeyId}`);
+        console.log(`signer:    ${result.keyId}`);
+        console.log(`window:    ${result.validFrom} .. ${result.validUntil}`);
+        console.log(`resigned:  ${result.resigned ? "yes" : "no"}`);
+        console.log("OK");
+      }
+      return 0;
+    } catch (cause) {
+      console.error(`error: ${cause instanceof Error ? cause.message : String(cause)}`);
+      return 1;
+    }
+  }
 
   if (parsed.command === "inspect") {
     try {
@@ -252,6 +319,7 @@ async function main(argv: readonly string[]): Promise<number> {
         target,
         ...(parsed.trustedKeyIds.length === 0 ? {} : { trustedKeyIds: parsed.trustedKeyIds }),
         ...(parsed.minimumTrustedSignatures === undefined ? {} : { minimumTrustedSignatures: parsed.minimumTrustedSignatures }),
+        ...(parsed.trustedRootKeyIds.length === 0 ? {} : { trustedRootKeyIds: parsed.trustedRootKeyIds }),
       });
       if (parsed.json) console.log(JSON.stringify(verified, null, 2));
       else {
@@ -343,8 +411,8 @@ async function main(argv: readonly string[]): Promise<number> {
   const info = await stat(target).catch(() => undefined);
   const isContainer = info?.isFile() === true;
   const result: ValidationResult & { container?: { files: number; mismatches: number } } = isContainer
-    ? await validateContainer({ file: target, mode: parsed.mode, l4: parsed.l4, signature: parsed.signature, ...(parsed.trustedKeyIds.length === 0 ? {} : { trustedKeyIds: parsed.trustedKeyIds }), ...(parsed.minimumTrustedSignatures === undefined ? {} : { minimumTrustedSignatures: parsed.minimumTrustedSignatures }) })
-    : await validatePackage({ directory: target, mode: parsed.mode, l4: parsed.l4, signature: parsed.signature, ...(parsed.trustedKeyIds.length === 0 ? {} : { trustedKeyIds: parsed.trustedKeyIds }), ...(parsed.minimumTrustedSignatures === undefined ? {} : { minimumTrustedSignatures: parsed.minimumTrustedSignatures }) });
+    ? await validateContainer({ file: target, mode: parsed.mode, l4: parsed.l4, signature: parsed.signature, ...(parsed.trustedKeyIds.length === 0 ? {} : { trustedKeyIds: parsed.trustedKeyIds }), ...(parsed.minimumTrustedSignatures === undefined ? {} : { minimumTrustedSignatures: parsed.minimumTrustedSignatures }), ...(parsed.trustedRootKeyIds.length === 0 ? {} : { trustedRootKeyIds: parsed.trustedRootKeyIds }) })
+    : await validatePackage({ directory: target, mode: parsed.mode, l4: parsed.l4, signature: parsed.signature, ...(parsed.trustedKeyIds.length === 0 ? {} : { trustedKeyIds: parsed.trustedKeyIds }), ...(parsed.minimumTrustedSignatures === undefined ? {} : { minimumTrustedSignatures: parsed.minimumTrustedSignatures }), ...(parsed.trustedRootKeyIds.length === 0 ? {} : { trustedRootKeyIds: parsed.trustedRootKeyIds }) });
 
   if (parsed.json) {
     console.log(JSON.stringify({

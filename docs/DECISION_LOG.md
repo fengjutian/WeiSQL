@@ -614,7 +614,7 @@
 
 ## ADR-062：根密钥授权是单层委托，签名覆盖授权记录
 
-- 状态：Accepted（SDK 已实现；CLI 的 `authorize` 命令尚未提供）
+- 状态：Accepted and implemented（SDK 与 CLI 均已提供）
 - 背景：每次换发布密钥都要求消费者更新固定指纹并不现实。需要「消费者固定一个 root，root 授权具体发布密钥」的机制。
 - 决策一：`ManifestAuthorization` 由 root 私钥签名，覆盖 root/发布方双方的指纹与公钥、以及 `validFrom`/`validUntil`。有效期让旧发布密钥自然退场，不需要吊销列表。
 - 决策二：授权记录**进入 manifest 签名载荷**（签名只排除 `signature/signatures`）。否则攻击者可以替换授权列表；因此改授权会同时破坏两层签名，测试已覆盖。

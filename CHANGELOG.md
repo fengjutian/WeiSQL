@@ -39,7 +39,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   `countersignManifest()` / `weisql sign --add`, and key rotation without breaking
   consumers pinned to the old key. Verifiers can require n pinned signers
   (`minimumTrustedSignatures` / `--require`). A root key can authorize release
-  keys with a validity window (`authorizeSigner()` / `trustedRootKeyIds`).
+  keys with a validity window (`authorizeSigner()` / `trustedRootKeyIds`), and the
+  CLI adds `authorize` plus `--trusted-root` for `validate`/`verify-signature`.
 - Manifest signing: Ed25519 over canonical JSON, `signManifest()` /
   `verifyManifestSignature()` with optional pinned key ids; `buildPackage()`
   signs during the build when a key pair is supplied.

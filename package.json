@@ -22,6 +22,7 @@
     "bench:wasm": "node --expose-gc tools/bench/wasm.mjs",
     "bench:quantization": "node tools/bench/quantization.mjs",
     "bench:recall": "node tools/bench/recall.mjs",
+    "bench:self-test": "node tools/bench/quantization.mjs --self-test && node tools/bench/recall.mjs --self-test",
     "release:check": "node tools/release-check.mjs",
     "release:pack": "node tools/check-tarballs.mjs",
     "release:pack:self-test": "node tools/check-tarballs.mjs --self-test"

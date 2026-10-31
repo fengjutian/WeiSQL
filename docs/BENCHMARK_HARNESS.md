@@ -198,6 +198,8 @@ npm run bench:quantization -- --rows 50000 --dimension 128 --queries 20 --expans
 
 因此：**暂不把量化写进格式**。f16 是候选项，i8 需要重排方案；两者都以真实语料验证为前提。
 
+两个基准都带 `--self-test`，并由 `npm run bench:self-test` 在 CI 中执行：量化自检断言 `f32 > f16 > i8` 的体积顺序与搜索结果数量，召回自检用内存生成的 `.npy` 走完整解析与计算路径。它们守的是基准脚本本身——上一轮正是脚本把线程数当成向量数量，才产生了假异常。
+
 ## 4. 记录结果（2026-10-30，单机）
 
 环境：Intel Core Ultra 7 155H · 22 核 · 32 GiB · Windows 10.0.26200 x64 · Node v24.14.1

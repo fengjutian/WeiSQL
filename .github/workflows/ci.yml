@@ -37,6 +37,7 @@ jobs:
       - run: npm test
       - run: npm run release:check
       - run: npm run release:pack
+      - run: npm run bench:self-test
       - name: Validate the example package
         run: node packages/cli/dist/bin.js validate examples/fixture
 

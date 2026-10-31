@@ -19,7 +19,7 @@ const QUANTIZATIONS = {
 };
 
 function parseArguments(argv) {
-  const options = { rows: 20_000, dimension: 64, queries: 20, topK: 10, clusters: 0, seed: 7, connectivity: 16, expansion: 128, quantizations: ["f32", "f16", "i8"] };
+  const options = { rows: 20_000, dimension: 64, queries: 20, topK: 10, clusters: 0, seed: 7, connectivity: 16, expansion: 128, quantizations: ["f32", "f16", "i8"], selfTest: false };
   for (let index = 0; index < argv.length; index++) {
     const argument = argv[index];
     const next = () => {
@@ -37,6 +37,7 @@ function parseArguments(argv) {
       case "--connectivity": options.connectivity = Number(next()); break;
       case "--expansion": options.expansion = Number(next()); break;
       case "--quantizations": options.quantizations = next().split(",").map(item => item.trim()).filter(Boolean); break;
+      case "--self-test": options.selfTest = true; break;
       default: throw new Error(`unknown argument: ${argument}`);
     }
   }
@@ -125,6 +126,45 @@ function percentile(sorted, fraction) {
 }
 
 const options = parseArguments(process.argv.slice(2));
+const directory = await mkdtemp(path.join(tmpdir(), "weisql-quant-"));
+
+if (options.selfTest) {
+  const rows = 512;
+  const dimension = 16;
+  const random = mulberry32(3);
+  const vectors = new Float32Array(rows * dimension);
+  for (let index = 0; index < vectors.length; index++) vectors[index] = random() * 2 - 1;
+  const query = vectors.subarray(0, dimension);
+  const sizes = {};
+
+  for (const name of options.quantizations) {
+    const index = new Index({
+      dimensions: dimension,
+      metric: MetricKind.Cos,
+      quantization: QUANTIZATIONS[name],
+      connectivity: 16,
+      expansion_search: 64,
+    });
+    const keys = new BigUint64Array(rows);
+    for (let row = 0; row < rows; row++) keys[row] = BigInt(row);
+    index.add(keys, vectors);
+    const matches = index.search(query, 5);
+    if (matches.keys.length !== 5) throw new Error(`${name}: expected 5 matches, got ${matches.keys.length}`);
+    const file = path.join(directory, `${name}.self-test.usearch`);
+    index.save(file);
+    sizes[name] = (await stat(file)).size;
+  }
+
+  // Quantization exists to save space; if this ordering breaks, the benchmark is
+  // measuring something else.
+  if (!(sizes.f32 > sizes.f16 && sizes.f16 > sizes.i8)) {
+    throw new Error(`quantization size ordering is wrong: ${JSON.stringify(sizes)}`);
+  }
+  console.log(JSON.stringify(sizes));
+  console.log("quantization self-test passed");
+  await rm(directory, { recursive: true, force: true });
+  process.exit(0);
+}
 const generateStarted = performance.now();
 const { vectors, queries } = generate(options);
 const generateMs = Math.round(performance.now() - generateStarted);
@@ -135,7 +175,6 @@ const truthStarted = performance.now();
 const truth = queries.map(query => exactTopK(vectors, options.rows, options.dimension, query, options.topK));
 const truthMs = Math.round(performance.now() - truthStarted);
 
-const directory = await mkdtemp(path.join(tmpdir(), "weisql-quant-"));
 const results = [];
 try {
   for (const name of options.quantizations) {

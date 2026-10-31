@@ -149,7 +149,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   `npm run bench:wasm` measures materialization and filtered queries at 50k–500k
   rows (Node WASM; time and RSS, not a performance promise).
 - Browser probes now also cover read-only CTEs and browser-side filtered vector
-  search (`exact-filter-first`); the playground gained SQL and category filters.
+  search (`exact-filter-first`); the playground gained SQL and category filters,
+  plus a streaming toggle that runs the same query through `db.sqlStream()`.
 - Browser probe, playground example, cross-environment parity check.
 - Playground now demonstrates full-text search and RAG evidence against a package
   it builds at start-up, and can switch between directory, `.wsql` and streaming
@@ -173,6 +174,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   synthetic vectors; quantization is deliberately not part of the package format.
 - `bench:recall` measures ANN Recall@K on real embeddings from a `.npy` or raw
   `.f32` file, keeping exact search as ground truth.
+- `bench:self-test` runs harness self-checks in CI (quantization size ordering,
+  `.npy` parsing and recall computation).
 - ANN index builder and release checks.
 - Text index builder (`tools/build-text-index.mjs`) reading the Parquet column and
   updating the Manifest.

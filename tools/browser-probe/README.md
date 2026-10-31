@@ -49,3 +49,20 @@ unreachable from this environment, so the browser SQL path could not be verified
 
 Unless the extension can be fetched or self-hosted, this repository cannot claim
 DuckDB-Wasm support. See ADR-020 in `docs/DECISION_LOG.md`.
+
+## Bundled WASM vector probe
+
+`npm run probe:wasm-vector` serves the example package and fetches the two
+artifacts shipped inside `@weisql/sdk` through `wasmArtifactUrl()`
+(`/wasm/weisql_vector_wasm.wasm` and `/wasm/weisql_vector_hnsw_wasm.wasm`).
+One page then answers the same query with three engines:
+
+1. the TypeScript exact adapter (reference),
+2. the exact WASM artifact,
+3. the HNSW WASM artifact.
+
+It asserts identical rows and business IDs for all three, distances within
+`1e-9`, `diagnostics.backend` values, `capabilities.exactSearch`, and that no
+Node globals leak. The CI `browser` job runs it after `npm run build`, so a
+packaged artifact that is missing, served with the wrong `Content-Type`, or
+behaviourally stale fails the build.

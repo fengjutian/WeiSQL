@@ -63,7 +63,7 @@ hide_title: true
 | 非只读 CTE 的形态 | CTE 后不是只读动词一律拒绝，无法识别的形态 fail-closed | 个别合法只读写法会被误拒 |
 | 浏览器 SQL 参数类型 | JSON 绑定，`Date`、二进制、超范围 `bigint` 拒绝 | 时间过滤需传 ISO 字符串 |
 | 浏览器 SQL 扩展分发 | 必须同源自托管，`extensions.duckdb.org` 无 CORS 头 | 部署多一步，且要与 WASM 核心版本对齐 |
-| WASM 浏览器实测 | 两个 `.wasm` 已随包分发，但尚未在真实 Chromium 中跑通 | 浏览器端使用前需自行验证 |
+| WASM 浏览器实测 | 两个 `.wasm` 已随包分发，`probe:wasm-vector` 在 Chromium 中通过 | 真实 CDN 网络下的首载仍未测 |
 
 ## 明确不做
 

@@ -159,6 +159,11 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   gate the build on Recall@K against an exact scan.
 - `tools/embed-wasm.mjs` embeds both WASM artifacts into `@weisql/sdk/wasm` and
   writes `artifacts.json`; `--check` is used by `release:check` and `prepack`.
+- `npm run probe:wasm-vector` (`tools/browser-probe/wasm-vector.html`): a
+  Chromium probe that fetches the packaged artifacts through `wasmArtifactUrl()`
+  and compares the TypeScript exact adapter, the exact WASM artifact and the
+  HNSW artifact on the example package — same rows/IDs, distances within `1e-9`,
+  expected `diagnostics.backend`, no Node globals. Wired into the CI browser job.
 - `tools/cdn-probe.mjs` (`npm run probe:cdn`) checks CORS, `206`,
   `Content-Range`, `Content-Length`, `Accept-Ranges` and exposed headers on a
   deployed package; `docs/CDN_ACCEPTANCE.md` records the checklist.

@@ -62,6 +62,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - WASM 构建（`npm run build:wasm`）：无 wasm-bindgen、无导入的 17 KB 模块，cosine/L2/IP 三种度量，同一 fixture 第三方实现对照（`npm run test:wasm-golden`）
 - WASM Vector Adapter（`createWasmVectorAdapter`）：把该产物接成 `VectorAdapter`，与 TypeScript 精确适配器逐字段对照（`npm run test:wasm-adapter`）
 - WASM 产物随包分发：`@weisql/sdk/wasm/` 内置 exact 与 HNSW 两个 `.wasm` 和 `artifacts.json`（尺寸/SHA-256/ABI），`wasmArtifactUrl("exact" | "hnsw")` 直接给出 URL；`npm run embed:wasm` 重建，`release:check` 校验字节未漂移
+- 浏览器 WASM 实测（`npm run probe:wasm-vector`）：Chromium 中通过 `wasmArtifactUrl()` 加载两个模块，exact/HNSW 与 TypeScript 精确适配器逐条一致，页面无 `process`/`Buffer` 依赖；已接入 CI
 - HNSW 备选索引（`crates/vector-hnsw`）：纯 Rust、零依赖、种子可复现；2000×32 聚类数据 Recall@10 = 1.00，p50 查询 0.048 ms
 - HNSW 的 WASM 模块（`npm run build:hnsw-wasm`）：41 KB、单实例持有一个索引，1000×16 数据 Recall@10 = 1.00、p50 0.033 ms（`npm run test:hnsw-wasm`）
 - HNSW Vector Adapter（`createHnswWasmVectorAdapter`）：如实声明 `exactSearch: false`，过滤走超额召回后置筛选（`postFiltering: true`）；对精确适配器 Recall@10 ≥ 0.9（`npm run test:hnsw-adapter`）
@@ -78,7 +79,6 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - `db.sql()` 仍一次性返回全部行；需要增量消费时用 `db.sqlStream()`（流式 API 已提供）
 - ANN 在真实数据集上的 Recall@K 结果；ANN 后过滤仍只保证“显式后过滤”，不保证过滤后的严格 Top-K。报告入口已就绪（`bench:recall`），缺真实 embedding 语料
 - 时间戳的自动推断（需用 `--timestamp` 显式声明；嵌套 JSON 列已支持，见 [源数据转换](docs/SOURCE_CONVERSION.md)）
-- WASM adapter 的 Chromium 实测结果（探针 `probe:wasm-vector` 已就绪并接入 CI；首次运行前不宣称通过）
 - 真实 CDN（CORS、Range、缓存）与多机/冷缓存验收；`probe:cdn` 工具已就绪，尚无真实部署结果
 - npm 正式发布（CLI 已登录，`npm run release:publish` 的 dry-run 通过；尚未执行不可撤销的 `--apply`）
 
@@ -115,6 +115,7 @@ npm run fixture
 npm run probe:browser
 npm run probe:wasm-vector  # 随包分发的 exact/HNSW .wasm 与 TS 精确适配器三方对照
 npm run probe:wasm         # 浏览器 SQL（DuckDB-Wasm），首次会下载 parquet 扩展
+npm run probe:wasm-vector  # 浏览器加载随包 .wasm：exact/HNSW 与 TS 适配器对照
 npm run probe:playground   # 打开 Playground 并断言交互结果
 npm run probe:parity       # Node 与 Chromium 结果对照（见 docs/ENVIRONMENT_PARITY.md）
 npm run probe:opfs-lock    # 双标签页 OPFS 锁：第二个页面回退内存

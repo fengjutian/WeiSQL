@@ -7,12 +7,10 @@
   <body>
     <pre id="log"></pre>
     <script type="module">
-      import {
-        createExactVectorAdapter,
-        createHnswWasmVectorAdapter,
-        createWasmVectorAdapter,
-        wasmArtifactUrl,
-      } from "/sdk/index.js";
+      import { createHnswWasmVectorAdapter } from "/sdk/hnsw-vector-adapter.js";
+      import { createWasmVectorAdapter } from "/sdk/wasm-vector-adapter.js";
+      import { createExactVectorAdapter } from "/sdk/vector-adapter.js";
+      import { wasmArtifactUrl } from "/sdk/wasm-artifacts.js";
       import { HttpResourceReader } from "/sdk/http-resource-reader.js";
 
       const log = (message) => {

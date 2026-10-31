@@ -77,7 +77,7 @@ hide_title: true
 | 两层字节预算 | 已实现 · 已测试 | 单表默认 64 MiB，整包默认 128 MiB，早于 WASM 加载 |
 | 浏览器内大表与冷启动 | 已实现 · 部分实测 | 本地 Chromium 已测 200k/500k/1M 行与关闭缓存的 36.3 MB 首载；真实 CDN 网络未测 |
 | OPFS 持久化 | 已实现 · opt-in | `persistToOpfs`；内容派生键，命中后仍跑 L4，跨标签页用 Web Locks |
-| WASM 向量模块 | 已实现 · 随包 | exact 与 HNSW 两个 `.wasm` 在 `@weisql/sdk/wasm`，含 `artifacts.json`；浏览器实测未做 |
+| WASM 向量模块 | 已实现 · 探针 | exact 与 HNSW 两个 `.wasm` 在 `@weisql/sdk/wasm`，含 `artifacts.json`；`probe:wasm-vector` 在 Chromium 中与 TypeScript 精确适配器逐条一致 |
 
 ## Adapter
 

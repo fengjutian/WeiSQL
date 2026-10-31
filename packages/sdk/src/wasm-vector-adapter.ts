@@ -1,5 +1,4 @@
 import { WeiSQLError } from "./errors.js";
-import { IndexedIdMapReader } from "./indexed-id-map-reader.js";
 import type { ResourceReader } from "./resource-reader.js";
 import type { VectorHit, VectorMetric } from "./types.js";
 import type {
@@ -8,7 +7,7 @@ import type {
   VectorAdapterOpenContext,
   VectorAdapterSearchRequest,
 } from "./vector-adapter.js";
-import { VectorBlockReader } from "./vector-block-reader.js";
+import { assertBusinessId, materializeVectors, readBusinessIds, throwIfAborted } from "./wasm-vector-support.js";
 
 /** Must match `ABI_VERSION` in `crates/vector-wasm/src/lib.rs`. */
 const ABI_VERSION = 3;
@@ -92,7 +91,7 @@ export async function createWasmVectorAdapter(options: WasmVectorAdapterOptions)
 
       let full = cache.get(request.vector.data.path);
       if (full === undefined) {
-        full = await materialize(source, request, blockSize);
+        full = await materializeVectors(source, request.vector, blockSize, request.signal);
         cache.set(request.vector.data.path, full);
       } else if (full.length !== request.vector.count * request.vector.dimension) {
         throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Cached vector block does not match the descriptor", {
@@ -108,44 +107,18 @@ export async function createWasmVectorAdapter(options: WasmVectorAdapterOptions)
       const hits = runWasm(api, request, plan);
       throwIfAborted(request.signal);
 
-      const idMap = new IndexedIdMapReader(source, {
-        dataPath: request.vector.idMap.data.path,
-        offsetsPath: request.vector.idMap.offsets.path,
-        count: request.vector.idMap.count,
-        dataBytes: request.vector.idMap.data.bytes,
-        offsetsBytes: request.vector.idMap.offsets.bytes,
-      });
-      try {
-        const ids = await idMap.getIdsByRows(
-          hits.map(hit => hit.row),
-          request.signal === undefined ? undefined : { signal: request.signal },
-        );
-        if (ids.length !== hits.length) {
-          throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "ID map count does not match the final candidates", {
-            expected: hits.length,
-            actual: ids.length,
-          });
-        }
-        const elapsedMs = started === undefined || typeof performance === "undefined" ? undefined : performance.now() - started;
-        return hits.map((hit, index): VectorHit => {
-          const id = ids[index];
-          if ((typeof id !== "string" || id.length === 0) && (typeof id !== "number" || !Number.isSafeInteger(id))) {
-            throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "ID map contains an invalid business ID", { row: hit.row });
-          }
-          return {
-            row: hit.row,
-            id,
-            distance: hit.distance,
-            diagnostics: {
-              backend: "rust-wasm-exact",
-              exact: true,
-              ...(elapsedMs === undefined ? {} : { elapsedMs }),
-            },
-          };
-        });
-      } finally {
-        await idMap.close();
-      }
+      const ids = await readBusinessIds(source, request.vector, hits.map(hit => hit.row), request.signal);
+      const elapsedMs = started === undefined || typeof performance === "undefined" ? undefined : performance.now() - started;
+      return hits.map((hit, index): VectorHit => ({
+        row: hit.row,
+        id: assertBusinessId(ids[index], hit.row),
+        distance: hit.distance,
+        diagnostics: {
+          backend: "rust-wasm-exact",
+          exact: true,
+          ...(elapsedMs === undefined ? {} : { elapsedMs }),
+        },
+      }));
     },
     async close() {
       state = "CLOSED";
@@ -177,34 +150,6 @@ function selectRows(request: VectorAdapterSearchRequest, full: Float32Array): Ro
     compacted.set(full.subarray(row * dimension, (row + 1) * dimension), index * dimension);
   });
   return { data: compacted, rows: selected, compacted: true };
-}
-
-async function materialize(
-  source: ResourceReader,
-  request: VectorAdapterSearchRequest,
-  blockSize: number,
-): Promise<Float32Array> {
-  const { count, dimension, data } = request.vector;
-  const reader = new VectorBlockReader(source, { path: data.path, count, dimension, bytes: data.bytes });
-  const values = new Float32Array(count * dimension);
-  let written = 0;
-  for (let start = 0; start < count; start += blockSize) {
-    throwIfAborted(request.signal);
-    const block = await reader.readBlock(
-      start,
-      Math.min(blockSize, count - start),
-      request.signal === undefined ? undefined : { signal: request.signal },
-    );
-    values.set(block.values, written * dimension);
-    written += block.count;
-  }
-  if (written !== count) {
-    throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Vector scan did not cover the whole collection", {
-      expected: count,
-      actual: written,
-    });
-  }
-  return values;
 }
 
 interface RawHit {
@@ -305,10 +250,6 @@ function wasmError(code: number, request: VectorAdapterSearchRequest): WeiSQLErr
 
 function freeQuietly(api: WasmExports, pointer: number, length: number): void {
   if (pointer !== 0) api.weisql_dealloc(pointer, length);
-}
-
-function throwIfAborted(signal: AbortSignal | undefined): void {
-  if (signal?.aborted) throw new WeiSQLError("QUERY_CANCELLED", "Vector search was cancelled");
 }
 
 async function instantiate(module: WebAssembly.Module | BufferSource): Promise<WebAssembly.Instance> {

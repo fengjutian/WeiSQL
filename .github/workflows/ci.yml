@@ -117,6 +117,8 @@ jobs:
       - run: npm run build --workspace @weisql/sdk
       - name: WASM adapter parity
         run: node tools/bench/wasm-adapter.mjs
+      - name: HNSW adapter parity
+        run: node tools/bench/hnsw-adapter.mjs
 
   derived:
     name: derived indexes and fixture determinism

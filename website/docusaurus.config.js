@@ -11,6 +11,18 @@ const config = {
   url: "https://weisql.netlify.app",
   baseUrl: "/",
 
+  headTags: [
+    {
+      tagName: "link",
+      attributes: {
+        rel: "alternate",
+        type: "text/plain",
+        href: "/llms.txt",
+        title: "llms.txt",
+      },
+    },
+  ],
+
   organizationName: "fengjutian",
   projectName: "WeiSQL",
 

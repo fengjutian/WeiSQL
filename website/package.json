@@ -9,6 +9,7 @@
     "serve": "docusaurus serve --port 3000",
     "clear": "docusaurus clear",
     "check:snippets": "node scripts/check-examples.mjs",
+    "check:docs": "node scripts/check-docs.mjs",
     "postinstall": "node scripts/patch-search-trimmer.mjs"
   },
   "dependencies": {

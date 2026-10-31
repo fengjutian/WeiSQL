@@ -43,6 +43,9 @@ jobs:
       - name: Check example snippets
         working-directory: website
         run: npm run check:snippets
+      - name: Check docs structure and links
+        working-directory: website
+        run: npm run check:docs
       - name: Build site
         working-directory: website
         run: npm run build

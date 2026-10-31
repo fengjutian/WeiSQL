@@ -267,6 +267,7 @@ DuckDB-Wasm 与浏览器 SQL 已验证、WASM 向量搜索仍待推进；CDN 按
 | DuckDB-Wasm | 已实现并在 Chromium 中验证：自托管 parquet 扩展、只读 CTE、过滤检索、`probe:wasm` 断言通过；大表与冷启动未测 |
 | USearch ANN Adapter | 已实现；HNSW 内存索引、三种度量映射、`exact: false` 如实标注；召回与延迟对照见 `BENCHMARK_HARNESS.md` |
 | 纯 Rust HNSW 备选 | 已实现（`crates/vector-hnsw`，零依赖、种子可复现）：分层图 + 多样性启发式；2000×32 聚类数据 Recall@10 = 1.00、p50 0.048 ms；另有 41 KB WASM 模块（`crates/vector-hnsw-wasm`，1000×16 Recall@10 = 1.00），默认引擎仍是 USearch |
+| HNSW Adapter | `createHnswWasmVectorAdapter()` 已实现：`exactSearch: false`、`postFiltering: true`；对精确适配器 Recall@10 ≥ 0.9，距离与 `vectorDistance` 一致，过滤结果均落在 `allowedRows` 内 |
 | WASM 向量 Adapter | `createWasmVectorAdapter()` 已实现：整集合缓存 + `allowedRows` 压缩后精确扫描，三度量与零查询错误码均与 TypeScript 精确适配器逐字段对照 |
 | ANN 真实数据集召回 | 未评估；现有 Recall@K 均来自合成数据，不能外推 |
 | 全文检索 | 已实现；Manifest `textIndexes`、倒排索引读取器、BM25 排序与 Unicode 分词，`text.search()` 已接入 Runtime |

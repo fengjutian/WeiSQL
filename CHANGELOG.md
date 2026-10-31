@@ -241,6 +241,14 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   build once per module instance, then search with `f64` distances. A Node probe
   builds 1000×16 clustered data inside the module and checks Recall@10 against a
   JavaScript brute-force scan (1.00, p50 0.033 ms).
+- `createHnswWasmVectorAdapter()`: a `VectorAdapter` over the HNSW module. It
+  builds the graph lazily per data path **and metric** (a metric switch
+  rebuilds), reports `exactSearch: false`, and post-filters by over-fetching
+  `topK × oversample` for `allowedRows`, marking results `postFiltered`. A probe
+  compares 20 queries against the exact adapter (Recall@10 ≥ 0.9, distances
+  equal to `vectorDistance`, filtered rows inside `allowedRows`).
+- The WASM adapters now share `wasm-vector-support.ts` for materialisation,
+  business-ID resolution and cancellation instead of duplicating it.
 - `createWasmVectorAdapter()`: a `VectorAdapter` over that artifact. It caches
   one materialised `Float32Array` per collection, compacts `allowedRows` before
   the scan so filtered results stay exact, and maps rows back to business IDs

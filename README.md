@@ -63,6 +63,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - WASM Vector Adapter（`createWasmVectorAdapter`）：把该产物接成 `VectorAdapter`，与 TypeScript 精确适配器逐字段对照（`npm run test:wasm-adapter`）
 - HNSW 备选索引（`crates/vector-hnsw`）：纯 Rust、零依赖、种子可复现；2000×32 聚类数据 Recall@10 = 1.00，p50 查询 0.048 ms
 - HNSW 的 WASM 模块（`npm run build:hnsw-wasm`）：41 KB、单实例持有一个索引，1000×16 数据 Recall@10 = 1.00、p50 0.033 ms（`npm run test:hnsw-wasm`）
+- HNSW Vector Adapter（`createHnswWasmVectorAdapter`）：如实声明 `exactSearch: false`，过滤走超额召回后置筛选（`postFiltering: true`）；对精确适配器 Recall@10 ≥ 0.9（`npm run test:hnsw-adapter`）
 
 ## 尚未实现 / 未验证
 
@@ -155,6 +156,15 @@ const db = await open("./pkg", { vectorAdapter: wasm });
 ```
 
 适配器第一次搜索时按 `blockSize` 把整个集合读入 `Float32Array` 并缓存（包不可变），每次搜索再拷入 WASM 线性内存；因此内存约为 `count × dimension × 4` 字节。`tools/bench/wasm-adapter.mjs` 在同一份内存数据上比较 `createWasmVectorAdapter` 与 `createExactVectorAdapter` 的行号、业务 ID、距离和错误码。
+
+同一条边界也支持 HNSW：
+
+```ts
+import { createHnswWasmVectorAdapter } from "@weisql/sdk";
+const hnsw = await createHnswWasmVectorAdapter({ module: hnswBytes, m: 16, efConstruction: 200, efSearch: 64 });
+```
+
+它在首次查询某个集合时建图（一个模块实例只持有一个图，切换集合或度量会重建），`capabilities.exactSearch` 为 `false`；带 `allowedRows` 的查询先超额召回 `topK × oversample` 再筛选，结果按契约可能少于 `topK`，并标记 `diagnostics.postFiltered`。`tools/bench/hnsw-adapter.mjs` 用同一集合比较 Recall@10、每条距离与过滤边界。
 
 ## Manifest V1
 

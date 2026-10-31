@@ -33,6 +33,7 @@
     "test:wasm-adapter": "node tools/bench/wasm-adapter.mjs",
     "build:hnsw-wasm": "cargo build --locked --release --target wasm32-unknown-unknown --manifest-path crates/vector-hnsw-wasm/Cargo.toml",
     "test:hnsw-wasm": "node tools/bench/hnsw-wasm.mjs",
+    "test:hnsw-adapter": "node tools/bench/hnsw-adapter.mjs",
     "release:check": "node tools/release-check.mjs",
     "release:pack": "node tools/check-tarballs.mjs",
     "release:e2e": "node tools/pack-e2e.mjs",

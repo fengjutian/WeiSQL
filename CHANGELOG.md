@@ -231,6 +231,12 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   metrics — brute-force agreement, `top_k` being a prefix of the full ordering,
   cosine scale invariance, L2/IP scaling laws, finite extreme magnitudes and
   contiguous-layout equality.
+- `crates/vector-hnsw`: a dependency-free HNSW fallback engine (layered graph,
+  diversity-heuristic neighbour selection, SplitMix64 levels so a seed
+  reproduces the graph). Ten tests cover structural bounds, determinism, query
+  validation and Recall@10 against the exact baseline for all three metrics;
+  `examples/recall.rs` reports 2000×32 clustered data at Recall@10 = 1.00 with a
+  p50 of 0.048 ms. USearch remains the default ANN engine.
 - `createWasmVectorAdapter()`: a `VectorAdapter` over that artifact. It caches
   one materialised `Float32Array` per collection, compacts `allowedRows` before
   the scan so filtered results stay exact, and maps rows back to business IDs

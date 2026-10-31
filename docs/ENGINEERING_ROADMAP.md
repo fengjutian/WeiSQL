@@ -266,10 +266,11 @@ DuckDB-Wasm 与浏览器 SQL 已验证、WASM 向量搜索仍待推进；CDN 按
 | SQL Adapter | 两个实现均已完成：Node.js DuckDB（语句级只读、原生取消）与浏览器 DuckDB-Wasm（tokenizer 判定的只读边界、`best-effort` 取消、两层字节预算） |
 | DuckDB-Wasm | 已实现并在 Chromium 中验证：自托管 parquet 扩展、只读 CTE、过滤检索、`probe:wasm` 断言通过；大表与冷启动未测 |
 | USearch ANN Adapter | 已实现；HNSW 内存索引、三种度量映射、`exact: false` 如实标注；召回与延迟对照见 `BENCHMARK_HARNESS.md` |
+| 纯 Rust HNSW 备选 | 已实现（`crates/vector-hnsw`，零依赖、种子可复现）：分层图 + 多样性启发式；2000×32 聚类数据 Recall@10 = 1.00、p50 0.048 ms，默认引擎仍是 USearch |
 | WASM 向量 Adapter | `createWasmVectorAdapter()` 已实现：整集合缓存 + `allowedRows` 压缩后精确扫描，三度量与零查询错误码均与 TypeScript 精确适配器逐字段对照 |
 | ANN 真实数据集召回 | 未评估；现有 Recall@K 均来自合成数据，不能外推 |
 | 全文检索 | 已实现；Manifest `textIndexes`、倒排索引读取器、BM25 排序与 Unicode 分词，`text.search()` 已接入 Runtime |
-| Rust 向量能力 | 精确 Cosine/L2/IP 搜索基线 + WASM 产物：44 个测试通过（含 9 个跨语言黄金用例、6 个属性测试与 WASM ABI）；距离用 `f64` 返回，单次扫描 + 定容最大堆，CI 接入 `fmt`/`clippy`/`test`/release 烟测/WASM 黄金对照 |
+| Rust 向量能力 | 精确 Cosine/L2/IP 基线 + WASM 产物 + HNSW 备选：55 个测试通过（含 9 个跨语言黄金用例、6 个属性测试、10 个 HNSW 测试）；距离用 `f64` 返回，CI 接入 `fmt`/`clippy`/`test`/release 烟测/WASM 黄金对照 |
 | 浏览器路径 | SDK 与 SQL 均已在真实 Chromium 中验证（Range、L3、精确搜索、缓存、DuckDB-Wasm SQL）；Netlify/CDN 未部署 |
 | 跨环境对照 | Node 与 Chromium 逐字段对照已通过（8 向量 + 5 文本 + 9 SQL + RAG + 容器 + 6 个 Manifest 错误用例） |
 | CI | GitHub Actions 已建立：Ubuntu/Windows 双平台 build→typecheck→test→release:check，另有 fixture 可复现、派生索引、容器、`bench:wasm --smoke`、SQL 契约、Rust 基线作业，以及 Ubuntu 上的 Chromium 探针作业 |

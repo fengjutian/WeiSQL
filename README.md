@@ -128,7 +128,16 @@ npm run build:wasm         # 构建 crates/vector-wasm（wasm32-unknown-unknown�
 npm run test:wasm-golden   # 用同一 fixture 校验 WASM 产物
 ```
 
-Rust 示例参数依次为向量数量、维度、Top-K 和可选的测量轮数（默认 5 轮，另有 1 轮预热）；参数非法时以退出码 2 拒绝，而不是静默回落默认值。输出包含 `best_ms`/`median_ms`/`mean_ms`/`worst_ms`。该程序是确定性正确性与基准实验入口，不是生产 ANN 引擎。CI 的 `rust vector baseline and wasm` 作业会执行两个 crate 的 `fmt`/`clippy`/`test`、一次 release 基准烟测，以及 WASM 构建与黄金对照。
+Rust 示例参数依次为向量数量、维度、Top-K 和可选的测量轮数（默认 5 轮，另有 1 轮预热）；参数非法时以退出码 2 拒绝，而不是静默回落默认值。输出包含 `best_ms`/`median_ms`/`mean_ms`/`worst_ms`。该程序是确定性正确性与基准实验入口，不是生产 ANN 引擎。CI 的 `rust vector baseline and wasm` 作业会执行三个 crate 的 `fmt`/`clippy`/`test`、一次 release 基准烟测、HNSW 召回烟测，以及 WASM 构建与黄金对照。
+
+HNSW 备选索引（`crates/vector-hnsw`，纯 Rust、无依赖、种子可复现）：
+
+```bash
+cargo test --manifest-path crates/vector-hnsw/Cargo.toml
+cargo run --release --manifest-path crates/vector-hnsw/Cargo.toml --example recall
+```
+
+`examples/recall.rs` 在 2000×32 的确定性聚类数据上打印建图耗时、p50 查询延迟与 Recall@10。该索引只作为 USearch 之外的备选实现，`search()` 返回近似结果，调用方必须如实标注 `exact: false`。
 
 跨语言黄金对照：`tools/bench/rust-golden.mjs` 用 SDK 的 `exactVectorSearch` 把 6 个固定数据集写入 `crates/vector-benchmark/tests/fixtures/exact_cosine_golden.txt`，Rust 的 `golden_tests.rs` 在 1e-6 容差内断言相同排名与距离。修改任一侧语义都会让 `npm run test:rust-golden` 或 `cargo test` 失败；需要更新基线时运行 `node tools/bench/rust-golden.mjs --write`。
 

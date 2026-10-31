@@ -68,7 +68,7 @@ const config = {
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
-      image: "img/logo.svg",
+      image: "img/social-card.png",
       metadata: [
         {
           name: "keywords",

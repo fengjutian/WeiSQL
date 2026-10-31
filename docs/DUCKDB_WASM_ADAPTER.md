@@ -121,7 +121,8 @@ const adapter = createDuckDbWasmAdapter({
 - **再次打开**：文件存在且每张表都能 `SELECT 1 ... LIMIT 0` → **跳过物化**，只跑 L4 校验；`capabilities.supportedFeatures` 同时出现 `opfs` 与 `opfs-reused`。
 - **关闭**：`close()` 在 terminate 前再 flush 一次。
 - **回退**：OPFS/WebCrypto 不可用、打开缓存失败、flush 失败都退回内存模式，不阻断 `open()`；此时不声明 `opfs` 能力。
-- **局限**：假设单标签页使用（未实现跨标签页锁）；旧版本缓存文件不会自动清理；命中缓存后只校验 schema（L4），不重新比对行内容。
+- **回收**：每次落盘后清理旧缓存，保留当前数据库与最近 3 个（共 4 个），WAL 伴随文件一起删除；只处理 `weisql-<32 hex>.db` 文件。
+- **局限**：假设单标签页使用（未实现跨标签页锁）；命中缓存后只校验 schema（L4），不重新比对行内容。
 
 ## 5. L4 与版本
 

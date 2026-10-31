@@ -37,7 +37,9 @@ fn run() -> Result<(), String> {
         return Err(format!("top_k must be between 1 and {MAX_TOP_K}, got {top_k}"));
     }
     if iterations == 0 || iterations > MAX_ITERATIONS {
-        return Err(format!("iterations must be between 1 and {MAX_ITERATIONS}, got {iterations}"));
+        return Err(format!(
+            "iterations must be between 1 and {MAX_ITERATIONS}, got {iterations}"
+        ));
     }
 
     // Deterministic synthetic values; this is a smoke benchmark, not a substitute
@@ -51,15 +53,16 @@ fn run() -> Result<(), String> {
         .collect();
     let query: Vec<f32> = (0..dim).map(|i| ((i * 13 % 101) as f32 + 1.0) / 101.0).collect();
 
+    let search = || exact_cosine_search(&vectors, &query, top_k).map_err(|error| error.to_string());
     for _ in 0..WARMUP_RUNS {
-        black_box(exact_cosine_search(&vectors, &query, top_k)?);
+        black_box(search()?);
     }
 
     let mut samples: Vec<Duration> = Vec::with_capacity(iterations);
     let mut last_hits = Vec::new();
     for _ in 0..iterations {
         let start = Instant::now();
-        let hits = exact_cosine_search(&vectors, &query, top_k)?;
+        let hits = search()?;
         samples.push(start.elapsed());
         black_box(&hits);
         last_hits = hits;
@@ -92,11 +95,7 @@ fn run() -> Result<(), String> {
     Ok(())
 }
 
-fn parse_arg(
-    args: &mut impl Iterator<Item = String>,
-    name: &str,
-    default: usize,
-) -> Result<usize, String> {
+fn parse_arg(args: &mut impl Iterator<Item = String>, name: &str, default: usize) -> Result<usize, String> {
     match args.next() {
         None => Ok(default),
         Some(raw) => raw

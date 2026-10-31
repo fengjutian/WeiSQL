@@ -2,9 +2,21 @@
 name = "weisql-vector-benchmark"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.75"
 license = "MIT OR Apache-2.0"
 description = "Correctness-first exact vector search baseline for WeiSQL AI"
+publish = false
 
 [dependencies]
 
 [dev-dependencies]
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = "warn"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

@@ -52,6 +52,30 @@ jobs:
       - name: Validate the example package including L4
         run: node packages/cli/dist/bin.js validate examples/fixture --l4
 
+  rust:
+    name: rust vector baseline
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: crates/vector-benchmark
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      # The baseline is the correctness oracle for every ANN comparison, so it
+      # gets the same gates as the TypeScript packages instead of relying on
+      # contributors to remember `cargo test`.
+      - name: Formatting
+        run: cargo fmt --check
+      - name: Lints
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Tests
+        run: cargo test
+      - name: Benchmark smoke
+        run: cargo run --release -- 10000 128 10 2
+
   derived:
     name: derived indexes and fixture determinism
     runs-on: ubuntu-latest

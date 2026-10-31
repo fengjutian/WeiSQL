@@ -111,17 +111,19 @@ pub fn validate_dataset(vectors: &[Vec<f32>]) -> Result<usize, SearchError> {
 ///
 /// Query validation happens before the dataset scan; a dataset with both an
 /// invalid query and an invalid row reports the query error first.
-pub fn exact_cosine_search(
-    vectors: &[Vec<f32>],
-    query: &[f32],
-    top_k: usize,
-) -> Result<Vec<Hit>, SearchError> {
+pub fn exact_cosine_search(vectors: &[Vec<f32>], query: &[f32], top_k: usize) -> Result<Vec<Hit>, SearchError> {
     if top_k == 0 || top_k > MAX_TOP_K {
-        return Err(SearchError::InvalidTopK { top_k, limit: MAX_TOP_K });
+        return Err(SearchError::InvalidTopK {
+            top_k,
+            limit: MAX_TOP_K,
+        });
     }
     let dim = common_dimension(vectors)?;
     if query.len() != dim {
-        return Err(SearchError::DimensionMismatch { expected: dim, actual: query.len() });
+        return Err(SearchError::DimensionMismatch {
+            expected: dim,
+            actual: query.len(),
+        });
     }
 
     let mut query_norm_squared = 0.0_f64;
@@ -187,7 +189,10 @@ impl PartialOrd for Ranked {
 
 impl From<Ranked> for Hit {
     fn from(ranked: Ranked) -> Self {
-        Self { id: ranked.id, distance: ranked.distance }
+        Self {
+            id: ranked.id,
+            distance: ranked.distance,
+        }
     }
 }
 
@@ -212,7 +217,10 @@ fn common_dimension(vectors: &[Vec<f32>]) -> Result<usize, SearchError> {
     }
     for vector in vectors {
         if vector.len() != dim {
-            return Err(SearchError::DimensionMismatch { expected: dim, actual: vector.len() });
+            return Err(SearchError::DimensionMismatch {
+                expected: dim,
+                actual: vector.len(),
+            });
         }
     }
     Ok(dim)

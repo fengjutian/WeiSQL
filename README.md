@@ -58,7 +58,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 ## 尚未实现 / 未验证
 
 - 浏览器 SQL 的 `Date`/二进制参数（当前明确拒绝）；见 [DuckDB-Wasm Adapter](docs/DUCKDB_WASM_ADAPTER.md)
-- 浏览器端 OPFS 缓存已实现为 opt-in（`persistToOpfs`）；跨标签页锁与旧缓存清理未做；多线程/COI 已试且不可用（见 ADR-063）；36.3 MB 首载已实测（`bench:wasm-cold`），CDN 下的冷启动仍未测
+- 浏览器端 OPFS 缓存已实现为 opt-in（`persistToOpfs`，保留最近 4 个数据库）；跨标签页锁未做；多线程/COI 已试且不可用（见 ADR-063）；36.3 MB 首载已实测（`bench:wasm-cold`），CDN 下的冷启动仍未测
 - `db.sql()` 仍一次性返回全部行；需要增量消费时用 `db.sqlStream()`（流式 API 已提供）
 - ANN 在真实数据集上的 Recall@K 评估；ANN 后过滤的完整性保证
 - 时间戳的自动推断（需用 `--timestamp` 显式声明；嵌套 JSON 列已支持，见 [源数据转换](docs/SOURCE_CONVERSION.md)）
@@ -116,7 +116,7 @@ cargo test --manifest-path crates/vector-benchmark/Cargo.toml
 cargo run --release --manifest-path crates/vector-benchmark/Cargo.toml -- 10000 128 10
 ```
 
-Rust 示例参数依次为向量数量、维度和 Top-K。该程序是确定性正确性与基准实验入口，不是生产 ANN 引擎。
+Rust 示例参数依次为向量数量、维度、Top-K 和可选的测量轮数（默认 5 轮，另有 1 轮预热）；参数非法时以退出码 2 拒绝，而不是静默回落默认值。输出包含 `best_ms`/`median_ms`/`mean_ms`/`worst_ms`。该程序是确定性正确性与基准实验入口，不是生产 ANN 引擎。CI 的 `rust vector baseline` 作业会执行 `cargo fmt --check`、`cargo clippy -D warnings`、`cargo test` 和一次 release 基准烟测。
 
 ## Manifest V1
 

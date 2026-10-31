@@ -1,4 +1,4 @@
-﻿"""Build the WeiSQL AI status report as a Word document.
+"""Build the WeiSQL AI status report as a Word document.
 
 Run with the bundled Python (python-docx is provided there):
 

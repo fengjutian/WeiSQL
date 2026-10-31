@@ -79,6 +79,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   instead of truncating; plain `SELECT` is rewritten with `LIMIT maxRows + 1` so
   the engine stops early, while classification still runs on the original
   statement.
+- `db.sqlStream()` streams chunks via `prepared.stream()`, with the same
+  read-only guard and row budget as `sql()`.
 - `tableLoading: "memory" | "lazy"` with the security/memory trade-off documented.
 - Two-level declared-byte budget: `maxTableBytes` (default 256 MiB) per table and
   `maxTotalTableBytes` (default 512 MiB) per package, checked before the DuckDB
@@ -99,6 +101,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - `db.sql(..., { maxRows })` matches the Node adapter: `SELECT`/`VALUES`/`TABLE`
   are wrapped with `LIMIT maxRows + 1` and oversized results raise
   `INVALID_ARGUMENT`; metadata statements are checked after execution.
+- `db.sqlStream()` consumes `prepared.send()` Arrow batches, so rows arrive
+  before the whole result is materialized; the Chromium probe asserts it.
 - `DECIMAL` is cast to `DOUBLE` (`castDecimalToDouble`) so results are numbers,
   matching the Node adapter instead of leaking Arrow's unscaled words; `BIGINT`
   stays a `bigint`.

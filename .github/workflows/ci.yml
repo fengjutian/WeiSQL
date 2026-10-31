@@ -39,6 +39,9 @@ jobs:
       - name: Validate the example package
         run: node packages/cli/dist/bin.js validate examples/fixture
 
+      - name: Validate the example package including L4
+        run: node packages/cli/dist/bin.js validate examples/fixture --l4
+
   derived:
     name: derived indexes and fixture determinism
     runs-on: ubuntu-latest

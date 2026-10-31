@@ -17,6 +17,7 @@ Commands:
 
 Options:
   --mode <none|manifest|all>   Integrity mode for validate (default: all)
+  --l4                         Also verify Parquet content (needs @weisql/duckdb-adapter)
   --output <file|directory>    Output path for pack / unpack
   --json                       Print machine-readable JSON
   --help, -h                   Show this help
@@ -32,12 +33,13 @@ interface ParsedArguments {
   target: string | undefined;
   mode: IntegrityMode;
   output: string | undefined;
+  l4: boolean;
   json: boolean;
   help: boolean;
 }
 
 function parseArguments(argv: readonly string[]): ParsedArguments | string {
-  const parsed: ParsedArguments = { command: undefined, target: undefined, mode: "all", output: undefined, json: false, help: false };
+  const parsed: ParsedArguments = { command: undefined, target: undefined, mode: "all", output: undefined, l4: false, json: false, help: false };
   for (let index = 0; index < argv.length; index++) {
     const argument = argv[index]!;
     if (argument === "--help" || argument === "-h") {
@@ -46,6 +48,10 @@ function parseArguments(argv: readonly string[]): ParsedArguments | string {
     }
     if (argument === "--json") {
       parsed.json = true;
+      continue;
+    }
+    if (argument === "--l4") {
+      parsed.l4 = true;
       continue;
     }
     if (argument === "--mode") {
@@ -90,6 +96,9 @@ function summarize(result: ValidationResult): string[] {
   lines.push(`mode:      ${result.mode}`);
   if (result.integrity !== undefined) {
     lines.push(`resources: ${result.integrity.checkedResources} checked, ${result.integrity.sizeVerified} sizes verified, ${result.integrity.hashesVerified} hashes verified, ${result.integrity.totalDeclaredBytes} declared bytes`);
+  }
+  if (result.l4 !== undefined) {
+    lines.push(`l4:        ${result.l4.ok ? `${result.l4.tables} table(s) matched the Manifest` : "failed"}`);
   }
   return lines;
 }
@@ -165,8 +174,8 @@ async function main(argv: readonly string[]): Promise<number> {
   const info = await stat(parsed.target).catch(() => undefined);
   const isContainer = info?.isFile() === true;
   const result: ValidationResult & { container?: { files: number; mismatches: number } } = isContainer
-    ? await validateContainer({ file: parsed.target, mode: parsed.mode })
-    : await validatePackage({ directory: parsed.target, mode: parsed.mode });
+    ? await validateContainer({ file: parsed.target, mode: parsed.mode, l4: parsed.l4 })
+    : await validatePackage({ directory: parsed.target, mode: parsed.mode, l4: parsed.l4 });
 
   if (parsed.json) {
     console.log(JSON.stringify({
@@ -176,6 +185,7 @@ async function main(argv: readonly string[]): Promise<number> {
       mode: result.mode,
       datasetId: result.manifest?.datasetId ?? null,
       container: result.container ?? null,
+      l4: result.l4 ?? null,
       integrity: result.integrity ?? null,
       issues: result.issues,
     }, null, 2));

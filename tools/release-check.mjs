@@ -86,21 +86,29 @@ for (const { directory, manifest } of packages) {
     fail(`${label}: license '${manifest.license}' does not match the decided Apache-2.0`);
   }
 
-  for (const [dependency, range] of Object.entries(manifest.dependencies ?? {})) {
-    if (!dependency.startsWith("@weisql/")) continue;
+  const checkWorkspaceRange = (kind, dependency, range) => {
     const localVersion = versions.get(dependency);
     if (localVersion === undefined) {
-      fail(`${label}: depends on ${dependency}, which is not a workspace package`);
-      continue;
+      fail(`${label}: ${kind} ${dependency} is not a workspace package`);
+      return;
     }
     if (range === "*" || range === "latest") {
-      fail(`${label}: dependency ${dependency} must use a caret range, not '${range}'`);
-      continue;
+      fail(`${label}: ${kind} ${dependency} must use a caret range, not '${range}'`);
+      return;
     }
     const expectedPrefix = `^${localVersion.split(".")[0]}.${localVersion.split(".")[1]}.`;
     if (!range.startsWith(expectedPrefix)) {
-      fail(`${label}: dependency ${dependency} range '${range}' does not track local version ${localVersion}`);
+      fail(`${label}: ${kind} ${dependency} range '${range}' does not track local version ${localVersion}`);
     }
+  };
+
+  for (const [dependency, range] of Object.entries(manifest.dependencies ?? {})) {
+    if (!dependency.startsWith("@weisql/")) continue;
+    checkWorkspaceRange("dependency", dependency, range);
+  }
+  for (const [dependency, range] of Object.entries(manifest.peerDependencies ?? {})) {
+    if (!dependency.startsWith("@weisql/")) continue;
+    checkWorkspaceRange("peer dependency", dependency, range);
   }
 
   if (!existsSync(path.join(REPO_ROOT, "packages", directory, "dist", "index.js"))) {

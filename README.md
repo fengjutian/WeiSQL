@@ -30,7 +30,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - 真实浏览器验收探针（`npm run probe:browser`）：Chromium 中验证 HTTP Range、L3 校验、精确搜索与缓存命中
 - 跨环境对照（`npm run probe:parity`）：同一进程驱动 Node 与 Chromium，逐字段比较向量检索、全文检索、RAG 证据、`.wsql` 容器与错误码
 - 可复现的基准装置（`npm run bench`）：合成数据包 + 完整性闸门 + p50/p95、I/O 字节与峰值内存；`--ann` 给出 Recall@K 对照，`--text` 测量 BM25 构建、体积与延迟，结果见 [基准测量装置](docs/BENCHMARK_HARNESS.md)
-- `weisql validate` 校验命令（`@weisql/cli`）：L1/L2/L3 逐级校验、`--json` 输出与 CI 友好退出码
+- `weisql validate` 校验命令（`@weisql/cli`）：L1/L2/L3 逐级校验、`--l4` 额外核对 Parquet 内容（需 `@weisql/duckdb-adapter`）、`--json` 输出与 CI 友好退出码
 - `.wsql` 单文件容器：`weisql pack` 打包、`weisql validate <file>.wsql` 校验、`weisql unpack` 解包（先验摘要再写盘、拒绝路径穿越），SDK 提供 `ContainerReader` 直接作为 `resourceReader`，详见 [容器格式](docs/WSQL_CONTAINER.md)
 - 发布前静态检查（`npm run release:check`）：版本形状、workspace 依赖范围、`files` 清单、dist 产物与 README 齐备性
 - 全文检索：Manifest `textIndexes`、倒排索引读取器（二分定位 + BM25）、生成工具，以及公开 `db.text.search()`；Unicode 分词（CJK 按字），详见 [全文检索设计](docs/FULL_TEXT_SEARCH.md)
@@ -241,6 +241,7 @@ const report = await buildPackage({
 ```bash
 npx weisql validate ./examples/fixture
 npx weisql validate ./examples/fixture --json --mode all
+npx weisql validate ./examples/fixture --l4      # 额外核对 Parquet 内容，需要 @weisql/duckdb-adapter
 ```
 
 ```
@@ -254,6 +255,7 @@ OK
 ```
 
 - 依次执行 L1/L2 结构校验与 L3 资源完整性；`--mode manifest` 只比对长度，`--mode none` 只做结构校验，输出会如实反映实际验证到哪一级。
+- `--l4` 会通过 DuckDB 打开数据包，核对 Parquet 的列名、列类型与行数是否与 Manifest 一致；没有安装适配器时报 `[l4] SQL_UNSUPPORTED` 而不是崩溃。对 `.wsql` 容器同样可用。
 - 退出码：`0` 有效、`1` 无效、`2` 用法错误，可直接接入 CI 或发布脚本。
 - `--json` 输出机器可读结果，包含 `issues[].stage`、`code` 与 `details.path`。
 - 失败示例：`[resources] RESOURCE_INTEGRITY_FAILED: Resource SHA-256 does not match the Manifest (vectors/document_embeddings.f32)`。

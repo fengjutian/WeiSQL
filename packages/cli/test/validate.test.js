@@ -122,6 +122,33 @@ test("CLI exits 1 and emits JSON for an invalid package", async t => {
   );
 });
 
+test("L4 verifies Parquet content against the Manifest", async t => {
+  const ok = await validatePackage({ directory: FIXTURE, l4: true });
+  assert.equal(ok.ok, true);
+  assert.deepEqual(ok.l4, { ok: true, tables: 1 });
+
+  const target = await copiedFixture(t);
+  const manifest = JSON.parse(await readFile(path.join(target, "manifest.json"), "utf8"));
+  manifest.tables[0].columns[0].type = "int32";
+  await writeFile(path.join(target, "manifest.json"), JSON.stringify(manifest), "utf8");
+
+  const broken = await validatePackage({ directory: target, l4: true });
+  assert.equal(broken.ok, false);
+  assert.deepEqual(broken.l4, { ok: false, tables: 0 });
+  assert.ok(broken.issues.some(issue => issue.stage === "l4" && issue.code === "RESOURCE_INTEGRITY_FAILED"));
+  // Without --l4 the same package only fails at L3 (manifest.json is not hashed).
+  const withoutL4 = await validatePackage({ directory: target });
+  assert.equal(withoutL4.ok, true);
+  assert.equal(withoutL4.l4, undefined);
+});
+
+test("CLI --l4 reports the table count and exits 0 for a valid package", async () => {
+  const { stdout } = await run(process.execPath, [BIN, "validate", FIXTURE, "--l4", "--json"]);
+  const payload = JSON.parse(stdout);
+  assert.equal(payload.ok, true);
+  assert.deepEqual(payload.l4, { ok: true, tables: 1 });
+});
+
 test("CLI treats bad usage as exit code 2", async () => {
   for (const argv of [[], ["validate"], ["validate", FIXTURE, "--mode", "bogus"], ["unknown", FIXTURE], ["validate", FIXTURE, "--nope"]]) {
     await assert.rejects(run(process.execPath, [BIN, ...argv]), error => error.code === 2, argv.join(" "));

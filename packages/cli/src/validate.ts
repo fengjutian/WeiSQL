@@ -1,10 +1,10 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { ContainerReader, NodeFileResourceReader, validateManifest, verifyManifestResources } from "@weisql/sdk";
-import type { IntegrityMode, IntegrityReport, WeiSQLError, WeiSQLManifest } from "@weisql/sdk";
+import { ContainerReader, NodeFileResourceReader, open, validateManifest, verifyManifestResources } from "@weisql/sdk";
+import type { IntegrityMode, IntegrityReport, ResourceReader, WeiSQLError, WeiSQLManifest } from "@weisql/sdk";
 
-export type ValidationStage = "manifest" | "resources";
+export type ValidationStage = "manifest" | "resources" | "l4";
 
 export interface ValidationIssue {
   stage: ValidationStage;
@@ -13,10 +13,17 @@ export interface ValidationIssue {
   details?: Readonly<Record<string, unknown>>;
 }
 
+export interface L4Report {
+  ok: boolean;
+  tables: number;
+}
+
 export interface ValidatePackageOptions {
   directory: string;
   /** `all` verifies sizes and SHA-256; `manifest` verifies sizes only. */
   mode?: IntegrityMode;
+  /** Also verify Parquet content against the Manifest (requires `@weisql/duckdb-adapter`). */
+  l4?: boolean;
   signal?: AbortSignal;
 }
 
@@ -26,6 +33,7 @@ export interface ValidationResult {
   mode: IntegrityMode;
   manifest?: WeiSQLManifest;
   integrity?: IntegrityReport;
+  l4?: L4Report;
   issues: ValidationIssue[];
 }
 
@@ -81,8 +89,44 @@ export async function validatePackage(options: ValidatePackageOptions): Promise<
     await reader.close().catch(() => undefined);
   }
 
+  if (options.l4 && manifest.tables.length > 0) {
+    try {
+      result.l4 = await runL4(manifest, new NodeFileResourceReader({ rootDirectory: directory }), options.signal);
+    } catch (cause) {
+      result.l4 = { ok: false, tables: 0 };
+      issues.push(toIssue("l4", cause));
+    }
+  }
+
   result.ok = issues.length === 0;
   return result;
+}
+
+/**
+ * L4: open the package through the DuckDB adapter so the Parquet content is
+ * compared with the Manifest (columns, types, row count).
+ *
+ * The adapter is an optional peer: the CLI must stay usable without a native
+ * binding, so a missing module becomes an L4 issue instead of a crash.
+ */
+async function runL4(manifest: WeiSQLManifest, reader: ResourceReader, signal: AbortSignal | undefined): Promise<L4Report> {
+  let module: typeof import("@weisql/duckdb-adapter");
+  try {
+    module = await import("@weisql/duckdb-adapter");
+  } catch (cause) {
+    throw Object.assign(new Error("L4 validation requires @weisql/duckdb-adapter to be installed"), {
+      code: "SQL_UNSUPPORTED",
+      details: { cause: String(cause) },
+    });
+  }
+  const db = await open({
+    manifest,
+    resourceReader: reader,
+    sqlAdapter: module.createDuckDbAdapter({ tableLoading: "lazy" }),
+    ...(signal === undefined ? {} : { signal }),
+  });
+  await db.close();
+  return { ok: true, tables: manifest.tables.length };
 }
 
 function toIssue(stage: ValidationStage, cause: unknown): ValidationIssue {
@@ -106,6 +150,8 @@ export interface ValidateContainerOptions {
   file: string;
   /** `all` verifies container entry digests and Manifest resource digests. */
   mode?: IntegrityMode;
+  /** Also verify Parquet content against the Manifest (requires `@weisql/duckdb-adapter`). */
+  l4?: boolean;
   signal?: AbortSignal;
 }
 
@@ -177,6 +223,15 @@ export async function validateContainer(options: ValidateContainerOptions): Prom
       });
     } catch (cause) {
       issues.push(toIssue("resources", cause));
+    }
+
+    if (options.l4 && manifest.tables.length > 0) {
+      try {
+        result.l4 = await runL4(manifest, reader, options.signal);
+      } catch (cause) {
+        result.l4 = { ok: false, tables: 0 };
+        issues.push(toIssue("l4", cause));
+      }
     }
   } finally {
     await reader.close().catch(() => undefined);

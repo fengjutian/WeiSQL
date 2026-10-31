@@ -40,6 +40,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   container checks both the container digests and the Manifest resources.
 - `weisql unpack <file.wsql>` verifies every digest before writing anything, and
   rejects entry paths that could escape the output directory.
+- `weisql validate --l4` verifies Parquet content against the Manifest through an
+  optional `@weisql/duckdb-adapter` peer; works for directories and containers.
 
 ### `@weisql/duckdb-adapter` 0.1.0
 

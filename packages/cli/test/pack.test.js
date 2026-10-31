@@ -57,6 +57,25 @@ test("manifest mode validates the container without hashing entries", async (t) 
   assert.equal(validation.integrity?.sizeVerified, 4);
 });
 
+test("L4 checks Parquet content inside a container", async (t) => {
+  const { output } = await packedFixture(t);
+  const ok = await validateContainer({ file: output, l4: true });
+  assert.equal(ok.ok, true);
+  assert.deepEqual(ok.l4, { ok: true, tables: 1 });
+
+  // A Manifest that disagrees with the Parquet types must fail L4, not L1/L2.
+  const directory = path.join(path.dirname(output), "bad");
+  await unpackContainer({ file: output, directory });
+  const manifestPath = path.join(directory, "manifest.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  manifest.tables[0].columns[0].type = "int32";
+  await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + "\n", "utf8");
+  const broken = await validateContainer({ file: (await packPackage({ directory })).output, l4: true });
+  assert.equal(broken.ok, false);
+  assert.deepEqual(broken.l4, { ok: false, tables: 0 });
+  assert.ok(broken.issues.some(issue => issue.stage === "l4" && issue.code === "RESOURCE_INTEGRITY_FAILED"));
+});
+
 test("unpacks a container into a directory that validates", async (t) => {
   const { output } = await packedFixture(t);
   const directory = path.join(path.dirname(output), "unpacked");

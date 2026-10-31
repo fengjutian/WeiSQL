@@ -409,6 +409,15 @@
 - 决策三：不引入模糊测试库或随机依赖。固定种子 + 手写生成器足以覆盖解析器的结构边界，且失败可复现、无外部依赖。
 - 后果：错误契约从「已知坏输入」升级为「任意输入」。回归用例保留在 `wsql-container.test.js`，防止魔数解码重新引入文本解码路径。
 
+## ADR-047：`--l4` 通过可选 peer 复用 DuckDB 适配器，缺失时降级为 issue
+
+- 状态：Accepted and implemented
+- 决策一：`weisql validate --l4` 不自己解析 Parquet，而是通过 `@weisql/duckdb-adapter` 的 `open()` 走一遍 L4 校验（列名、列类型、行数）。L4 的规则只应存在一处，CLI 复制一份必然漂移。
+- 决策二：适配器声明为**可选 peer**（`peerDependenciesMeta.optional`），不进入默认依赖树。CLI 的核心校验必须能在没有原生绑定的环境里工作；只有用户显式要求 L4 时才需要安装它。
+- 决策三：缺少适配器时产生 `[l4] SQL_UNSUPPORTED` issue 并让校验失败，而不是静默跳过——用户要了 L4，就不能假装做过。
+- 决策四：容器同样支持 `--l4`；适配器通过 `ContainerReader` 读取资源，`lazy` 表加载把 Parquet 落到临时目录，内存不随表大小增长。
+- 后果：`validate` 成为完整的发布闸门（L1–L4）。`release:check` 增加 peer 范围校验；CI 的派生作业对示例包跑一次 `--l4`。`manifest.json` 本身不在 L3 哈希范围内，因此「Manifest 声明与 Parquet 不符」只有 L4 能发现——测试里专门锁了这个场景。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

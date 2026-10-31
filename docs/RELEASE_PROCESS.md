@@ -54,8 +54,9 @@
 npm ci                      # 锁定文件必须干净可复现
 npm run build
 npm run typecheck
-npm test                    # SDK 116 + DuckDB 19 + USearch 10 + CLI 10
-npm run release:check       # 打包元数据、依赖范围、README、dist 产物
+npm test                    # SDK 169 + DuckDB 19 + USearch 12 + CLI 20
+npm run release:check       # 打包元数据、依赖范围（含 peer）、README、dist 产物
+node packages/cli/dist/bin.js validate examples/fixture --l4   # L1–L4 全链路
 ```
 
 可选但建议在「声称某能力可用」之前执行：

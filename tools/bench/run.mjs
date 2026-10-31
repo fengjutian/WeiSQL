@@ -36,6 +36,8 @@ function readArguments(argv) {
     ann: false,
     expansionSearch: 512,
     text: false,
+    clusters: 0,
+    clusterSpread: 0.35,
   };
   for (let index = 0; index < argv.length; index++) {
     const flag = argv[index];
@@ -50,10 +52,12 @@ function readArguments(argv) {
       case "--ann": options.ann = true; break;
       case "--expansion-search": options.expansionSearch = Number(value); index++; break;
       case "--text": options.text = true; break;
+      case "--clusters": options.clusters = Number(value); index++; break;
+      case "--cluster-spread": options.clusterSpread = Number(value); index++; break;
       default: throw new Error(`unknown option ${flag}`);
     }
   }
-  options.packageDirectory ??= path.join(REPO_ROOT, "bench", `pkg-${options.rows}x${options.dimension}`);
+  options.packageDirectory ??= path.join(REPO_ROOT, "bench", `pkg-${options.rows}x${options.dimension}${options.clusters > 0 ? `-c${options.clusters}` : ""}`);
   return options;
 }
 
@@ -125,6 +129,8 @@ if (!options.skipGenerate) {
     "--output", options.packageDirectory,
     "--rows", String(options.rows),
     "--dimension", String(options.dimension),
+    "--clusters", String(options.clusters),
+    "--cluster-spread", String(options.clusterSpread),
   ], { stdio: "inherit" });
 } else if (!existsSync(path.join(options.packageDirectory, "manifest.json"))) {
   throw new Error(`package not found: ${options.packageDirectory}`);
@@ -289,6 +295,7 @@ const result = {
   package: path.relative(REPO_ROOT, options.packageDirectory),
   rows: collection.count,
   dimension: collection.dimension,
+  distribution: options.clusters > 0 ? `clustered(${options.clusters}, spread ${options.clusterSpread})` : "uniform",
   vectorBytes: collection.data.bytes,
   queries: options.queries,
   topK: options.topK,
@@ -326,7 +333,7 @@ const result = {
     "single machine, warm page cache; not a product performance claim",
     "validation ran first, so the OS cache was already populated",
     "latency includes Range reads, distance scan, Top-K and final ID lookup",
-    ...(options.ann ? ["ANN recall is measured on synthetic uniform vectors, the worst case for HNSW; it does not predict real embeddings"] : []),
+    ...(options.ann ? ["ANN recall is measured on synthetic vectors; the distribution is reported above and a clustered mixture is not a substitute for real embeddings"] : []),
   ],
 };
 

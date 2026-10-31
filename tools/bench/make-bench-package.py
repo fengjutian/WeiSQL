@@ -38,6 +38,10 @@ def main() -> None:
     parser.add_argument("--rows", type=int, default=100_000)
     parser.add_argument("--dimension", type=int, default=128)
     parser.add_argument("--seed", type=int, default=42)
+    # 0 = uniform random (HNSW worst case); N > 0 = N-cluster Gaussian mixture,
+    # which has the local structure real embeddings tend to show.
+    parser.add_argument("--clusters", type=int, default=0)
+    parser.add_argument("--cluster-spread", type=float, default=0.35)
     args = parser.parse_args()
 
     root = Path(args.output).resolve()
@@ -79,7 +83,14 @@ def main() -> None:
     pq.write_table(table, root / "data" / "documents.parquet")
 
     rng = np.random.default_rng(args.seed)
-    vectors = rng.standard_normal((rows, dimension), dtype=np.float32)
+    if args.clusters > 0:
+        # Gaussian mixture: rows are drawn around a small number of centroids.
+        # HNSW exploits that locality, so recall is higher than on uniform noise.
+        centroids = rng.standard_normal((args.clusters, dimension), dtype=np.float32)
+        assignment = rng.integers(0, args.clusters, size=rows)
+        vectors = centroids[assignment] + rng.standard_normal((rows, dimension), dtype=np.float32) * args.cluster_spread
+    else:
+        vectors = rng.standard_normal((rows, dimension), dtype=np.float32)
     # Cosine rejects zero vectors; the generator must not produce one.
     norms = np.linalg.norm(vectors, axis=1)
     zero_rows = np.flatnonzero(norms == 0.0)
@@ -100,7 +111,7 @@ def main() -> None:
     manifest = {
         "format": "weisql",
         "formatVersion": "1.0.0",
-        "datasetId": f"bench-{rows}x{dimension}",
+        "datasetId": f"bench-{rows}x{dimension}" + (f"-c{args.clusters}" if args.clusters > 0 else ""),
         "tables": [
             {
                 "name": "documents",
@@ -136,7 +147,7 @@ def main() -> None:
         "metadata": {"title": f"Synthetic benchmark {rows}x{dimension}", "builderVersion": "bench-generator/1"},
     }
     (root / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"package": str(root), "rows": rows, "dimension": dimension, "vectorBytes": rows * dimension * 4}))
+    print(json.dumps({"package": str(root), "rows": rows, "dimension": dimension, "clusters": args.clusters, "vectorBytes": rows * dimension * 4}))
 
 
 if __name__ == "__main__":

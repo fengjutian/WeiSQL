@@ -181,13 +181,13 @@ def build(target: Path):
     style_run(run, size=22, bold=True, color=ACCENT)
 
     subtitle = document.add_paragraph()
-    run = subtitle.add_run("2026-10-31 · 仓库 HEAD ada5885 · 230 个自动化测试 · 尚未发布 npm")
+    run = subtitle.add_run("2026-10-31 · 仓库 HEAD eabb963 · 235 个自动化测试 · 尚未发布 npm")
     style_run(run, size=10, color=MUTED)
 
     document.add_heading("1. 一句话状态", level=1)
     paragraph = document.add_paragraph()
     run = paragraph.add_run(
-        "工程原型。Manifest V1 与数据包格式稳定，四个包共 230 个自动化测试，CI 覆盖构建、类型、测试与发布元数据；"
+        "工程原型。Manifest V1 与数据包格式稳定，四个包共 235 个自动化测试，CI 覆盖构建、类型、测试与发布元数据；"
         "精确检索、ANN、全文、融合、RAG 与单文件容器均有实现与实测数字。尚未发布 npm 包，也没有任何未经测量的性能承诺。"
     )
     style_run(run, size=10.5)
@@ -196,7 +196,7 @@ def build(target: Path):
         document,
         ["维度", "状态"],
         [
-            ["测试", "230 个全绿（SDK 176 / DuckDB 19 / USearch 13 / CLI 22）"],
+            ["测试", "235 个全绿（SDK 176 / DuckDB 19 / USearch 13 / CLI 27）"],
             ["CI", "GitHub Actions：Ubuntu + Windows 行为闸门，另有派生索引与容器作业"],
             ["许可证", "Apache-2.0（根目录与每个包内各一份）"],
             ["发布", "未发布 npm 包（缺组织与访问令牌）"],
@@ -227,6 +227,7 @@ def build(target: Path):
             [".wsql 单文件容器（pack/validate/unpack/流式）", "✓", "✓", "✓", "3.6 KB 包往返"],
             ["浏览器路径（Chromium）", "✓", "探针", "✓", "与 Node 逐字段一致"],
             ["发布前检查 + Apache-2.0", "✓", "—", "✓", "✓"],
+            ["CSV/JSON → Parquet 转换工具", "✓", "✓", "✓", "✓"],
         ],
         widths=[6.4, 1.7, 1.7, 1.7, 4.3],
     )
@@ -255,8 +256,8 @@ def build(target: Path):
             ["@weisql/sdk", "176", "校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约"],
             ["@weisql/duckdb-adapter", "19", "只读边界、参数绑定、两种表加载、取消"],
             ["@weisql/usearch-adapter", "13", "度量映射、持久化索引、后过滤、生命周期"],
-            ["@weisql/cli", "22", "校验退出码、--json、pack、unpack、容器校验、--l4"],
-            ["合计", "230", ""],
+            ["@weisql/cli", "27", "校验退出码、--json、pack、unpack、容器校验、--l4"],
+            ["合计", "235", ""],
         ],
         widths=[4.6, 1.8, 9.4],
     )
@@ -331,7 +332,7 @@ def build(target: Path):
             ["同主版本内的索引格式变化", "只按主版本判定，无法探测其内部变化"],
             [".wsql 压缩算法协商", "目前只有 gzip；brotli 需要新版本号"],
             ["RRF 的 k 调优", "使用文献默认 60，未做实验"],
-            ["Builder CSV/JSON 输入", "需要 Parquet 写入依赖，未引入"],
+            ["时间戳与嵌套列的源数据推断", "转换工具只覆盖标量类型"],
             ["中文分词", "CJK 逐字，精度换可预测性"],
         ],
         widths=[6.4, 9.4],
@@ -366,7 +367,7 @@ def build(target: Path):
         document,
         ["检查项", "状态"],
         [
-            ["测试 / 类型 / 构建", "✓ 230 测试，typecheck 通过"],
+            ["测试 / 类型 / 构建", "✓ 235 测试，typecheck 通过"],
             ["打包内容", "✓ 仅 dist/ + README + LICENSE，无 src/test 泄漏"],
             ["依赖范围", "✓ caret 且跟踪本地版本"],
             ["许可证", "✓ Apache-2.0（根 + 每包）"],
@@ -384,7 +385,7 @@ def build(target: Path):
             "配置 npm 令牌 → npm publish --dry-run 核对四个包 → 正式发布。",
             "在真实 embedding 数据上测 Recall@K，替换第 5.1 节的合成数字。",
             "第二台机器复现基准，形成区间而非单点。",
-            "视需要再做压缩算法协商或 Builder 的 CSV/JSON 输入。",
+            "视需要再做压缩算法协商或源数据的时间戳推断。",
         ],
         start=1,
     ):

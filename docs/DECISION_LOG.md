@@ -446,6 +446,16 @@
 - 决策五：解压失败在 `verify()` 里报为 mismatch（`actual: "unreadable"`）而不是抛异常。verify 的职责是报告损坏，不是中断流程。
 - 后果：`weisql pack --compress` 可用，压缩容器同样通过 `validate`、`unpack` 与流式读取；读取器同时接受 1.0.0 与 1.1.0。`CompressionStream`/`DecompressionStream` 在 Node 24 与 Chromium 都可用，SDK 因此不需要新增依赖。
 
+## ADR-051：CSV/JSON 转换是工具而非 Builder 功能，依赖只进 devDependencies
+
+- 状态：Accepted and implemented（`tools/source-to-parquet.mjs`）
+- 决策一：转换放在 `tools/`，不进 SDK、不进 CLI。Builder 的输入契约是「已存在的 Parquet」，把推断塞进去会让契约模糊；SDK 保持零依赖的原则也不该为一个准备步骤破坏。
+- 决策二：`hyparquet-writer` 只作为**根 devDependency**。发布包不依赖它；使用转换工具的人从仓库运行，而不是从 npm 安装 SDK。
+- 决策三：推断宁可不转，不可错转。CSV 的 `"001"` 保持字符串、`"1e3"` 保持字符串，只有 `String(Number(v)) === v` 时才当数字；同列不兼容类型直接报错而不是隐式字符串化。
+- 决策四：工具输出同时给出 Parquet 与「可直接粘贴的 Manifest 列声明」。两者出自同一次推断，避免用户手抄类型导致 Manifest 与文件不一致——而这种错误只有 L4 能发现。
+- 决策五：INT64 在写入时转为 BigInt。`hyparquet-writer` 对 INT64 只接受 BigInt，传普通 number 会在写入阶段抛错；这是实测发现的，不是文档里写的。
+- 后果：`README` 与 `docs/SOURCE_CONVERSION.md` 描述完整流程（CSV/JSON → Parquet → Builder → `validate --l4`）。时间戳与嵌套列明确不支持，避免用「尽力猜测」制造静默错误。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

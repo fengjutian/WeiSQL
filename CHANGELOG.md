@@ -85,3 +85,5 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - ANN index builder and release checks.
 - Text index builder (`tools/build-text-index.mjs`) reading the Parquet column and
   updating the Manifest.
+- CSV/JSON to Parquet conversion (`tools/source-to-parquet.mjs`) with conservative
+  type inference and Manifest-ready column output.

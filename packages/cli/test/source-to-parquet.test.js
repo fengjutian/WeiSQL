@@ -1,0 +1,93 @@
+import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+
+import { parquetReadObjects } from "hyparquet";
+
+import { convertSource } from "../../../tools/source-to-parquet.mjs";
+
+const run = promisify(execFile);
+const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
+const TOOL = path.join(REPO_ROOT, "tools", "source-to-parquet.mjs");
+
+async function readBack(bytes) {
+  return parquetReadObjects({ file: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) });
+}
+
+test("converts CSV with quotes, commas and empty cells", async () => {
+  const csv = 'id,title,rating,active\ndoc-001,"DNA, structure",4.5,true\ndoc-002,RNA,3,false\ndoc-003,,5,true\n';
+  const converted = convertSource(csv, "csv");
+  assert.equal(converted.rows, 3);
+  assert.deepEqual(converted.columns, [
+    { name: "id", type: "string", nullable: false },
+    { name: "title", type: "string", nullable: true },
+    { name: "rating", type: "float64", nullable: false },
+    { name: "active", type: "boolean", nullable: false },
+  ]);
+
+  const rows = await readBack(converted.parquet);
+  assert.deepEqual(rows, [
+    { id: "doc-001", title: "DNA, structure", rating: 4.5, active: true },
+    { id: "doc-002", title: "RNA", rating: 3, active: false },
+    { id: "doc-003", title: null, rating: 5, active: true },
+  ]);
+});
+
+test("keeps CSV identifiers with leading zeros as strings", async () => {
+  const csv = "code,count\n001,1\n002,2\n";
+  const converted = convertSource(csv, "csv");
+  assert.deepEqual(converted.columns, [
+    { name: "code", type: "string", nullable: false },
+    { name: "count", type: "int32", nullable: false },
+  ]);
+  const rows = await readBack(converted.parquet);
+  assert.deepEqual(rows.map(row => row.code), ["001", "002"]);
+});
+
+test("infers JSON types, including int64 and nullability", async () => {
+  const jsonl = [
+    { id: "a", big: 8_000_000_000, ratio: 0.5, ok: true },
+    { id: "b", big: 9_000_000_000, ratio: 1.5, ok: false },
+    { id: "c", big: null, ratio: 2, ok: true },
+  ].map(row => JSON.stringify(row)).join("\n");
+  const converted = convertSource(jsonl, "json");
+  assert.deepEqual(converted.columns, [
+    { name: "id", type: "string", nullable: false },
+    { name: "big", type: "int64", nullable: true },
+    { name: "ratio", type: "float64", nullable: false },
+    { name: "ok", type: "boolean", nullable: false },
+  ]);
+  const rows = await readBack(converted.parquet);
+  assert.equal(rows[0].big, 8_000_000_000n);
+  assert.equal(rows[2].big, null);
+});
+
+test("rejects mixed-type columns and bad input", () => {
+  assert.throws(() => convertSource('[{"a":1},{"a":"x"}]', "json"), /mixes incompatible types/);
+  assert.throws(() => convertSource("[]", "json"), /no rows/);
+  assert.throws(() => convertSource("a,b\n", "csv"), /no rows/);
+});
+
+test("CLI writes a Parquet file and reports Manifest column types", async (t) => {
+  const directory = await mkdtemp(path.join(tmpdir(), "weisql-source-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const input = path.join(directory, "rows.jsonl");
+  const output = path.join(directory, "rows.parquet");
+  await writeFile(input, '{"id":"a","score":1.5}\n{"id":"b","score":2.5}\n', "utf8");
+
+  const { stdout } = await run(process.execPath, [TOOL, input, "--output", output]);
+  const summary = JSON.parse(stdout);
+  assert.equal(summary.rows, 2);
+  assert.deepEqual(summary.columns, [
+    { name: "id", type: "string", nullable: false },
+    { name: "score", type: "float64", nullable: false },
+  ]);
+
+  const rows = await readBack(new Uint8Array(await readFile(output)));
+  assert.deepEqual(rows, [{ id: "a", score: 1.5 }, { id: "b", score: 2.5 }]);
+});

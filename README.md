@@ -48,7 +48,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 
 - DuckDB-Wasm（浏览器）SQL Adapter（Node.js 端已实现）
 - ANN 在真实数据集上的 Recall@K 评估；ANN 后过滤的完整性保证
-- Builder 的 CSV/JSON → Parquet 生成与类型推断
+- 时间戳与嵌套列的源数据推断（CSV/JSON 转换目前只覆盖标量）
 - Parquet 内容级校验（L4，需要 SQL 引擎）
 - WASM 构建与 TypeScript/Rust 自动黄金数据对照
 - Netlify/CDN 的真实 CORS、Range 和缓存验收
@@ -233,6 +233,27 @@ const report = await buildPackage({
 构建阶段为 `CREATED → VALIDATING → BUILDING → VERIFYING → PUBLISHING → PUBLISHED`，任一阶段失败进入 `FAILED` 并清理暂存区。默认拒绝覆盖已有目录；`overwrite: true` 时先把旧目录移走，成功后才删除，失败则回滚。
 
 未提供 `rowIds` 时，Builder 不会假装完成主键交叉校验，而是在 `report.warnings` 中报告 `id-membership-unverified`。
+
+### 从 CSV / JSON 生成 Parquet
+
+Builder 不负责从 CSV/JSON 推断类型。这一步由工具完成，`hyparquet-writer` 只作为根目录的 devDependency，不进入任何发布包：
+
+```bash
+node tools/source-to-parquet.mjs rows.csv  --output source/documents.parquet
+node tools/source-to-parquet.mjs rows.jsonl --output source/documents.parquet
+```
+
+输出会打印可直接粘进 Manifest 的列声明：
+
+```json
+{ "rows": 3, "parquetBytes": 536,
+  "columns": [
+    { "name": "id", "type": "string", "nullable": false },
+    { "name": "rating", "type": "float64", "nullable": false }
+  ] }
+```
+
+推断规则是保守的：JSON 保留原生类型，同一列混合类型直接报错；CSV 只在**无损**时转数字（`"001"` 保持字符串、`"1"` 变整数），布尔只认 `true`/`false`。详见 [源数据转换](docs/SOURCE_CONVERSION.md)。
 
 ## 校验数据包
 
@@ -441,6 +462,7 @@ tools/                     源 Parquet、ANN/全文索引生成、基准与浏�
 
 ### 工程与发布
 
+- [源数据转换](docs/SOURCE_CONVERSION.md)
 - [发布流程](docs/RELEASE_PROCESS.md)
 - [.wsql 容器格式](docs/WSQL_CONTAINER.md)
 - [变更日志](CHANGELOG.md)

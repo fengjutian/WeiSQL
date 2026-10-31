@@ -2,6 +2,23 @@
   "name": "@weisql/duckdb-adapter",
   "version": "0.1.0",
   "description": "Read-only DuckDB SqlAdapter for WeiSQL AI (Node.js)",
+  "keywords": [
+    "weisql",
+    "duckdb",
+    "sql",
+    "parquet",
+    "readonly",
+    "nodejs"
+  ],
+  "homepage": "https://weisql.netlify.app/docs/adapters/duckdb",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fengjutian/WeiSQL.git",
+    "directory": "packages/duckdb-adapter"
+  },
+  "bugs": {
+    "url": "https://github.com/fengjutian/WeiSQL/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -26,6 +43,9 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "license": "Apache-2.0"
 }

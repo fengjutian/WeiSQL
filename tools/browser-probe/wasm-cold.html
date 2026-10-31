@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>WeiSQL cold-start benchmark</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "@duckdb/duckdb-wasm": "/vendor/@duckdb/duckdb-wasm/dist/duckdb-browser.mjs",
+          "@weisql/sdk/errors": "/sdk/errors.js",
+          "apache-arrow": "/vendor/apache-arrow/Arrow.dom.mjs",
+          "flatbuffers": "/vendor/flatbuffers/mjs/flatbuffers.js",
+          "tslib": "/vendor/tslib/tslib.es6.mjs"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <pre id="log"></pre>
+    <script type="module">
+      import { open } from "/sdk/database.js";
+      import { HttpResourceReader } from "/sdk/http-resource-reader.js";
+      import { createDuckDbWasmAdapter } from "/wasm-adapter/index.js";
+
+      const log = (message) => {
+        document.getElementById("log").textContent += `${message}\n`;
+        console.log(message);
+      };
+
+      /**
+       * Cold start: the runner disables the HTTP cache and appends `?cold=1` to
+       * the WASM/worker URLs, so this measures download + instantiate + open,
+       * not a warm in-memory cache hit.
+       */
+      async function main() {
+        const base = new URL("/fixture/", location.href).href;
+        const adapter = createDuckDbWasmAdapter({
+          bundles: {
+            mainModule: "/vendor/@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?cold=1",
+            mainWorker: "/vendor/@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?cold=1",
+          },
+          extensionRepository: `${location.origin}/extensions`,
+        });
+        const started = performance.now();
+        const db = await open({
+          manifestUrl: new URL("manifest.json", base).href,
+          resourceReader: new HttpResourceReader({ baseUrl: base }),
+          sqlAdapter: adapter,
+          verifyChecksums: "all",
+        });
+        const openMs = Math.round(performance.now() - started);
+        const rows = await db.sql("select count(*) as n from documents");
+        const resources = performance.getEntriesByType("resource")
+          .filter((entry) => entry.name.includes("duckdb-eh.wasm"))
+          .map((entry) => ({
+            name: entry.name.split("/").pop(),
+            transferMB: Number((entry.transferSize / (1024 * 1024)).toFixed(1)),
+            durationMs: Math.round(entry.duration),
+          }));
+        const result = {
+          ok: Number(rows[0].n) === 2,
+          openMs,
+          resources,
+          engineVersion: db.capabilities().sql ? "duckdb-wasm" : "none",
+        };
+        log(JSON.stringify(result));
+        window.__COLD_RESULT = result;
+        await db.close();
+      }
+
+      main().catch((error) => {
+        window.__COLD_RESULT = { ok: false, error: `${error.name}: ${error.message}` };
+        log(String(error));
+      });
+    </script>
+  </body>
+</html>

@@ -2,6 +2,24 @@
   "name": "@weisql/duckdb-wasm-adapter",
   "version": "0.1.0",
   "description": "Read-only DuckDB-Wasm SqlAdapter for WeiSQL AI (browser)",
+  "keywords": [
+    "weisql",
+    "duckdb",
+    "duckdb-wasm",
+    "wasm",
+    "sql",
+    "parquet",
+    "browser"
+  ],
+  "homepage": "https://weisql.netlify.app/docs/adapters/duckdb-wasm",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fengjutian/WeiSQL.git",
+    "directory": "packages/duckdb-wasm-adapter"
+  },
+  "bugs": {
+    "url": "https://github.com/fengjutian/WeiSQL/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -25,6 +43,9 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "license": "Apache-2.0"
 }

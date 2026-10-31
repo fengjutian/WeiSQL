@@ -2,6 +2,26 @@
   "name": "@weisql/sdk",
   "version": "0.1.0",
   "description": "Read-only TypeScript SDK skeleton and manifest validator for WeiSQL AI",
+  "keywords": [
+    "weisql",
+    "readonly",
+    "parquet",
+    "vector-search",
+    "full-text-search",
+    "rag",
+    "edge",
+    "typescript",
+    "manifest"
+  ],
+  "homepage": "https://weisql.netlify.app/docs/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fengjutian/WeiSQL.git",
+    "directory": "packages/sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/fengjutian/WeiSQL/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -26,6 +46,9 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "license": "Apache-2.0"
 }

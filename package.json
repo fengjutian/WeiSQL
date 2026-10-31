@@ -21,6 +21,7 @@
     "bench": "node tools/bench/run.mjs",
     "bench:wasm": "node --expose-gc tools/bench/wasm.mjs",
     "bench:wasm-stream": "node tools/browser-probe/run-stream-bench.mjs",
+    "bench:wasm-cold": "node tools/browser-probe/run-cold-bench.mjs",
     "bench:quantization": "node tools/bench/quantization.mjs",
     "bench:recall": "node tools/bench/recall.mjs",
     "bench:self-test": "node tools/bench/quantization.mjs --self-test && node tools/bench/recall.mjs --self-test",

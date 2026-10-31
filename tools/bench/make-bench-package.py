@@ -49,9 +49,22 @@ def main() -> None:
     categories = ["alpha", "beta", "gamma"]
     titles = [f"Document {index}" for index in range(rows)]
 
+    # Synthetic corpus: 5000-word vocabulary drawn with a Zipf-like distribution
+    # and 30-70 tokens per document, so BM25 sees realistic term frequencies,
+    # document lengths and posting-list lengths instead of uniform noise.
+    rng_text = np.random.default_rng(args.seed + 1)
+    vocabulary = np.array([f"w{index:04d}" for index in range(5000)])
+    weights = 1.0 / np.arange(1, len(vocabulary) + 1) ** 1.05
+    weights = weights / weights.sum()
+    bodies = []
+    for _ in range(rows):
+        length = int(rng_text.integers(30, 71))
+        tokens = rng_text.choice(vocabulary, size=length, p=weights)
+        bodies.append(" ".join(tokens.tolist()))
+
     table = pa.Table.from_pylist(
         [
-            {"id": ids[index], "title": titles[index], "category": categories[index % len(categories)]}
+            {"id": ids[index], "title": titles[index], "category": categories[index % len(categories)], "body": bodies[index]}
             for index in range(rows)
         ],
         schema=pa.schema(
@@ -59,6 +72,7 @@ def main() -> None:
                 pa.field("id", pa.string(), nullable=False),
                 pa.field("title", pa.string(), nullable=False),
                 pa.field("category", pa.string(), nullable=False),
+                pa.field("body", pa.string(), nullable=False),
             ]
         ),
     )
@@ -96,6 +110,7 @@ def main() -> None:
                     {"name": "id", "type": "string", "nullable": False},
                     {"name": "title", "type": "string", "nullable": False},
                     {"name": "category", "type": "string", "nullable": False},
+                    {"name": "body", "type": "string", "nullable": False},
                 ],
                 "primaryKey": ["id"],
             }

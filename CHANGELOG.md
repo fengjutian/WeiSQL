@@ -63,6 +63,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - Parity probe extended to full-text, RAG evidence and the `.wsql` container,
   against a package it builds at run time.
 - Benchmark harness with exact and ANN (`--ann`) modes.
+- Full-text benchmark mode (`--text`): synthetic Zipf corpus, index build time,
+  index size breakdown and BM25 query latency.
 - ANN index builder and release checks.
 - Text index builder (`tools/build-text-index.mjs`) reading the Parquet column and
   updating the Manifest.

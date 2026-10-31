@@ -7,16 +7,20 @@
  * This is a measurement device, not a performance claim: it prints the hardware
  * and runtime it ran on, and every number is warm-page-cache on one machine.
  */
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
 import { validatePackage } from "@weisql/cli";
 import { NodeFileResourceReader, open } from "@weisql/sdk";
 import { createUSearchAdapter } from "@weisql/usearch-adapter";
+
+const run = promisify(execFile);
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..");
@@ -31,6 +35,7 @@ function readArguments(argv) {
     skipGenerate: false,
     ann: false,
     expansionSearch: 512,
+    text: false,
   };
   for (let index = 0; index < argv.length; index++) {
     const flag = argv[index];
@@ -44,6 +49,7 @@ function readArguments(argv) {
       case "--no-generate": options.skipGenerate = true; break;
       case "--ann": options.ann = true; break;
       case "--expansion-search": options.expansionSearch = Number(value); index++; break;
+      case "--text": options.text = true; break;
       default: throw new Error(`unknown option ${flag}`);
     }
   }
@@ -109,8 +115,10 @@ function megabytes(bytes) {
 
 const options = readArguments(process.argv.slice(2));
 
-if (!existsSync(path.join(options.packageDirectory, "manifest.json"))) {
-  if (options.skipGenerate) throw new Error(`package not found: ${options.packageDirectory}`);
+// Regenerate by default: a stale package from an older generator silently
+// invalidates the whole measurement (for example a new text column missing).
+// Use --no-generate to reuse a package deliberately.
+if (!options.skipGenerate) {
   console.log(`generating package: ${options.packageDirectory}`);
   execFileSync("python", [
     path.join(HERE, "make-bench-package.py"),
@@ -118,6 +126,8 @@ if (!existsSync(path.join(options.packageDirectory, "manifest.json"))) {
     "--rows", String(options.rows),
     "--dimension", String(options.dimension),
   ], { stdio: "inherit" });
+} else if (!existsSync(path.join(options.packageDirectory, "manifest.json"))) {
+  throw new Error(`package not found: ${options.packageDirectory}`);
 }
 
 // Integrity gate: never measure a package that fails L1/L2/L3.
@@ -206,6 +216,72 @@ if (options.ann) {
     },
   };
 }
+// Optional full-text phase: builds the index with the real generator, then
+// measures BM25 query latency. Index build time is reported separately because
+// it is a one-off cost, unlike the per-query numbers below.
+let text;
+if (options.text) {
+  const buildStarted = performance.now();
+  await run(process.execPath, [
+    path.join(REPO_ROOT, "tools", "build-text-index.mjs"),
+    options.packageDirectory,
+    "--table", "documents",
+    "--column", "body",
+    "--name", "documents_body_text",
+  ], { stdio: "ignore" });
+  const textBuildMs = performance.now() - buildStarted;
+
+  const updatedManifest = JSON.parse(await readFile(path.join(options.packageDirectory, "manifest.json"), "utf8"));
+  const entry = updatedManifest.textIndexes?.find(item => item.name === "documents_body_text");
+  if (entry === undefined) throw new Error("text index was not recorded in the Manifest");
+  const indexBytes = entry.data.bytes + entry.termOffsets.bytes + entry.docLengths.bytes + entry.idMap.data.bytes + entry.idMap.offsets.bytes
+    + (entry.documents?.data.bytes ?? 0) + (entry.documents?.offsets.bytes ?? 0);
+  const indexBreakdown = {
+    terms: entry.data.bytes,
+    termOffsets: entry.termOffsets.bytes,
+    docLengths: entry.docLengths.bytes,
+    ids: entry.idMap.data.bytes + entry.idMap.offsets.bytes,
+    documents: (entry.documents?.data.bytes ?? 0) + (entry.documents?.offsets.bytes ?? 0),
+  };
+
+  const textReader = new NodeFileResourceReader({ rootDirectory: options.packageDirectory });
+  // Checksums were just verified by the generator; hashing 100k documents again
+  // would measure SHA-256, not search.
+  const textDb = await open({ manifest: updatedManifest, resourceReader: textReader, verifyChecksums: "none" });
+  const textLatencies = [];
+  let textHits = 0;
+  for (let index = 0; index < options.queries; index++) {
+    const word = `w${String((index * 137) % 5000).padStart(4, "0")}`;
+    const started = performance.now();
+    const results = await textDb.text.search("documents_body_text", word, { topK: options.topK });
+    textLatencies.push(performance.now() - started);
+    textHits += results.length;
+  }
+  await textDb.close();
+  await textReader.close();
+
+  const sortedText = [...textLatencies].sort((left, right) => left - right);
+  text = {
+    column: "body",
+    documents: entry.documentCount,
+    distinctTerms: entry.termCount,
+    averageDocumentLength: Number(entry.averageDocumentLength.toFixed(2)),
+    indexBytes,
+    indexBreakdown,
+    bytesPerDocument: Math.round(indexBytes / entry.documentCount),
+    buildMs: Number(textBuildMs.toFixed(1)),
+    search: {
+      coldMs: Number(textLatencies[0].toFixed(3)),
+      minMs: Number(sortedText[0].toFixed(3)),
+      p50Ms: Number(percentile(sortedText, 0.5).toFixed(3)),
+      p95Ms: Number(percentile(sortedText, 0.95).toFixed(3)),
+      maxMs: Number(sortedText[sortedText.length - 1].toFixed(3)),
+      averageMs: Number((textLatencies.reduce((sum, value) => sum + value, 0) / textLatencies.length).toFixed(3)),
+      totalHits: textHits,
+    },
+    note: "BM25 is exact; there is no recall/precision trade-off to report. Build time includes reading the Parquet text column.",
+  };
+}
 clearInterval(sampler);
 
 const sorted = [...latencies].sort((left, right) => left - right);
@@ -255,5 +331,6 @@ const result = {
 };
 
 if (ann !== undefined) result.ann = ann;
+if (text !== undefined) result.text = text;
 
 console.log(JSON.stringify(result, null, 2));

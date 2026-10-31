@@ -1,11 +1,12 @@
 import { CachedResourceReader } from "/sdk/cached-resource-reader.js";
+import { ContainerReader } from "/sdk/wsql-container.js";
 import { open } from "/sdk/database.js";
 import { HttpResourceReader } from "/sdk/http-resource-reader.js";
 
 const $ = id => document.getElementById(id);
 const setText = (id, value) => { $(id).textContent = value; };
 
-const state = { db: undefined, cache: undefined, manifest: undefined, collection: undefined, presets: [], query: undefined };
+const state = { db: undefined, reader: undefined, cache: undefined, manifest: undefined, collection: undefined, presets: [], query: undefined, mode: "directory", loadedBytes: undefined, textIndex: undefined };
 
 function renderDefinitionList(element, entries) {
   element.replaceChildren();
@@ -86,19 +87,25 @@ async function search() {
       body.append(row);
     }
     const first = hits[0];
-    const stats = state.cache.stats();
+    const stats = state.cache?.stats();
     renderDefinitionList($("diagnostics"), [
+      ["mode", state.mode],
       ["results", String(hits.length)],
       ["backend", String(first?.diagnostics?.backend ?? "-")],
       ["exact", String(first?.diagnostics?.exact ?? "-")],
       ["query ms", String(elapsed)],
-      ["cache hits/misses", `${stats.hits}/${stats.misses}`],
-      ["coalesced", String(stats.coalesced)],
-      ["bytes read", String(stats.bytesRead)],
-      ["cached entries", String(stats.entries)],
+      ...(state.loadedBytes === undefined ? [] : [["loaded bytes", String(state.loadedBytes)]]),
+      ...(stats === undefined ? [] : [["cache hits/misses", `${stats.hits}/${stats.misses}`], ["coalesced", String(stats.coalesced)], ["bytes read", String(stats.bytesRead)], ["cached entries", String(stats.entries)]]),
     ]);
     setText("status", `${hits.length} 条结果 · ${elapsed} ms`);
-    window.__PLAYGROUND_STATE = { ok: true, ids: hits.map(hit => hit.id), distances: hits.map(hit => Number(hit.distance.toFixed(6))) };
+    window.__PLAYGROUND_STATE = {
+      ...(window.__PLAYGROUND_STATE ?? {}),
+      ok: true,
+      mode: state.mode,
+      ...(state.loadedBytes === undefined ? {} : { loadedBytes: state.loadedBytes }),
+      ids: hits.map(hit => hit.id),
+      distances: hits.map(hit => Number(hit.distance.toFixed(6))),
+    };
   } catch (error) {
     setText("status", "失败");
     setText("error", String(error && error.message ? error.message : error));
@@ -176,53 +183,83 @@ async function assembleEvidence() {
   }
 }
 
-async function main() {
+async function readDirectory() {
   const base = new URL("/fixture/", location.href).href;
   const cache = new CachedResourceReader({
     reader: new HttpResourceReader({ baseUrl: base }),
     maxCacheBytes: 1024 * 1024,
     version: "playground",
   });
-  state.cache = cache;
-
   const manifest = await (await fetch(new URL("manifest.json", base))).json();
-  state.manifest = manifest;
   const db = await open({ manifest, resourceReader: cache, verifyChecksums: "all" });
-  state.db = db;
+  return { db, reader: cache, cache, manifest, mode: "directory", loadedBytes: undefined };
+}
 
-  const collection = manifest.vectorCollections[0];
-  state.collection = collection;
-  state.textIndex = manifest.textIndexes?.[0];
+/** Fetches the whole `.wsql` container once and serves everything from memory. */
+async function readContainer() {
+  const response = await fetch("/container.wsql");
+  if (!response.ok) throw new Error(`container.wsql returned ${response.status}`);
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  const reader = new ContainerReader(bytes);
+  const manifest = JSON.parse(new TextDecoder().decode(await reader.read("manifest.json")));
+  const db = await open({ manifest, resourceReader: reader, verifyChecksums: "all" });
+  return { db, reader, cache: undefined, manifest, mode: "container", loadedBytes: bytes.byteLength };
+}
 
-  renderDefinitionList($("package-info"), [
-    ["dataset", manifest.datasetId],
-    ["tables", manifest.tables.map(table => `${table.name} (${table.columns.length} columns)`).join(", ")],
-    ["vectors", `${collection.name} · ${collection.count} rows · dimension ${collection.dimension} · ${collection.metric}`],
-    ["text index", state.textIndex === undefined ? "none" : `${state.textIndex.name} · ${state.textIndex.termCount} terms · column ${state.textIndex.column}`],
-    ["format", `${manifest.format} ${manifest.formatVersion}`],
-    ["state", db.state],
-    ["capabilities", Object.entries(db.capabilities()).map(([key, value]) => `${key}=${value}`).join(" ")],
-  ]);
+async function activate(mode) {
+  setText("error", "");
+  setText("status", "加载中…");
+  for (const id of ["mode-directory", "mode-container"]) $(id).disabled = true;
+  try {
+    if (state.db !== undefined) await state.db.close();
+    const loaded = mode === "container" ? await readContainer() : await readDirectory();
+    Object.assign(state, loaded);
+    state.collection = loaded.manifest.vectorCollections[0];
+    state.textIndex = loaded.manifest.textIndexes?.[0];
+    $("mode-directory").setAttribute("aria-pressed", String(mode === "directory"));
+    $("mode-container").setAttribute("aria-pressed", String(mode === "container"));
 
-  state.presets = await readPresets(cache, collection, 3);
-  state.query = state.presets[0];
-  renderPresets();
+    renderDefinitionList($("package-info"), [
+      ["dataset", loaded.manifest.datasetId],
+      ["tables", loaded.manifest.tables.map(table => `${table.name} (${table.columns.length} columns)`).join(", ")],
+      ["vectors", `${state.collection.name} · ${state.collection.count} rows · dimension ${state.collection.dimension} · ${state.collection.metric}`],
+      ["text index", state.textIndex === undefined ? "none" : `${state.textIndex.name} · ${state.textIndex.termCount} terms · column ${state.textIndex.column}`],
+      ["format", `${loaded.manifest.format} ${loaded.manifest.formatVersion}`],
+      ["state", loaded.db.state],
+      ["capabilities", Object.entries(loaded.db.capabilities()).map(([key, value]) => `${key}=${value}`).join(" ")],
+    ]);
 
-  $("search").addEventListener("click", () => void search());
-  await search();
+    state.presets = await readPresets(loaded.reader, state.collection, 3);
+    state.query = state.presets[0];
+    renderPresets();
 
-  if (state.textIndex === undefined) {
-    $("text-search").disabled = true;
-    $("rag").disabled = true;
-    setText("text-note", "此数据包未声明全文索引，无法演示 BM25 与 RAG。");
-  } else {
-    $("text-search").addEventListener("click", () => void textSearch());
-    $("rag").addEventListener("click", () => void assembleEvidence());
-    await textSearch();
+    $("text-search").disabled = state.textIndex === undefined;
+    $("rag").disabled = state.textIndex === undefined;
+    setText("text-note", state.textIndex === undefined
+      ? "此数据包未声明全文索引，无法演示 BM25 与 RAG。"
+      : "分数越大越相关，与向量距离方向相反。");
+
+    await search();
+    if (state.textIndex !== undefined) await textSearch();
+    window.__PLAYGROUND_STATE = { ...(window.__PLAYGROUND_STATE ?? {}), ok: true, mode: state.mode };
+    window.__PLAYGROUND_READY = true;
+    setText("status", "就绪");
+  } catch (error) {
+    setText("status", "加载失败");
+    setText("error", String(error && error.message ? error.message : error));
+    window.__PLAYGROUND_STATE = { ok: false, error: String(error) };
+  } finally {
+    for (const id of ["mode-directory", "mode-container"]) $(id).disabled = false;
   }
+}
 
-  window.__PLAYGROUND_READY = true;
-  setText("status", "就绪");
+async function main() {
+  $("mode-directory").addEventListener("click", () => void activate("directory"));
+  $("mode-container").addEventListener("click", () => void activate("container"));
+  $("search").addEventListener("click", () => void search());
+  $("text-search").addEventListener("click", () => void textSearch());
+  $("rag").addEventListener("click", () => void assembleEvidence());
+  await activate("directory");
 }
 
 main().catch(error => {

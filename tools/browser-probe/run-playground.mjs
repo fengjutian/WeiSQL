@@ -41,7 +41,7 @@ if (!executablePath) {
 }
 
 const probePackage = await prepareProbePackage();
-const probe = createProbeServer(probePackage.packageDirectory);
+const probe = createProbeServer(probePackage.packageDirectory, probePackage.containerPath);
 const port = await probe.listen();
 const browser = await chromium.launch({ executablePath, args: ["--no-sandbox", "--disable-dev-shm-usage"] });
 const page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
@@ -106,6 +106,30 @@ if (!textState.textIds.includes("doc-001")) {
 const textRows = await page.locator("#text-results tr").count();
 const ragRows = await page.locator("#rag-evidence li").count();
 
+// Switching to the single-file container must produce the same results from the
+// same bytes, with the whole container fetched up front.
+try {
+  await page.click("#mode-container");
+  await page.waitForFunction(
+    () => window.__PLAYGROUND_STATE?.mode === "container" && (window.__PLAYGROUND_STATE?.ids ?? []).length > 0,
+    undefined,
+    { timeout: 30_000 },
+  );
+} catch (error) {
+  await fail(`container mode switch failed: ${String(error).slice(0, 300)}`);
+}
+
+const containerState = await page.evaluate(() => window.__PLAYGROUND_STATE);
+if (containerState.ids.join(",") !== "doc-001,doc-002,doc-003") {
+  await fail(`container mode results were ${JSON.stringify(containerState.ids)}`);
+}
+if (!(containerState.loadedBytes > 0)) {
+  await fail(`container mode did not report loaded bytes: ${JSON.stringify(containerState.loadedBytes)}`);
+}
+if (!containerState.textIds.includes("doc-001")) {
+  await fail(`container mode text search failed: ${JSON.stringify(containerState.textIds)}`);
+}
+
 console.log(JSON.stringify({
   browser: executablePath,
   initial,
@@ -118,6 +142,7 @@ console.log(JSON.stringify({
   ragIds: textState.ragIds,
   ragTexts: textState.ragTexts,
   ragRows,
+  container: { mode: containerState.mode, ids: containerState.ids, loadedBytes: containerState.loadedBytes, textIds: containerState.textIds },
 }, null, 2));
 
 await browser.close();

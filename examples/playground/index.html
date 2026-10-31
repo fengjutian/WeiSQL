@@ -41,6 +41,17 @@
       </section>
 
       <section>
+        <h2>加载方式</h2>
+        <div class="row">
+          <button id="mode-directory" type="button" aria-pressed="true">目录（HTTP Range）</button>
+          <button id="mode-container" type="button" aria-pressed="false">单文件 .wsql</button>
+        </div>
+        <p class="muted" style="margin:12px 0 0">
+          目录模式按需读取 Range；单文件模式先取整个容器，之后所有查询都在内存中完成。两者读的是同一份数据，结果应完全一致。
+        </p>
+      </section>
+
+      <section>
         <h2>查询</h2>
         <div class="row" id="presets" style="margin-bottom:12px"></div>
         <div class="row">

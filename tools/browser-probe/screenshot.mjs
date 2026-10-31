@@ -17,7 +17,7 @@ mkdirSync(path.dirname(target), { recursive: true });
 // Serve the same text-indexed package the probe uses, so the screenshot shows
 // the full-text and RAG sections instead of their disabled state.
 const probePackage = await prepareProbePackage();
-const probe = createProbeServer(probePackage.packageDirectory);
+const probe = createProbeServer(probePackage.packageDirectory, probePackage.containerPath);
 const port = await probe.listen();
 const browser = await chromium.launch({ executablePath, args: ["--no-sandbox"] });
 const page = await browser.newPage({ viewport: { width: 900, height: 1000 }, deviceScaleFactor: 2 });

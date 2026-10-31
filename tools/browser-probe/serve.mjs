@@ -11,7 +11,7 @@ import { createProbeServer } from "./server.mjs";
 
 const port = Number(process.env.PORT ?? 8099);
 const probePackage = await prepareProbePackage();
-const probe = createProbeServer(probePackage.packageDirectory);
+const probe = createProbeServer(probePackage.packageDirectory, probePackage.containerPath);
 const bound = await probe.listen(port);
 console.log(`playground: http://127.0.0.1:${bound}/playground/`);
 console.log("press Ctrl+C to stop");

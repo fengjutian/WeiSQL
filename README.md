@@ -268,12 +268,13 @@ npm run playground     # http://127.0.0.1:8099/playground/
 
 - 查询向量不是硬编码的——页面直接从 `vectors/*.f32` 读前 3 行作为预设，点选即检索；
 - 结果展示 `row` / `id` / `distance`，诊断区给出后端、`exact`、耗时与缓存命中统计；
+- **加载方式切换**：同一个数据包可在「目录（HTTP Range 按需读取）」与「单文件 `.wsql`」之间切换，结果一致，但前者按需读、后者先整包取回；
 - **全文检索**：输入 `dna` 或 `细胞` 即可看到 BM25 排序与分数（分数越大越相关）；
 - **RAG 证据**：一次点击在字符预算内组装证据，展示 id、名次、字符数与是否截断；
 - 启动时会把 fixture 复制到临时目录并生成文本索引，仓库里不保留派生文件；
 - SQL 与混合过滤在此不可用，因为浏览器端需要 DuckDB-Wasm（扩展下载受阻，见 [ADR-020](docs/DECISION_LOG.md)）。
 
-自动化验收：`npm run probe:playground` 在真实 Chromium 中打开页面，断言初始结果为 `doc-001..doc-003`，点击第三个预设后 `doc-003` 排到第一，再断言全文检索命中 `doc-001` 且 RAG 证据包含正文。
+自动化验收：`npm run probe:playground` 在真实 Chromium 中打开页面，断言初始结果为 `doc-001..doc-003`，点击第三个预设后 `doc-003` 排到第一，再断言全文检索命中 `doc-001`、RAG 证据包含正文，最后切换到 `.wsql` 模式并断言结果与字节数一致。
 
 ![WeiSQL Playground](docs/assets/playground.png)
 

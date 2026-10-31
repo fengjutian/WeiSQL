@@ -61,7 +61,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   Windows, plus fixture reproducibility, derived indexes and container packing.
 - Browser probe, playground example, cross-environment parity check.
 - Playground now demonstrates full-text search and RAG evidence against a package
-  it builds at start-up; the probe asserts both.
+  it builds at start-up, and can switch between directory and `.wsql` loading;
+  the probe asserts all three.
 - Parity probe extended to full-text, RAG evidence and the `.wsql` container,
   against a package it builds at run time.
 - Benchmark harness with exact and ANN (`--ann`) modes.

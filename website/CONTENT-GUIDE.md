@@ -30,6 +30,35 @@ sidebar_position: 22
 
 正文不要重复一级标题，直接从导语或 `##` 开始。
 
+## 视觉组件（.mdx）
+
+需要首页级别的排版时，把页面写成 `.mdx`，并从 `@site/src/components/docs/DocsUI` 导入：
+
+- `PageHero`：顶部渐变区，替代默认标题（frontmatter 加 `hide_title: true`）；
+- `CardGrid` / `DocCard`：两列或三列卡片，`to` 可选；
+- `LayerStack`：带编号与标签的分层列表；
+- `FlowSteps`：步骤卡片，`columns={2}` 或默认 3 列；
+- `Callout`：提示块，`tone="amber"` 表示警告。
+
+示例：
+
+```mdx
+---
+title: 架构
+hide_title: true
+---
+
+import { PageHero, CardGrid, DocCard } from "@site/src/components/docs/DocsUI";
+
+<PageHero kicker="架构" title="..." lead="..." chips={["只读", "Adapter"]} />
+
+## 分层
+
+<CardGrid columns={2}>
+  <DocCard title="..." index="01">...</DocCard>
+</CardGrid>
+```
+
 ## 页面骨架
 
 教程/指南页：

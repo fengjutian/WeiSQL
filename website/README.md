@@ -21,7 +21,7 @@ npm run serve      # 预览 build/ 产物
 
 ```text
 website/
-├── content/                 # 产品文档（Markdown，路由前缀 /docs）
+├── content/                 # 产品文档（Markdown / MDX，路由前缀 /docs）
 ├── src/pages/index.js       # 首页（/），独立 React 落地页
 ├── src/css/custom.css       # 品牌色、表格、导航与侧边栏
 ├── static/img/              # logo / favicon

@@ -24,12 +24,16 @@ import {
 
 ## 一句话
 
+<Module>
+
 WeiSQL 的核心设计只有一句话：**把“数据库服务”换成“可版本化的静态数据包 + 一层只读 Runtime”**。理解这一点，后面的 Adapter、缓存、完整性校验都是它的推论。
 
 <Callout title="两个方向都是单向依赖">
   上层只依赖接口，不依赖具体引擎；Adapter 通过 `open({ sqlAdapter, vectorAdapter })`
   注入，能力通过 `capabilities()` 如实上报。SDK 本身没有 DuckDB、USearch 的运行时依赖。
 </Callout>
+
+</Module>
 
 ## 1. 分层
 

@@ -169,6 +169,7 @@ fixture 3 行、扩展已缓存。
 | 只读 CTE / 写 CTE | 前者返回结果、后者 `SQL_UNSUPPORTED` | probe 断言 |
 | 过滤检索 | `exact-filter-first`，`exact: true`，2 条命中 | probe 断言（`db.vector.search` + `filter`） |
 | Node ↔ Chromium SQL | 9 个查询 / 错误码全部一致 | `probe:parity` |
+| 浏览器流式读取 | 1M 行 1,058 ms（约 945k 行/s），首行 14 ms | `bench:wasm-stream`，Chromium 1248，单次运行 |
 | 查询中取消 | 202 ms 的查询在 50 ms abort 后 **51 ms** 返回 `QUERY_CANCELLED` | probe 断言；`cancelSent()` 返回 `false`，引擎未停 |
 | parquet 扩展 | 498,915 B（`wasm_eh`，v1.4.3） | 自托管文件 |
 

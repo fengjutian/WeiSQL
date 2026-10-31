@@ -20,12 +20,17 @@
     "probe:parity": "node tools/browser-probe/parity.mjs",
     "bench": "node tools/bench/run.mjs",
     "bench:wasm": "node --expose-gc tools/bench/wasm.mjs",
+    "bench:wasm-stream": "node tools/browser-probe/run-stream-bench.mjs",
     "bench:quantization": "node tools/bench/quantization.mjs",
     "bench:recall": "node tools/bench/recall.mjs",
     "bench:self-test": "node tools/bench/quantization.mjs --self-test && node tools/bench/recall.mjs --self-test",
     "release:check": "node tools/release-check.mjs",
     "release:pack": "node tools/check-tarballs.mjs",
-    "release:pack:self-test": "node tools/check-tarballs.mjs --self-test"
+    "release:pack:self-test": "node tools/check-tarballs.mjs --self-test",
+    "docs:install": "npm --prefix website install",
+    "docs:dev": "npm --prefix website run dev",
+    "docs:build": "npm --prefix website run build",
+    "docs:serve": "npm --prefix website run serve"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

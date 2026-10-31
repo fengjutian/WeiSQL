@@ -77,17 +77,60 @@ html {
 .theme-doc-markdown table {
   display: table;
   width: 100%;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 8px;
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+}
+
+.theme-doc-markdown table th,
+.theme-doc-markdown table td {
+  padding: 0.55rem 0.85rem;
+  border: 0;
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+  border-right: 1px solid var(--ifm-color-emphasis-200);
+  vertical-align: top;
+  text-align: left;
+}
+
+.theme-doc-markdown table th:last-child,
+.theme-doc-markdown table td:last-child {
+  border-right: 0;
+}
+
+.theme-doc-markdown table tr:last-child td {
+  border-bottom: 0;
 }
 
 .theme-doc-markdown table th {
   background: var(--weisql-surface);
+  font-weight: 600;
   white-space: nowrap;
+}
+
+.theme-doc-markdown table tbody tr:nth-child(even) {
+  background: var(--ifm-color-emphasis-100);
+  background: color-mix(in srgb, var(--weisql-surface) 55%, transparent);
 }
 
 .theme-doc-markdown table td code,
 .theme-doc-markdown table th code {
   white-space: nowrap;
+  font-size: 0.85em;
+}
+
+@media (max-width: 996px) {
+  .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table-scroll table {
+    min-width: 560px;
+  }
 }
 
 .theme-doc-markdown blockquote {

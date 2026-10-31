@@ -1,0 +1,104 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>WeiSQL streaming benchmark</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "@duckdb/duckdb-wasm": "/vendor/@duckdb/duckdb-wasm/dist/duckdb-browser.mjs",
+          "@weisql/sdk/errors": "/sdk/errors.js",
+          "apache-arrow": "/vendor/apache-arrow/Arrow.dom.mjs",
+          "flatbuffers": "/vendor/flatbuffers/mjs/flatbuffers.js",
+          "tslib": "/vendor/tslib/tslib.es6.mjs"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <pre id="log"></pre>
+    <script type="module">
+      import { open } from "/sdk/database.js";
+      import { HttpResourceReader } from "/sdk/http-resource-reader.js";
+      import { createDuckDbWasmAdapter } from "/wasm-adapter/index.js";
+
+      const log = (message) => {
+        document.getElementById("log").textContent += `${message}\n`;
+        console.log(message);
+      };
+      const heap = () => performance.memory?.usedJSHeapSize ?? null;
+      const megabytes = (bytes) => (bytes === null ? null : Number((bytes / (1024 * 1024)).toFixed(1)));
+
+      /**
+       * Streaming throughput in a real browser. `db.sql()` is measured on a
+       * smaller row count because materializing millions of rows is exactly the
+       * failure mode `sqlStream()` exists to avoid.
+       */
+      async function main() {
+        const base = new URL("/fixture/", location.href).href;
+        const adapter = createDuckDbWasmAdapter({
+          bundles: {
+            mainModule: "/vendor/@duckdb/duckdb-wasm/dist/duckdb-eh.wasm",
+            mainWorker: "/vendor/@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js",
+          },
+          extensionRepository: `${location.origin}/extensions`,
+        });
+        const db = await open({
+          manifestUrl: new URL("manifest.json", base).href,
+          resourceReader: new HttpResourceReader({ baseUrl: base }),
+          sqlAdapter: adapter,
+          verifyChecksums: "all",
+        });
+
+        const results = { stream: [], materialized: [], heap: { precise: heap() !== null } };
+        for (const rows of [100_000, 1_000_000, 5_000_000]) {
+          const sql = `select range as n from range(${rows})`;
+          const before = heap();
+          const started = performance.now();
+          let firstRowMs = null;
+          let count = 0;
+          let checksum = 0;
+          for await (const row of await db.sqlStream(sql)) {
+            if (firstRowMs === null) firstRowMs = Math.round(performance.now() - started);
+            count += 1;
+            checksum = (checksum + Number(row.n)) % 1_000_000_007;
+          }
+          const totalMs = Math.round(performance.now() - started);
+          results.stream.push({
+            rows,
+            count,
+            checksum,
+            firstRowMs,
+            totalMs,
+            rowsPerSecond: Math.round(rows / (totalMs / 1000)),
+            heapDeltaMB: before === null ? null : megabytes(Math.max(0, (heap() ?? 0) - before)),
+          });
+          log(JSON.stringify(results.stream.at(-1)));
+        }
+
+        for (const rows of [100_000]) {
+          const before = heap();
+          const started = performance.now();
+          const materialized = await db.sql(`select range as n from range(${rows})`);
+          const totalMs = Math.round(performance.now() - started);
+          results.materialized.push({
+            rows,
+            count: materialized.length,
+            totalMs,
+            heapDeltaMB: before === null ? null : megabytes(Math.max(0, (heap() ?? 0) - before)),
+          });
+          log(JSON.stringify(results.materialized.at(-1)));
+        }
+
+        results.ok = true;
+        window.__BENCH_RESULT = results;
+        await db.close();
+      }
+
+      main().catch((error) => {
+        window.__BENCH_RESULT = { ok: false, error: `${error.name}: ${error.message}` };
+        log(String(error));
+      });
+    </script>
+  </body>
+</html>

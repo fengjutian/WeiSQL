@@ -6,6 +6,8 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 
 项目采用 TypeScript + Rust：TypeScript 提供公开 SDK、Manifest 校验、资源读取、Runtime 编排、精确向量检索与 Adapter 注入；Rust 提供用于对照的精确 Cosine 基线。DuckDB（Node.js）、DuckDB-Wasm（浏览器）与 USearch 均已作为 Adapter 实现并接入。
 
+产品文档站源码在 [`website/`](website/README.md)：首次运行 `npm run docs:install`，然后 `npm run docs:dev`；构建用 `npm run docs:build`。
+
 > 当前状态：工程原型。Manifest V1 基础结构已冻结；L1/L2 校验、L3 资源完整性（尺寸 + SHA-256）、HTTP 与 Node 文件 Reader、Runtime 生命周期、TypeScript 精确向量检索、全文检索与 RRF 融合、生成真实数据包的 Builder 首版、Node.js DuckDB 只读 SQL Adapter、DuckDB-Wasm 浏览器 SQL Adapter（parquet 扩展自托管）以及 USearch ANN Adapter 均已实现并有自动化测试。浏览器 SQL 不支持 `Date`/二进制参数、ANN 在真实数据集上的召回评估与真实 CDN 部署仍未完成。项目尚未发布 npm 包，也没有未经实测的性能承诺。
 
 ## 已实现
@@ -34,6 +36,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - SQL Adapter 共享契约（`npm run test:contract`）：同一组 SQL 用例同时跑 Node DuckDB 与 DuckDB-Wasm，差异必须在用例表里显式声明
 - 可复现的基准装置（`npm run bench`）：合成数据包 + 完整性闸门 + p50/p95、I/O 字节与峰值内存；`--ann` 给出 Recall@K 对照，`--text` 测量 BM25 构建、体积与延迟，`--fusion` 测量 RRF `k` 的稳定性，结果见 [基准测量装置](docs/BENCHMARK_HARNESS.md)
 - DuckDB-Wasm 物化基准（`npm run bench:wasm`）：5 万–50 万行合成 Parquet 的 `open()`、过滤查询与 RSS 增量，结果见 [基准测量装置](docs/BENCHMARK_HARNESS.md)
+- 浏览器流式基准（`npm run bench:wasm-stream`）：Chromium 中 `sqlStream()` 的首行延迟、吞吐与堆增量，结果见 [基准测量装置](docs/BENCHMARK_HARNESS.md)
 - `weisql validate` 校验命令（`@weisql/cli`）：L1/L2/L3 逐级校验、`--l4` 额外核对 Parquet 内容（需 `@weisql/duckdb-adapter`）、`--json` 输出与 CI 友好退出码
 - `.wsql` 单文件容器：`weisql pack` 打包（`--compress` 走 gzip 的 1.1.0 格式、`--only-declared` 只打声明资源并报告被跳过的文件）、`weisql validate <file>.wsql` 校验、`weisql unpack` 解包（先验摘要再写盘、拒绝路径穿越），SDK 提供 `ContainerReader` 与流式 `StreamingContainerReader` 直接作为 `resourceReader`，详见 [容器格式](docs/WSQL_CONTAINER.md)
 - `weisql inspect`：不打开 Runtime 就列出表、向量、全文索引、签名状态与**未被 Manifest 声明的文件**

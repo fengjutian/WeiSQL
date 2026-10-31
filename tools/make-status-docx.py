@@ -300,6 +300,7 @@ def build(target: Path):
             ["全文索引构建", "4.5 s", "同上", "含读取 Parquet 文本列"],
             ["浏览器一致性", "8 向量 + 5 文本 + 9 SQL + RAG + 容器", "Chromium 1248 vs Node 24", "3 条记录、2 维，不能外推"],
             ["DuckDB-Wasm 物化 500k 行", "298 ms，RSS ~+76 MB", "18.8 MB Parquet，Node 内同一 WASM", "约 4× Parquet；浏览器未测"],
+            ["浏览器流式读取", "100k/1M/5M：113/1,058/6,784 ms，首行 7–15 ms", "Chromium 1248，sqlStream(range())", "单次运行、合成数据"],
             ["浏览器 SQL 取消", "202 ms 查询 → 51 ms 返回", "abort 于 50 ms", "引擎未停（engineMayStillRun）"],
         ],
         widths=[3.6, 3.8, 5.4, 3.0],

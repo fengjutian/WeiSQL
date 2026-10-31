@@ -200,6 +200,30 @@ npm run bench:quantization -- --rows 50000 --dimension 128 --queries 20 --expans
 
 两个基准都带 `--self-test`，并由 `npm run bench:self-test` 在 CI 中执行：量化自检断言 `f32 > f16 > i8` 的体积顺序与搜索结果数量，召回自检用内存生成的 `.npy` 走完整解析与计算路径。它们守的是基准脚本本身——上一轮正是脚本把线程数当成向量数量，才产生了假异常。
 
+## 3.4 浏览器流式读取（`bench:wasm-stream`）
+
+```bash
+npm run bench:wasm-stream
+```
+
+在真实 Chromium 中用 `db.sqlStream()` 读取 `select range as n from range(N)`，记录首行延迟、
+总耗时、行/秒与 `performance.memory` 的堆增量（启动参数带 `--enable-precise-memory-info`）。
+它测的是**交付路径**，不是传输或存储：
+
+| 模式 | 行数 | 首行 | 总耗时 | 行/秒 | 堆增量 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `sqlStream` | 100,000 | 15 ms | 113 ms | 885k | ~3.5 MB |
+| `sqlStream` | 1,000,000 | 14 ms | 1,058 ms | 945k | ~9.1 MB |
+| `sqlStream` | 5,000,000 | 7 ms | 6,784 ms | 737k | ~27.6 MB |
+| `db.sql` | 100,000 | — | 98 ms | — | 测量噪声大 |
+
+读法：
+
+- 首行在 7–15 ms 到达，说明交付是增量的，不是等整表算完；
+- 5,000,000 行只带来 ~28 MB 堆增量，因为行在消费后即可回收；`db.sql()` 走同规模会把整表放进数组；
+- 行/秒随规模下降（885k → 737k），单次运行、合成 `range()` 数据，不能外推为真实查询吞吐；
+- `db.sql()` 的小规模堆增量不可靠（没有强制 GC），这里只用来对照总耗时，不当作内存结论。
+
 ## 4. 记录结果（2026-10-30，单机）
 
 环境：Intel Core Ultra 7 155H · 22 核 · 32 GiB · Windows 10.0.26200 x64 · Node v24.14.1
@@ -232,6 +256,7 @@ npm run bench -- --rows 20000 --dimension 64 --queries 10
 npm run bench -- --package ./bench/pkg-5000x32  # 复用已生成的包
 npm run bench:wasm                              # DuckDB-Wasm 物化与过滤
 npm run bench:wasm -- --smoke                   # 1k 行，CI 里跑冒烟
+npm run bench:wasm-stream                       # Chromium 中的流式读取
 ```
 
 生成的包写入 `bench/`（已加入 `.gitignore`）。合成包依赖 Python + pyarrow；测量本身只需要 Node。

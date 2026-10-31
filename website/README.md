@@ -32,8 +32,11 @@ website/
 
 仓库根目录另有 `netlify.toml`，其中 `base = "website"`，用于从仓库根触发 Netlify 构建。
 
-## 部署到 Netlify
+## CI
 
+`.github/workflows/docs.yml` 在 `website/**` 或 `netlify.toml` 变更时执行 `npm ci` + `npm run build`，并上传 `docs-build` 产物。该作业使用独立的 `website/package-lock.json`，不会安装根 workspace 的原生依赖。
+
+## 部署到 Netlify
 1. Netlify 新建站点并连接本仓库；
 2. **Base directory 留空**，让 Netlify 读取仓库根目录的 `netlify.toml`（其中已声明 `base = "website"`）；
 3. 构建命令 `npm run build`，发布目录 `build`；Node 版本 22 已由配置声明；

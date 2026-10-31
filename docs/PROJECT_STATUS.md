@@ -86,6 +86,7 @@ CI（`.github/workflows/ci.yml`）：
 | DuckDB-Wasm 物化 500k 行 | 298 ms，RSS ~+76 MB | 同上，18.8 MB Parquet | 约 4×Parquet；浏览器未测 |
 | DuckDB-Wasm 过滤查询 | 5.9–12.9 ms | 同上，等值过滤 | 冷/热缓存未区分 |
 | 物化默认预算 | 浏览器 64/128 MiB；Node 256/512 MiB（单表/整包） | 实测物化约 4× Parquet | 声明字节，不是内存承诺 |
+| 浏览器流式读取 | 100k/1M/5M 行：113/1,058/6,784 ms，首行 7–15 ms | Chromium 1248，`sqlStream(range())` | 单次运行、合成数据，堆增量 ~28 MB @5M |
 | parquet 扩展体积 | 498,915 B（`wasm_eh`，v1.4.3） | 自托管 | 版本必须与 WASM 核心一致 |
 
 ### 5.1 ANN 召回与分布（100k × 128，Top-10，`expansionSearch=512`）

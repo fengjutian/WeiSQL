@@ -62,6 +62,7 @@ sidebar_position: 51
 | 只读 SQL（DuckDB-Wasm） | 已实现 · 探针 | Chromium 1248，`probe:wasm` 断言 |
 | `open()` 耗时 | 已实现 · 已测试 | 3 行表、扩展同源且已缓存：1.37–1.70 s |
 | 参数化查询 | 已实现 · 已测试 | 3 行表，< 50 ms |
+| SQL 流式读取 | 已实现 · 已测试 | `sqlStream()` 分批迭代；`maxRows` 逐行检查 |
 | 只读 CTE | 已实现 · 探针 | 依赖 DuckDB tokenizer；tokenizer 不可用时退回严格白名单 |
 | 过滤检索 | 已实现 · 探针 | `exact-filter-first`，`exact: true` |
 | 取消 | 已实现 · 已测试 | `best-effort`；202 ms 查询在 50 ms abort 后 51 ms 返回，引擎未停 |

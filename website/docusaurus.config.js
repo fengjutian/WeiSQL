@@ -38,6 +38,7 @@ const config = {
           editUrl: "https://github.com/fengjutian/WeiSQL/edit/main/website/",
           showLastUpdateTime: true,
           breadcrumbs: true,
+          rehypePlugins: [require("./src/plugins/rehype-table-wrapper.js")],
         },
         blog: false,
         theme: {

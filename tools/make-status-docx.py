@@ -8,6 +8,7 @@ Content mirrors docs/PROJECT_STATUS.md. Regenerate both together so the document
 and the repository report cannot drift.
 """
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -17,6 +18,14 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
+
+def git_head() -> str:
+    """Reads the current commit so the report does not carry a stale hash."""
+    try:
+        return subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], cwd=Path(__file__).resolve().parent.parent, text=True).strip()
+    except Exception:
+        return "unknown"
+
 
 EA_FONT = "微软雅黑"
 ACCENT = RGBColor(0x1F, 0x38, 0x64)
@@ -181,7 +190,7 @@ def build(target: Path):
     style_run(run, size=22, bold=True, color=ACCENT)
 
     subtitle = document.add_paragraph()
-    run = subtitle.add_run("2026-10-31 · 仓库 HEAD c6fcfae · 321 个自动化测试 · 尚未发布 npm")
+    run = subtitle.add_run(f"2026-10-31 · 仓库 HEAD {git_head()} · 321 个自动化测试 · 尚未发布 npm")
     style_run(run, size=10, color=MUTED)
 
     document.add_heading("1. 一句话状态", level=1)

@@ -152,7 +152,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   rows (Node WASM; time and RSS, not a performance promise);
   `npm run bench:wasm-stream` measures browser `sqlStream()` first-row latency,
   throughput and heap growth on synthetic rows, then on 200k- and 500k-row
-  Parquet packages (HTTP Range + L3 + materialize) against `db.sql()`.
+  Parquet packages (HTTP Range + L3 + materialize) against `db.sql()`;
+  `npm run bench:wasm-cold` measures the cache-disabled first load (36.3 MB).
 - Browser probes now also cover read-only CTEs and browser-side filtered vector
   search (`exact-filter-first`); the playground gained SQL and category filters,
   plus a streaming toggle that renders rows as they arrive from `db.sqlStream()`.

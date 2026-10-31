@@ -43,6 +43,17 @@ const cdp = await context.newCDPSession(page);
 await cdp.send("Network.enable");
 await cdp.send("Network.setCacheDisabled", { cacheDisabled: true });
 
+// Worker requests do not show up in the page's Resource Timing, so the sizes
+// come from the HTTP responses the runner observes.
+const downloads = [];
+page.on("response", (response) => {
+  const url = response.url();
+  if (!/duckdb.*\.(wasm|js)/.test(url)) return;
+  const headers = response.headers();
+  const bytes = Number(headers["content-length"] ?? 0);
+  downloads.push({ name: url.split("/").pop(), bytes });
+});
+
 try {
   await page.goto(`http://127.0.0.1:${port}/wasm-cold`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => window.__COLD_RESULT !== undefined, undefined, { timeout: 180_000 });
@@ -54,9 +65,11 @@ try {
     console.log("| metric | result |");
     console.log("| --- | --- |");
     console.log(`| open() with cold cache | ${result.openMs} ms |`);
-    for (const resource of result.resources) {
-      console.log(`| ${resource.name} transfer | ${resource.transferMB} MB in ${resource.durationMs} ms |`);
+    for (const download of downloads) {
+      console.log(`| ${download.name} | ${(download.bytes / (1024 * 1024)).toFixed(1)} MB |`);
     }
+    const total = downloads.reduce((sum, item) => sum + item.bytes, 0);
+    console.log(`| total fetched | ${(total / (1024 * 1024)).toFixed(1)} MB |`);
   }
 } catch (error) {
   console.error(`cold-start benchmark failed: ${String(error).slice(0, 400)}`);

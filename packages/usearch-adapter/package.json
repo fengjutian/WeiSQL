@@ -2,6 +2,23 @@
   "name": "@weisql/usearch-adapter",
   "version": "0.1.0",
   "description": "ANN VectorAdapter for WeiSQL AI backed by USearch (Node.js)",
+  "keywords": [
+    "weisql",
+    "usearch",
+    "ann",
+    "vector-search",
+    "hnsw",
+    "embeddings"
+  ],
+  "homepage": "https://weisql.netlify.app/docs/adapters/usearch",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fengjutian/WeiSQL.git",
+    "directory": "packages/usearch-adapter"
+  },
+  "bugs": {
+    "url": "https://github.com/fengjutian/WeiSQL/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -25,6 +42,9 @@
   },
   "engines": {
     "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "license": "Apache-2.0"
 }

@@ -257,6 +257,27 @@ npm run bench:wasm-stream
   Arrow batch 转换与 GC 开始成为瓶颈，不能按线性外推；
 - 这些是单次运行的数字，随 GC 与机器状态波动（同一台机器上一次 500 万行是 6.8 s），只用于判断量级，不是吞吐承诺。
 
+## 3.5 浏览器冷启动（`bench:wasm-cold`）
+
+```bash
+npm run bench:wasm-cold
+```
+
+用 CDP `Network.setCacheDisabled(true)` 关掉 HTTP 缓存，并给 WASM/worker URL 加 `?cold=1`，
+测量从导航到 `open()` 完成（下载 + 实例化 + parquet 扩展 + 物化 3 行表）的时间：
+
+| 指标 | 结果 |
+| --- | --- |
+| `open()`（冷缓存） | 1,817 ms |
+| `duckdb-eh.wasm` | 32.7 MB |
+| `parquet.duckdb_extension.wasm` | 2.9 MB |
+| `duckdb-browser-eh.worker.js` | 0.7 MB |
+| 合计传输 | 36.3 MB |
+
+这是本地静态服务器上的数字：没有 CDN、没有网络 RTT、也没有并发竞争，因此只说明
+“34 MB 首载”大致对应多少字节与多少时间，不能当作线上首屏预算。真正上线前仍需
+CDN + 冷缓存 + 移动网络验收。
+
 ## 4. 记录结果（2026-10-30，单机）
 
 环境：Intel Core Ultra 7 155H · 22 核 · 32 GiB · Windows 10.0.26200 x64 · Node v24.14.1

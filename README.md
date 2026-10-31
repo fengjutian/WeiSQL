@@ -37,10 +37,11 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - 可复现的基准装置（`npm run bench`）：合成数据包 + 完整性闸门 + p50/p95、I/O 字节与峰值内存；`--ann` 给出 Recall@K 对照，`--text` 测量 BM25 构建、体积与延迟，`--fusion` 测量 RRF `k` 的稳定性，结果见 [基准测量装置](docs/BENCHMARK_HARNESS.md)
 - DuckDB-Wasm 物化基准（`npm run bench:wasm`）：5 万–50 万行合成 Parquet 的 `open()`、过滤查询与 RSS 增量，结果见 [基准测量装置](docs/BENCHMARK_HARNESS.md)
 - 浏览器流式基准（`npm run bench:wasm-stream`）：Chromium 中 `sqlStream()` 的首行延迟、吞吐与堆增量，结果见 [基准测量装置](docs/BENCHMARK_HARNESS.md)
+- 浏览器冷启动基准（`npm run bench:wasm-cold`）：关闭 HTTP 缓存后的 36.3 MB 首载与 `open()` 时间，结果见同一文档
 - `weisql validate` 校验命令（`@weisql/cli`）：L1/L2/L3 逐级校验、`--l4` 额外核对 Parquet 内容（需 `@weisql/duckdb-adapter`）、`--json` 输出与 CI 友好退出码
 - `.wsql` 单文件容器：`weisql pack` 打包（`--compress` 走 gzip 的 1.1.0 格式、`--only-declared` 只打声明资源并报告被跳过的文件）、`weisql validate <file>.wsql` 校验、`weisql unpack` 解包（先验摘要再写盘、拒绝路径穿越），SDK 提供 `ContainerReader` 与流式 `StreamingContainerReader` 直接作为 `resourceReader`，详见 [容器格式](docs/WSQL_CONTAINER.md)
 - `weisql inspect`：不打开 Runtime 就列出表、向量、全文索引、签名状态与**未被 Manifest 声明的文件**
-- 发布前静态检查（`npm run release:check`）：版本形状、workspace 依赖范围、`files` 清单、dist 产物与 README 齐备性
+- 发布前静态检查（`npm run release:check`）：版本形状、workspace 依赖范围、`files` 清单、`publishConfig.access`、`repository`/`homepage`/`keywords`、dist 产物与 README 齐备性；`npm run release:publish` 按依赖顺序预检并发布（默认 dry run）
 - Manifest 签名：Ed25519（WebCrypto），`weisql keygen/sign/verify-signature`，`validate --signature --trusted <keyId>` 可固定发布者；`sign --add` 追加协同签名，用于密钥轮换；`--require <n>` 要求 n 个固定密钥都签过名（背书策略）；SDK 与 CLI 均支持根密钥授权：`weisql authorize <pkg> --root root.key.pem --signer release.pub.pem --key release.key.pem --days 365`，消费者用 `--trusted-root <keyId>` 验签
 - 全文检索：Manifest `textIndexes`、倒排索引读取器（二分定位 + BM25）、生成工具，以及公开 `db.text.search()`；Unicode 分词（CJK 按字），详见 [全文检索设计](docs/FULL_TEXT_SEARCH.md)
 - RRF 融合检索：`db.hybrid.search()` 按排名融合向量与全文结果，返回两路名次与原始分数
@@ -56,13 +57,13 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 ## 尚未实现 / 未验证
 
 - 浏览器 SQL 的 `Date`/二进制参数（当前明确拒绝）；见 [DuckDB-Wasm Adapter](docs/DUCKDB_WASM_ADAPTER.md)
-- 浏览器端 OPFS 持久化、大表与 34 MB 首载的实测；多线程/COI 已试且不可用（见 ADR-063）
+- 浏览器端 OPFS 持久化；多线程/COI 已试且不可用（见 ADR-063）；36.3 MB 首载已实测（`bench:wasm-cold`），CDN 下的冷启动仍未测
 - `db.sql()` 仍一次性返回全部行；需要增量消费时用 `db.sqlStream()`（流式 API 已提供）
 - ANN 在真实数据集上的 Recall@K 评估；ANN 后过滤的完整性保证
 - 时间戳与嵌套列的源数据推断（CSV/JSON 转换目前只覆盖标量）
 - WASM 构建与 TypeScript/Rust 自动黄金数据对照
 - 真实 CDN（CORS、Range、缓存）与多机/冷缓存验收
-- npm 发布（缺组织与访问令牌）
+- npm 发布（元数据与发布脚本已就绪，缺 npm 组织与访问令牌）
 
 ## 快速开始
 

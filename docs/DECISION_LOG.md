@@ -669,6 +669,16 @@
 - 决策六：两端流式路径都把每次 `next()` 与 abort 信号 `Promise.race`。只在 chunk/batch 边界检查 `signal.aborted` 不够——单线程 worker 可能长时间不产生下一批，调用方会被卡住。Node 侧同时保留 `connection.interrupt()` 真正停止引擎；WASM 侧被放弃的 reader 与 prepared statement 用 fire-and-forget 关闭，不阻塞取消返回。Node 实测：50M 行聚合在第 10 ms abort，104 ms 内抛 `QUERY_CANCELLED`。
 - 后果：浏览器与 Node 都能在物化整表结果前消费行，`maxRows` 之外多了一层真正的规模控制。共享契约新增“stream rows / stream maxRows / stream error”用例，Chromium 探针同时断言真实 WASM 流与流式取消。
 
+## ADR-070：发布元数据进闸门，发布顺序由依赖图决定
+
+- 状态：Accepted and implemented
+- 背景：ADR-031 之后发布仍是「照文档手敲 `npm publish`」。那份文档只列了 4 个包（漏掉 `@weisql/duckdb-wasm-adapter`），而作用域包默认 restricted，免费组织下漏写一次 `--access public` 就会失败；tarball 在 npm 页面也没有仓库链接，因为五个 manifest 都没有 `repository`。
+- 决策一：五个包显式写 `publishConfig.access = "public"`，`release:check` 把它当**硬错误**。发布可见性不依赖某条命令上有没有带 flag——这是最容易在复制粘贴时丢掉的一处。
+- 决策二：补齐 `repository`（含 `directory`）、`homepage`、`keywords`、`bugs`；`release:check` 强制 `repository.url` 与 `repository.directory`，缺 `homepage` / `keywords` 只警告（前者让 npm 页面有源码链接，后者影响 npm 搜索）。
+- 决策三：新增 `tools/publish.mjs`，默认 dry run，`--apply` 才真正发布。顺序从依赖图推导（硬依赖 + 非可选 peer），不维护第二份手写清单；可选 peer（CLI 对 DuckDB adapter）不参与排序，否则将来只靠可选 peer 连接的包会让图无法排序。
+- 决策四：预检全部在第一个包落盘前完成——登录态、scope 归属、`dist/index.js`、目标版本在 registry 上是否仍是 404、工作区是否干净。任一包版本已存在就整体中止：0.x 阶段五包同步发版，部分发布（2/5）比不发更糟，且版本不可回退。
+- 后果：发布从五条手写命令变成一条脚本，版本冲突与可见性问题在发布前暴露而不是发布后。剩余外部阻塞仍是凭据：`npm whoami` 返回 401，需要 `npm login` 或 `NODE_AUTH_TOKEN`。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

@@ -50,17 +50,9 @@
         });
         const openMs = Math.round(performance.now() - started);
         const rows = await db.sql("select count(*) as n from documents");
-        const resources = performance.getEntriesByType("resource")
-          .filter((entry) => entry.name.includes("duckdb-eh.wasm"))
-          .map((entry) => ({
-            name: entry.name.split("/").pop(),
-            transferMB: Number((entry.transferSize / (1024 * 1024)).toFixed(1)),
-            durationMs: Math.round(entry.duration),
-          }));
         const result = {
-          ok: Number(rows[0].n) === 2,
+          ok: Number(rows[0].n) === 3,
           openMs,
-          resources,
           engineVersion: db.capabilities().sql ? "duckdb-wasm" : "none",
         };
         log(JSON.stringify(result));

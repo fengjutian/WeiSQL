@@ -83,20 +83,40 @@ npm run release:pack          # tarball content check for every workspace, no pu
 npm run release:pack:self-test  # proves the checks reject source/test/license problems
 ```
 
+打包内容预检：
+
+```bash
+npm run release:pack          # tarball content check for every workspace, no publishing
+npm run release:pack:self-test  # proves the checks reject source/test/license problems
+npm run release:publish       # preflight + per-package `npm publish --dry-run`
+```
+
 确认产物只包含 `dist/`、`README.md`、`package.json`，不包含源码、`node_modules` 或测试。
 
 ## 4. 发布
 
+发布脚本按依赖顺序执行，默认是 **dry run**（不发布任何东西）：
+
 ```bash
-# 每个包单独发布，SDK 必须最先发布
-npm publish --workspace @weisql/sdk --access public
-npm publish --workspace @weisql/duckdb-adapter --access public
-npm publish --workspace @weisql/usearch-adapter --access public
-npm publish --workspace @weisql/cli --access public
+npm run release:publish                 # 预检 + 每个包 npm publish --dry-run
+npm run release:publish -- --apply      # 真正发布，不可撤销
+npm run release:publish -- --apply --otp 123456
 ```
 
+脚本在第一个包离开本机前完成检查：npm 登录态（`npm whoami`）、`@weisql` scope 归属、每个包的 `dist/index.js` 是否存在、目标版本在 registry 上是否仍是 404、工作区是否干净。任一包的目标版本已存在就整体中止——0.x 阶段五个包同步发版，不允许只发一半。发布过程中途失败时，脚本会列出已发布的包和仍未发布的包，并提示版本不可回退。
+
+手动发布的等价命令（顺序不能变，SDK 必须最先）：
+
+```bash
+npm publish --workspace @weisql/sdk
+npm publish --workspace @weisql/duckdb-adapter
+npm publish --workspace @weisql/duckdb-wasm-adapter
+npm publish --workspace @weisql/usearch-adapter
+npm publish --workspace @weisql/cli
+```
+
+- 不需要再手写 `--access public`：五个包的 `publishConfig.access` 都是 `public`，`release:check` 会强制这一点。作用域包默认 restricted，免费组织下发布会直接失败。
 - 使用 npm token 或 2FA，不要把令牌写进仓库或脚本。
-- 先 `--dry-run` 走一遍 `npm publish`，确认文件清单与版本号。
 - 已发布版本**不可撤销**；只能 `npm deprecate` 标记并发布补丁。
 
 ## 5. 发布后验证
@@ -122,7 +142,9 @@ CI 已配置（`.github/workflows/ci.yml`）：`npm ci` → build → typecheck 
 
 | 项 | 状态 |
 | --- | --- |
-| npm 组织与访问令牌 | 未配置 |
+| npm 组织与访问令牌 | 未配置：本机 `npm whoami` 返回 401，需要 `npm login` 或设置 `NODE_AUTH_TOKEN`；`@weisql` scope 归属需用 `npm org ls weisql` 确认 |
 | 多机基准复现 | 未做，`BENCHMARK_HARNESS.md` 的数字仅代表一台机器 |
+
+打包元数据已补齐并由 `release:check` 强制：`publishConfig.access = "public"`、`repository.url` / `repository.directory`、`homepage`、`keywords`。缺少这些字段会直接让检查失败，而不是等到 `npm publish` 才报错。
 
 在 npm 组织与令牌落地之前，不应对外宣称「已发布」。

@@ -88,6 +88,7 @@ CI（`.github/workflows/ci.yml`）：
 | 物化默认预算 | 浏览器 64/128 MiB；Node 256/512 MiB（单表/整包） | 实测物化约 4× Parquet | 声明字节，不是内存承诺 |
 | 浏览器流式读取 | 100k/1M/5M 行：126/871/4,542 ms，首行 5–16 ms | Chromium 1248，`sqlStream(range())` | 单次运行、合成数据，堆增量 ~14 MB @5M |
 | 浏览器 Parquet 流式 | 20 万/50 万行：`open()` 1,963/2,430 ms；流式 430/2,165 ms；`db.sql` 堆 +40.6/+95.4 MB | 7.5/18.8 MB Parquet，HTTP Range + L3 + 物化 | 单次运行；50 万行吞吐降到 231k 行/s |
+| 浏览器冷启动 | `open()` 1,817 ms；传输 36.3 MB（WASM 32.7 + 扩展 2.9 + worker 0.7） | Chromium 1248，CDP 关闭 HTTP 缓存 | 本地服务器，无 CDN/网络 RTT |
 | parquet 扩展体积 | 498,915 B（`wasm_eh`，v1.4.3） | 自托管 | 版本必须与 WASM 核心一致 |
 
 ### 5.1 ANN 召回与分布（100k × 128，Top-10，`expansionSearch=512`）

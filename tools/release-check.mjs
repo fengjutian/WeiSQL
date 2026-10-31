@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+const REPOSITORY_URL = "git+https://github.com/fengjutian/WeiSQL.git";
 
 const errors = [];
 const warnings = [];
@@ -79,6 +80,24 @@ for (const { directory, manifest } of packages) {
 
   if (manifest.publishConfig?.registry === undefined) {
     warn(`${label}: no publishConfig.registry (fine for public npm, required for a private registry)`);
+  }
+  // Scoped packages default to restricted (paid) visibility. Relying on the
+  // `--access public` flag of a single command is a footgun: a forgotten flag
+  // turns a release into an error, or worse, an accidental private publish.
+  if (manifest.publishConfig?.access !== "public") {
+    fail(`${label}: publishConfig.access must be "public" (scoped packages default to restricted)`);
+  }
+  if (manifest.repository?.url !== REPOSITORY_URL) {
+    fail(`${label}: repository.url must be ${REPOSITORY_URL}`);
+  }
+  if (manifest.repository?.directory !== `packages/${directory}`) {
+    fail(`${label}: repository.directory must be packages/${directory}`);
+  }
+  if (typeof manifest.homepage !== "string" || manifest.homepage.length === 0) {
+    warn(`${label}: missing homepage (the npm page links nowhere without it)`);
+  }
+  if (!Array.isArray(manifest.keywords) || manifest.keywords.length === 0) {
+    warn(`${label}: missing keywords (npm search cannot find the package by topic)`);
   }
   if (typeof manifest.license !== "string" || manifest.license.length === 0) {
     fail(`${label}: missing license field (decided: Apache-2.0)`);

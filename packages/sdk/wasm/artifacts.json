@@ -1,0 +1,43 @@
+{
+  "formatVersion": 1,
+  "artifacts": [
+    {
+      "name": "weisql_vector_wasm.wasm",
+      "bytes": 17694,
+      "sha256": "50e1df70888cc6aa0bb540614278832d474abcdb126c993697c9f78784fe4f48",
+      "abiVersion": 3,
+      "exports": [
+        "__data_end",
+        "__heap_base",
+        "memory",
+        "weisql_abi_version",
+        "weisql_alloc",
+        "weisql_cosine_topk",
+        "weisql_dealloc",
+        "weisql_search_topk"
+      ]
+    },
+    {
+      "name": "weisql_vector_hnsw_wasm.wasm",
+      "bytes": 48548,
+      "sha256": "d883314800438b5755f3cc8afca259a5fb6761350debb4e7692316a4c21edbe4",
+      "abiVersion": 3,
+      "exports": [
+        "__data_end",
+        "__heap_base",
+        "memory",
+        "weisql_hnsw_abi_version",
+        "weisql_hnsw_alloc",
+        "weisql_hnsw_build",
+        "weisql_hnsw_dealloc",
+        "weisql_hnsw_dimension",
+        "weisql_hnsw_len",
+        "weisql_hnsw_load",
+        "weisql_hnsw_metric",
+        "weisql_hnsw_save",
+        "weisql_hnsw_search",
+        "weisql_hnsw_serialized_len"
+      ]
+    }
+  ]
+}

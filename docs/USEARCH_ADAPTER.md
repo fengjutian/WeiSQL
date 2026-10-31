@@ -64,4 +64,9 @@ USearch 的原始距离与公共契约不一致，Adapter 在边界处转换：
 
 1. 按数据集的 Recall@K 与延迟报告（`BENCHMARK_PROTOCOL_V1.md` 要求）。
 2. 过滤与 ANN 的**完整性**：目前只有显式开启的后过滤，且不保证过滤后的 Top-K 完整。
-3. 索引与 Adapter 版本的兼容性策略：目前只校验 `engine` 与向量数量，不校验 USearch 版本是否与构建时一致。
+3. 索引与 Adapter 版本的兼容性策略只到**主版本**：`descriptor.version` 的 major 与已安装 USearch 不一致时拒绝加载，minor/patch 差异照常加载，因为 USearch 没有承诺 minor 内二进制稳定。
+
+已实现的相关约束：
+
+- 持久化索引必须带 `connectivity`、`expansion_add`、`expansion_search` 三个参数；缺任一项返回 `RESOURCE_INTEGRITY_FAILED`，不回退 Adapter 默认值（ADR-029）。
+- `tools/build-ann-index.mjs --engine usearch` 是生成索引并回写参数的入口；`weisql validate` 会继续核对索引文件的大小与 SHA-256。

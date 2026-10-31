@@ -303,6 +303,30 @@ CDN + 冷缓存 + 移动网络验收。
   只是拒绝阈值，提高它不会改变这一步的内存形态；
 - 单次运行、本地服务器、无 CDN；`performance.memory` 粒度有限，数字只用于判断量级。
 
+### 3.7 纯 Rust HNSW（WASM）— `bench:hnsw-dataset`
+
+`tools/bench/hnsw-dataset.mjs` 在 WASM 模块里建图并检索，用 JavaScript 精确扫描作对照，
+同时报告建图耗时、索引字节、HNSW 与精确扫描的 p50/p95，以及 Recall@K。
+
+```bash
+npm run bench:hnsw-dataset -- --rows 10000 --dim 32 --queries 50
+npm run bench:hnsw-dataset -- --file embeddings.f32 --rows N --dim 768 --metric cosine
+```
+
+`--file` 读取原始小端 float32 row-major 数据（与 `.f32` dump、SDK 向量块同布局），
+因此同一命令可以直接跑真实 embedding；不带 `--file` 时生成确定性聚类数据。
+
+实测（2026-10-31，单机，`m=16 ef_construction=200 ef_search=64`，L2）：
+
+| 规模 | 建图 | 索引字节 | HNSW p50 | HNSW p95 | 精确 JS p50 | Recall@10 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 10,000 × 32 | 2.1 s | 2.27 MB | 0.25 ms | 0.37 ms | 3.67 ms | 1.000 |
+| 50,000 × 64 | 42.0 s | 19.0 MB | 0.60 ms | 0.71 ms | 24.2 ms | 0.997 |
+
+聚类数据对 HNSW 天然友好，Recall 接近 1 不代表在真实 embedding 上也成立；真实数据请用
+`--file` 复测，并把 recall 与数据几何一起报告。建图时间是单线程 WASM，原生构建会更快
+（`cargo run --example recall` 的 2000×32 为 0.24 s）。
+
 ## 4. 记录结果（2026-10-30，单机）
 
 环境：Intel Core Ultra 7 155H · 22 核 · 32 GiB · Windows 10.0.26200 x64 · Node v24.14.1
@@ -347,6 +371,7 @@ npm run bench -- --package ./bench/pkg-5000x32  # 复用已生成的包
 npm run bench:wasm                              # DuckDB-Wasm 物化与过滤
 npm run bench:wasm -- --smoke                   # 1k 行，CI 里跑冒烟
 npm run bench:wasm-stream                       # Chromium 中的流式读取
+npm run bench:hnsw-dataset -- --rows 10000 --dim 32
 ```
 
 生成的包写入 `bench/`（已加入 `.gitignore`）。合成包依赖 Python + pyarrow；测量本身只需要 Node。

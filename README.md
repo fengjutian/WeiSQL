@@ -61,19 +61,25 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - TypeScript ↔ Rust 跨语言黄金对照：同一固定数据集两侧排名与距离一致（6 个用例，CI 双向校验）
 - WASM 构建（`npm run build:wasm`）：无 wasm-bindgen、无导入的 17 KB 模块，cosine/L2/IP 三种度量，同一 fixture 第三方实现对照（`npm run test:wasm-golden`）
 - WASM Vector Adapter（`createWasmVectorAdapter`）：把该产物接成 `VectorAdapter`，与 TypeScript 精确适配器逐字段对照（`npm run test:wasm-adapter`）
+- WASM 产物随包分发：`@weisql/sdk/wasm/` 内置 exact 与 HNSW 两个 `.wasm` 和 `artifacts.json`（尺寸/SHA-256/ABI），`wasmArtifactUrl("exact" | "hnsw")` 直接给出 URL；`npm run embed:wasm` 重建，`release:check` 校验字节未漂移
 - HNSW 备选索引（`crates/vector-hnsw`）：纯 Rust、零依赖、种子可复现；2000×32 聚类数据 Recall@10 = 1.00，p50 查询 0.048 ms
 - HNSW 的 WASM 模块（`npm run build:hnsw-wasm`）：41 KB、单实例持有一个索引，1000×16 数据 Recall@10 = 1.00、p50 0.033 ms（`npm run test:hnsw-wasm`）
 - HNSW Vector Adapter（`createHnswWasmVectorAdapter`）：如实声明 `exactSearch: false`，过滤走超额召回后置筛选（`postFiltering: true`）；对精确适配器 Recall@10 ≥ 0.9（`npm run test:hnsw-adapter`）
+- HNSW 持久化索引：Manifest `index.engine = "weisql-hnsw"` 时 Adapter 直接加载，不读向量文件；缺失、截断、维度/metric/格式版本不匹配均拒绝（`npm run test:hnsw-package`）
+- 统一 ANN 索引构建：`node tools/build-ann-index.mjs <pkg> --engine usearch|hnsw`（`npm run build:ann-index -- ...`）一次写 `indexes/*.usearch|*.hnsw` 与 Manifest `index.params`；`build:hnsw-index` 保留为兼容入口
+- ADR-029 参数校验：Manifest 声明了 USearch 索引但缺 `connectivity` / `expansion_add` / `expansion_search` 时拒绝加载，不回退 Adapter 默认值
+- CDN/CORS 验收探针（`npm run probe:cdn -- --manifest <url>`）：检查 `Access-Control-Allow-Origin`、暴露的 `Content-Range`/`Accept-Ranges`/`ETag`、`206`、`Content-Length` 与返回字节数
+- 真实语料 Recall@K 报告（`npm run bench:recall -- --embeddings <file.npy|file.f32> --output report.json --min-recall 0.9`）：结果带环境与参数，可直接作为验收记录
 
 ## 尚未实现 / 未验证
 
 - 浏览器 SQL 的 `Date`/二进制参数（当前明确拒绝）；见 [DuckDB-Wasm Adapter](docs/DUCKDB_WASM_ADAPTER.md)
 - 浏览器端 OPFS 缓存已实现为 opt-in（`persistToOpfs`，保留最近 4 个数据库，跨标签页用 Web Locks、第二个标签页回退内存）；多线程/COI 已试且不可用（见 ADR-063）；36.3 MB 首载已实测（`bench:wasm-cold`），CDN 下的冷启动仍未测
 - `db.sql()` 仍一次性返回全部行；需要增量消费时用 `db.sqlStream()`（流式 API 已提供）
-- ANN 在真实数据集上的 Recall@K 评估；ANN 后过滤的完整性保证
+- ANN 在真实数据集上的 Recall@K 结果；ANN 后过滤仍只保证“显式后过滤”，不保证过滤后的严格 Top-K。报告入口已就绪（`bench:recall`），缺真实 embedding 语料
 - 时间戳的自动推断（需用 `--timestamp` 显式声明；嵌套 JSON 列已支持，见 [源数据转换](docs/SOURCE_CONVERSION.md)）
-- WASM adapter 的产物分发与浏览器实测（adapter 已实现并对照通过，但 `.wasm` 未随 npm 包发布，也尚未在 Chromium 中跑通）
-- 真实 CDN（CORS、Range、缓存）与多机/冷缓存验收
+- WASM adapter 的真实 Chromium 实测（两个 `.wasm` 已随包分发，但浏览器端尚未跑通）
+- 真实 CDN（CORS、Range、缓存）与多机/冷缓存验收；`probe:cdn` 工具已就绪，尚无真实部署结果
 - npm 发布（元数据与发布脚本已就绪，缺 npm 组织与访问令牌）
 
 ## 快速开始
@@ -103,7 +109,7 @@ npm run fixture
 
 该命令调用 Builder，从 `examples/source/documents.parquet` 生成完整数据包并在发布前自检。源 Parquet 由 `python tools/make-source-parquet.py`（依赖 pyarrow）生成，属于不可变输入。
 
-在真实浏览器中验证 SDK（需要 Chromium 或 Chrome/Edge；CI 的 `browser` 作业会在 Ubuntu runner 自带的 Chrome 上跑这四条探针）：
+在真实浏览器中验证 SDK（需要 Chromium 或 Chrome/Edge；CI 的 `browser` 作业会在 Ubuntu runner 自带的 Chrome 上跑这些探针）：
 
 ```bash
 npm run probe:browser
@@ -111,6 +117,7 @@ npm run probe:wasm         # 浏览器 SQL（DuckDB-Wasm），首次会下载 pa
 npm run probe:playground   # 打开 Playground 并断言交互结果
 npm run probe:parity       # Node 与 Chromium 结果对照（见 docs/ENVIRONMENT_PARITY.md）
 npm run probe:opfs-lock    # 双标签页 OPFS 锁：第二个页面回退内存
+npm run probe:cdn -- --manifest https://cdn.example.com/pkg/manifest.json  # 部署后的 CORS/Range 头
 npm run playground         # 手动浏览 http://127.0.0.1:8099/playground/
 ```
 
@@ -139,9 +146,10 @@ cargo test --manifest-path crates/vector-hnsw/Cargo.toml
 cargo run --release --manifest-path crates/vector-hnsw/Cargo.toml --example recall
 npm run build:hnsw-wasm
 npm run test:hnsw-wasm
+npm run bench:hnsw-dataset -- --rows 10000 --dim 32
 ```
 
-`examples/recall.rs` 在 2000×32 的确定性聚类数据上打印建图耗时、p50 查询延迟与 Recall@10；`test:hnsw-wasm` 则在 1000×16 数据上验证同一引擎编译到 WASM 后仍能建图并以 Recall@10 ≥ 0.9 检索，并把图导出后导入一个**全新的模块实例**，确认同一查询的行号与距离逐位相同。该索引只作为 USearch 之外的备选实现，`search()` 返回近似结果，调用方必须如实标注 `exact: false`。
+`examples/recall.rs` 在 2000×32 的确定性聚类数据上打印建图耗时、p50 查询延迟与 Recall@10；`test:hnsw-wasm` 则在 1000×16 数据上验证同一引擎编译到 WASM 后仍能建图并以 Recall@10 ≥ 0.9 检索，并把图导出后导入一个**全新的模块实例**，确认同一查询的行号与距离逐位相同。`bench:hnsw-dataset` 在 WASM 里跑更大规模并同时打印精确扫描的耗时（10k×32：建图 2.1 s、p50 0.25 ms vs 3.67 ms、Recall@10 = 1.00），可用 `--file embeddings.f32` 换成真实 embedding。该索引只作为 USearch 之外的备选实现，`search()` 返回近似结果，调用方必须如实标注 `exact: false`。
 
 索引用 `to_bytes()` / `from_bytes()` 持久化：自定义格式带 magic、版本、稠密邻接表、原始向量和 FNV-1a 校验；加载时逐字段校验（层级、邻居上限、ID 越界、非有限值、尾部多余字节），损坏的 buffer 直接拒绝而不是载入成一张坏图。WASM ABI 另外暴露 `weisql_hnsw_serialized_len` / `weisql_hnsw_save` / `weisql_hnsw_load`，浏览器侧因此可以缓存预建索引、跳过冷启动重建。
 
@@ -149,13 +157,17 @@ npm run test:hnsw-wasm
 
 WASM：[vector-wasm](crates/vector-wasm/src/lib.rs) 把 `exact_search_contiguous` 暴露为无导入的 C ABI（`weisql_alloc` / `weisql_search_topk` / `weisql_dealloc`，ABI v3，`metric` 取 0/1/2 对应 cosine/L2/IP，距离为 `f64`），发布构建约 17 KB。`tools/bench/wasm-baseline.mjs` 用两份 fixture（9 个用例）在 Node 中实例化并逐项断言，形成 TypeScript、原生 Rust、WASM 三方一致。
 
-`createWasmVectorAdapter()` 把产物接到 Runtime 的适配器边界上，调用方只需提供模块字节：
+`createWasmVectorAdapter()` 把产物接到 Runtime 的适配器边界上。两个模块现在随 SDK 发布，不需要自己构建；`wasmArtifactUrl()` 同时适用于 Node 的 `readFile()` 和浏览器的 `fetch()`：
 
 ```ts
-import { open, createWasmVectorAdapter } from "@weisql/sdk";
-const wasm = await createWasmVectorAdapter({ module: await (await fetch("/weisql_vector_wasm.wasm")).arrayBuffer() });
+import { readFile } from "node:fs/promises";
+import { open, createWasmVectorAdapter, wasmArtifactUrl } from "@weisql/sdk";
+const module = await readFile(wasmArtifactUrl("exact"));
+const wasm = await createWasmVectorAdapter({ module });
 const db = await open("./pkg", { vectorAdapter: wasm });
 ```
+
+`@weisql/sdk/wasm/` 里同时有 `weisql_vector_hnsw_wasm.wasm` 和 `artifacts.json`（尺寸、SHA-256、ABI 版本、必需导出）。`npm run embed:wasm` 从 Rust 构建产物刷新这两个文件；`npm run release:check` 和 SDK 测试都会校验清单与字节一致，防止发布过期模块。
 
 适配器第一次搜索时按 `blockSize` 把整个集合读入 `Float32Array` 并缓存（包不可变），每次搜索再拷入 WASM 线性内存；因此内存约为 `count × dimension × 4` 字节。`tools/bench/wasm-adapter.mjs` 在同一份内存数据上比较 `createWasmVectorAdapter` 与 `createExactVectorAdapter` 的行号、业务 ID、距离和错误码。
 
@@ -178,6 +190,41 @@ const hnsw = await createHnswWasmVectorAdapter({
 ```
 
 `loadIndex` 返回 `weisql_hnsw_save` 的字节；适配器导入后校验行数、维度与度量，**错配或损坏直接抛 `RESOURCE_INTEGRITY_FAILED`**，不会悄悄回退到重建（旧图会返回错误的行号）。探针覆盖了正常导入、度量错配和截断字节三种情况。
+
+如果数据包的 Manifest 已在 `vector.index` 声明预建图（`engine: "weisql-hnsw"`、`version: "1"`），适配器会直接按 `file.path` 读取并导入，**完全不读取向量数据文件**：
+
+```json
+"index": { "engine": "weisql-hnsw", "version": "1", "file": { "path": "indexes/documents.hnsw", "bytes": 39132, "sha256": "..." } }
+```
+
+`engine` 不是 `weisql-hnsw` 时抛 `INDEX_NOT_FOUND`；格式主版本、声明字节数不符，或图本身的行数/维度/度量不符时抛 `RESOURCE_INTEGRITY_FAILED`。探针用一个「读向量就报错」的 reader 证明这条路径确实没有下载向量数据。
+
+生成这种索引：
+
+```bash
+node tools/build-hnsw-index.mjs ./my-package --collection documents \
+  --m 16 --ef-construction 200 --ef-search 64
+```
+
+USearch 走同一个入口（`--engine` 默认就是 `usearch`）；`build-hnsw-index.mjs` 只是 `--engine hnsw` 的兼容包装：
+
+```bash
+node tools/build-ann-index.mjs ./my-package --engine usearch \
+  --connectivity 16 --expansion-add 128 --expansion-search 512
+```
+
+两种引擎都会写 `indexes/<collection>.usearch|.hnsw`、`index.params` 与真实 SHA-256，落盘前重新校验 Manifest；`--collection`、`--connectivity`/`--expansion-*`、`--m`/`--ef-*`/`--seed` 的适用性由引擎决定。
+
+建图后可以抽样自检召回，不达标就让命令失败：
+
+```bash
+node tools/build-ann-index.mjs ./my-package --engine hnsw \
+  --recall-samples 50 --recall-top-k 10 --min-recall 0.95
+```
+
+采样行是确定性的（按 `i × count / samples` 取），对照实现是工具内的精确扫描（cosine/L2/IP 与 `vectorDistance` 同公式），结果作为 `recall` 字段随构建输出打印，**不写入 Manifest**。
+
+工具在 WASM 模块里建图，写到 `indexes/<collection>.hnsw`，并把 `engine`/`version`/`file`（含 sha256 与字节数）/`params` 写回 Manifest，落盘前重新跑一遍 `validateManifest`。`tools/bench/hnsw-package.mjs` 用示例包做完整闭环：复制包 → 建索引（含召回采样）→ 校验摘要 → 用适配器从 Manifest 加载并与精确适配器逐条对比。
 
 ## Manifest V1
 
@@ -581,6 +628,7 @@ tools/                     源 Parquet、ANN/全文索引生成、基准与浏�
 - [ResourceReader 契约](docs/RESOURCE_READER_CONTRACT.md)
 - [资源完整性校验规范](docs/RESOURCE_INTEGRITY_SPEC.md)
 - [端到端验收计划](docs/E2E_ACCEPTANCE_PLAN.md)
+- [CDN 与 CORS 验收](docs/CDN_ACCEPTANCE.md)
 - [V0.5 验收清单](docs/V0_5_ACCEPTANCE.md)
 - [V0.6 Runtime 基础设计](docs/V0_6_RUNTIME_FOUNDATION.md)
 - [V0.7 Runtime API 与混合查询设计](docs/V0_7_RUNTIME_AND_HYBRID.md)

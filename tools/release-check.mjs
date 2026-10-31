@@ -7,6 +7,7 @@
  * dependency ranges, publishable file lists, and whether the build output that
  * `files` promises actually exists. Behaviour is covered by `npm test`.
  */
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -62,6 +63,42 @@ for (const { directory, manifest } of packages) {
   const files = manifest.files ?? [];
   if (!files.includes("dist")) fail(`${label}: "files" must include dist`);
   if (files.some(entry => entry.startsWith("src"))) fail(`${label}: "files" must not publish src`);
+
+  // The SDK ships the tested WASM bytes so browser users do not need Rust.
+  // A stale or truncated artifact is a release blocker, not a warning.
+  if (manifest.name === "@weisql/sdk") {
+    if (!files.includes("wasm")) fail(`${label}: "files" must include wasm`);
+    const wasmDirectory = path.join(REPO_ROOT, "packages", directory, "wasm");
+    const artifactsFile = path.join(wasmDirectory, "artifacts.json");
+    if (!existsSync(artifactsFile)) {
+      fail(`${label}: missing wasm/artifacts.json — run "node tools/embed-wasm.mjs"`);
+    } else {
+      const artifacts = readJson(artifactsFile);
+      if (artifacts.formatVersion !== 1 || !Array.isArray(artifacts.artifacts) || artifacts.artifacts.length !== 2) {
+        fail(`${label}: wasm/artifacts.json must describe exactly two artifacts`);
+      } else {
+        for (const record of artifacts.artifacts) {
+          if (typeof record.name !== "string" || !record.name.endsWith(".wasm")) {
+            fail(`${label}: wasm artifact has an invalid name`);
+            continue;
+          }
+          const file = path.join(wasmDirectory, record.name);
+          if (!existsSync(file)) {
+            fail(`${label}: missing wasm/${record.name} — run "node tools/embed-wasm.mjs"`);
+            continue;
+          }
+          const bytes = readFileSync(file);
+          if (bytes.byteLength !== record.bytes) fail(`${label}: wasm/${record.name} size does not match artifacts.json`);
+          if (createHash("sha256").update(bytes).digest("hex") !== record.sha256) {
+            fail(`${label}: wasm/${record.name} digest does not match artifacts.json`);
+          }
+          if (!bytes.subarray(0, 4).equals(Buffer.from([0x00, 0x61, 0x73, 0x6d]))) {
+            fail(`${label}: wasm/${record.name} is not a WebAssembly module`);
+          }
+        }
+      }
+    }
+  }
 
   for (const key of ["main", "types"]) {
     const value = manifest[key];

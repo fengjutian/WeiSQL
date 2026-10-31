@@ -317,7 +317,9 @@ test("rejects a persisted index without its build parameters", async () => {
   await missingAdapter.open({ manifest: missing.manifest, reader });
   await assert.rejects(
     missingAdapter.search({ vector: missing.manifest.vectorCollections[0], query: new Float32Array([1, 0]), topK: 1 }),
-    { code: "RESOURCE_INTEGRITY_FAILED", details: { parameter: "connectivity" } },
+    error => error.code === "RESOURCE_INTEGRITY_FAILED"
+      && Array.isArray(error.details?.required)
+      && error.details.required.includes("connectivity"),
   );
 
   const partial = await fixture();
@@ -326,6 +328,6 @@ test("rejects a persisted index without its build parameters", async () => {
   await partialAdapter.open({ manifest: partial.manifest, reader });
   await assert.rejects(
     partialAdapter.search({ vector: partial.manifest.vectorCollections[0], query: new Float32Array([1, 0]), topK: 1 }),
-    { code: "RESOURCE_INTEGRITY_FAILED", details: { parameter: "expansion_add" } },
+    error => error.code === "RESOURCE_INTEGRITY_FAILED" && error.details?.parameter === "expansion_add",
   );
 });

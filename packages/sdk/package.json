@@ -33,16 +33,19 @@
     "./errors": {
       "types": "./dist/errors.d.ts",
       "import": "./dist/errors.js"
-    }
+    },
+    "./wasm/*": "./wasm/*"
   },
   "files": [
-    "dist"
+    "dist",
+    "wasm"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node --test test/*.test.js",
-    "test:watch": "npm run build && node --test --watch test/*.test.js"
+    "test:watch": "npm run build && node --test --watch test/*.test.js",
+    "prepack": "node ../../tools/embed-wasm.mjs --check"
   },
   "engines": {
     "node": ">=20"

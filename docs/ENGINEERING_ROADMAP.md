@@ -267,7 +267,8 @@ DuckDB-Wasm 与浏览器 SQL 已验证、WASM 向量搜索仍待推进；CDN 按
 | DuckDB-Wasm | 已实现并在 Chromium 中验证：自托管 parquet 扩展、只读 CTE、过滤检索、`probe:wasm` 断言通过；大表与冷启动未测 |
 | USearch ANN Adapter | 已实现；HNSW 内存索引、三种度量映射、`exact: false` 如实标注；召回与延迟对照见 `BENCHMARK_HARNESS.md` |
 | 纯 Rust HNSW 备选 | 已实现（`crates/vector-hnsw`，零依赖、种子可复现）：分层图 + 多样性启发式；2000×32 聚类数据 Recall@10 = 1.00、p50 0.048 ms；41 KB WASM 模块；`to_bytes`/`from_bytes` 与 WASM `save`/`load` 持久化（带 FNV-1a 校验与结构校验），默认引擎仍是 USearch |
-| HNSW Adapter | `createHnswWasmVectorAdapter()` 已实现：`exactSearch: false`、`postFiltering: true`；支持 `loadIndex` 预建图（校验行数/维度/度量，损坏或错配直接拒绝）；对精确适配器 Recall@10 ≥ 0.9，距离与 `vectorDistance` 一致 |
+| HNSW Adapter | `createHnswWasmVectorAdapter()` 已实现：`exactSearch: false`、`postFiltering: true`；支持 `loadIndex` 与 Manifest `vector.index`（`engine: "weisql-hnsw"`，导入时不读向量文件）；校验行数/维度/度量/引擎/版本/字节数，错配直接拒绝；对精确适配器 Recall@10 ≥ 0.9 |
+| HNSW 索引构建 | `tools/build-ann-index.mjs --engine hnsw`（`build-hnsw-index.mjs` 为兼容包装）在 WASM 中建图并写回 `indexes/<collection>.hnsw` 与 Manifest `index`；支持 `--recall-samples/--recall-top-k/--min-recall` 抽样自检召回，包级探针覆盖「建索引 → 摘要校验 → 适配器加载」闭环 |
 | WASM 向量 Adapter | `createWasmVectorAdapter()` 已实现：整集合缓存 + `allowedRows` 压缩后精确扫描，三度量与零查询错误码均与 TypeScript 精确适配器逐字段对照 |
 | ANN 真实数据集召回 | 未评估；现有 Recall@K 均来自合成数据，不能外推 |
 | 全文检索 | 已实现；Manifest `textIndexes`、倒排索引读取器、BM25 排序与 Unicode 分词，`text.search()` 已接入 Runtime |

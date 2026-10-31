@@ -263,6 +263,27 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   imported instead of built, then checked against the descriptor's row count,
   dimension and metric. A corrupt buffer or a graph for another metric raises
   `RESOURCE_INTEGRITY_FAILED` rather than silently rebuilding.
+- The HNSW adapter now consumes Manifest-declared indexes
+  (`vector.index.engine === "weisql-hnsw"`, format major `1`). It validates the
+  engine, format major and declared byte length, and when an index is declared
+  it never reads the vector file at all — the probe uses a reader that throws on
+  any vector read to prove it. `capabilities.persistedIndex` is now `true`.
+- `tools/build-hnsw-index.mjs` closes the loop: it builds the graph inside the
+  WASM module, writes `indexes/<collection>.hnsw`, and records
+  `engine`/`version`/`file` (bytes + SHA-256)/`params` in the Manifest after a
+  final `validateManifest`. A package probe copies the example package, runs the
+  tool, checks the digest, and searches through the Manifest-declared index.
+- The unified ANN builder (`tools/build-ann-index.mjs --engine hnsw`) can report
+  Recall@K after building: `--recall-samples`, `--recall-top-k` and
+  `--min-recall`. Samples are deterministic rows, the reference is an exact scan
+  with the collection's metric, and the result is printed as `recall` (not
+  persisted); `--min-recall` fails the command when the graph misses the target.
+- `tools/bench/hnsw-dataset.mjs` (`npm run bench:hnsw-dataset`) measures the WASM
+  HNSW engine at scale against a JavaScript exact scan: build time, index bytes,
+  p50/p95 for both engines and Recall@K. It accepts raw little-endian `.f32`
+  embeddings via `--file`, so the same command works on real data. Baseline:
+  10k×32 builds in 2.1 s, 0.25 ms p50 vs 3.67 ms exact, Recall@10 = 1.00;
+  50k×64 builds in 42 s, 0.60 ms vs 24.2 ms, Recall@10 = 0.997.
 - `createWasmVectorAdapter()`: a `VectorAdapter` over that artifact. It caches
   one materialised `Float32Array` per collection, compacts `allowedRows` before
   the scan so filtered results stay exact, and maps rows back to business IDs

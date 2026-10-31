@@ -9,7 +9,7 @@
  * This makes no claim until someone runs it on real data: the tool only makes
  * that run reproducible.
  */
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -31,6 +31,8 @@ function parseArguments(argv) {
     excludeSelf: true,
     seed: 7,
     selfTest: false,
+    output: undefined,
+    minRecall: undefined,
   };
   for (let index = 0; index < argv.length; index++) {
     const argument = argv[index];
@@ -48,9 +50,14 @@ function parseArguments(argv) {
       case "--expansion": options.expansion = Number(next()); break;
       case "--include-self": options.excludeSelf = false; break;
       case "--seed": options.seed = Number(next()); break;
+      case "--output": options.output = next(); break;
+      case "--min-recall": options.minRecall = Number(next()); break;
       case "--self-test": options.selfTest = true; break;
       default: throw new Error(`unknown argument: ${argument}`);
     }
+  }
+  if (options.minRecall !== undefined && (!Number.isFinite(options.minRecall) || options.minRecall < 0 || options.minRecall > 1)) {
+    throw new Error("--min-recall must be between 0 and 1");
   }
   return options;
 }
@@ -240,3 +247,26 @@ console.log(
 );
 console.log("");
 console.log(JSON.stringify(result, null, 2));
+
+if (options.output !== undefined) {
+  await writeFile(options.output, `${JSON.stringify({
+    source: options.embeddings,
+    generatedAt: new Date().toISOString(),
+    environment: { node: process.version, platform: process.platform, arch: process.arch },
+    options: {
+      queries: options.queries,
+      topK: options.topK,
+      connectivity: options.connectivity,
+      expansion: options.expansion,
+      excludeSelf: options.excludeSelf,
+      seed: options.seed,
+    },
+    result,
+  }, null, 2)}\n`, "utf8");
+  console.log(`report: ${path.resolve(options.output)}`);
+}
+
+if (options.minRecall !== undefined && result.recall < options.minRecall) {
+  console.error(`error: recall ${result.recall} is below --min-recall ${options.minRecall}`);
+  process.exitCode = 1;
+}

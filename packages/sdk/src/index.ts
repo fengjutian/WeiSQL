@@ -14,6 +14,8 @@ export { createWasmVectorAdapter } from "./wasm-vector-adapter.js";
 export type { WasmVectorAdapterOptions } from "./wasm-vector-adapter.js";
 export { createHnswWasmVectorAdapter } from "./hnsw-vector-adapter.js";
 export type { HnswWasmVectorAdapterOptions } from "./hnsw-vector-adapter.js";
+export { WASM_ARTIFACTS, wasmArtifactUrl, wasmArtifactsManifestUrl } from "./wasm-artifacts.js";
+export type { WasmArtifactName } from "./wasm-artifacts.js";
 export { HttpResourceReader } from "./http-resource-reader.js";
 export type { HttpResourceReaderOptions } from "./http-resource-reader.js";
 export { CachedResourceReader } from "./cached-resource-reader.js";

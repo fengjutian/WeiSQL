@@ -119,6 +119,8 @@ jobs:
         run: node tools/bench/wasm-adapter.mjs
       - name: HNSW adapter parity
         run: node tools/bench/hnsw-adapter.mjs
+      - name: HNSW package index
+        run: node tools/bench/hnsw-package.mjs
 
   derived:
     name: derived indexes and fixture determinism

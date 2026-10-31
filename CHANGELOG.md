@@ -166,6 +166,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - Parity probe extended to full-text, RAG evidence, SQL (rows and error codes),
   streaming `sqlStream()` rows, stream error codes and pre-aborted streams, and
   the `.wsql` container, against a package it builds at run time.
+- The shared SQL contract also checks that abandoning a stream with `break`
+  leaves the adapter usable for the next query.
 - Benchmark harness with exact and ANN (`--ann`) modes.
 - Clustered vector distributions (`--clusters/--cluster-spread`) showing that ANN
   recall depends on data geometry, not only on `expansion_search`.

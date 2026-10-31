@@ -116,9 +116,10 @@ Adapter 必须将引擎错误转换为 WeiSQL 稳定错误码，不向公共 API
 6. `close()` 可调用两次；
 7. 关闭后查询返回 `DATABASE_CLOSED`；
 8. 打开失败不会留下半初始化资源；
-9. 只读策略拒绝写入与外部副作用。
+9. 只读策略拒绝写入与外部副作用；
+10. 流式迭代中途 `break` 后，适配器仍能立即执行下一次查询（结果已释放）。
 
-这套契约现在有可执行版本：`npm run test:contract` 把同一组 SQL 用例同时交给 Node DuckDB 与 DuckDB-Wasm，逐行比较结果与错误码。两端确实不同的地方（`Date`/二进制参数）必须在 `tools/sql-contract/cases.mjs` 中**显式声明**，否则命令失败；每条差异都带原因说明，CI 的 derived 作业会运行它。
+这套契约现在有可执行版本：`npm run test:contract` 把同一组 SQL 用例同时交给 Node DuckDB 与 DuckDB-Wasm，逐行比较结果与错误码。两端确实不同的地方（`Date`/二进制参数）必须在 `tools/sql-contract/cases.mjs` 中**显式声明**，否则命令失败；每条差异都带原因说明，CI 的 verify 矩阵与 derived 作业都会运行它。
 
 当前仓库提供公共 `SqlAdapter` 类型、Runtime 初始化/查询/关闭接线，以及两个真实引擎实现：Node.js DuckDB（`packages/duckdb-adapter`）与浏览器 DuckDB-Wasm（`packages/duckdb-wasm-adapter`）。两者都通过同一套契约测试的核心项，但只读边界与参数类型不同，差异见各自文档。
 

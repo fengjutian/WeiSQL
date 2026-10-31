@@ -39,6 +39,19 @@ const attempt = async (adapter, testCase) => {
     const options = testCase.abort === true
       ? { ...(testCase.options ?? {}), signal: AbortSignal.abort() }
       : testCase.options;
+    if (testCase.breakAfter !== undefined) {
+      // Abandoning a stream half-way must release the underlying result, so the
+      // same adapter can run another query immediately.
+      const iterable = await adapter.stream(testCase.sql, testCase.params ?? [], options);
+      let seen = 0;
+      for await (const row of iterable) {
+        void normalize(row);
+        seen += 1;
+        if (seen >= testCase.breakAfter) break;
+      }
+      const after = await adapter.query(testCase.thenSql, [], undefined);
+      return { ok: true, rows: normalize(after) };
+    }
     if (testCase.stream === true) {
       const rows = [];
       const iterable = await adapter.stream(testCase.sql, testCase.params ?? [], options);

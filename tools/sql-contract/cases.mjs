@@ -111,6 +111,13 @@ export const CONTRACT_CASES = [
     expect: { error: "QUERY_CANCELLED" },
   },
   {
+    name: "stream break leaves the adapter usable",
+    sql: "select id from documents order by id",
+    stream: true,
+    breakAfter: 1,
+    thenSql: "select 1 as ok",
+  },
+  {
     name: "Date parameter",
     sql: "select ? is not null as ok",
     params: [new Date(0)],

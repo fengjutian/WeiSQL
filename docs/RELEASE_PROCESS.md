@@ -78,10 +78,8 @@ npm run bench -- --ann      # 刷新基准与召回口径
 打包内容预检：
 
 ```bash
-npm pack --workspace @weisql/sdk --dry-run
-npm pack --workspace @weisql/duckdb-adapter --dry-run
-npm pack --workspace @weisql/usearch-adapter --dry-run
-npm pack --workspace @weisql/cli --dry-run
+npm run release:pack          # tarball content check for every workspace, no publishing
+npm run release:pack:self-test  # proves the checks reject source/test/license problems
 ```
 
 确认产物只包含 `dist/`、`README.md`、`package.json`，不包含源码、`node_modules` 或测试。

@@ -36,6 +36,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run release:check
+      - run: npm run release:pack
       - name: Validate the example package
         run: node packages/cli/dist/bin.js validate examples/fixture
 

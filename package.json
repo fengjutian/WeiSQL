@@ -19,7 +19,9 @@
     "probe:parity": "node tools/browser-probe/parity.mjs",
     "bench": "node tools/bench/run.mjs",
     "bench:wasm": "node --expose-gc tools/bench/wasm.mjs",
-    "release:check": "node tools/release-check.mjs"
+    "release:check": "node tools/release-check.mjs",
+    "release:pack": "node tools/check-tarballs.mjs",
+    "release:pack:self-test": "node tools/check-tarballs.mjs --self-test"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

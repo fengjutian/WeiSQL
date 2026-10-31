@@ -86,6 +86,7 @@ Docusaurus 内置版本化与 `zh-Hans` i18n。当前只有一条文档主线，
 | Netlify `publish` | `build` |
 | Netlify `NODE_VERSION` | `22` |
 | 依赖管理 | 独立 `package.json` + lockfile，**不加入根 workspaces** |
+| 中英混排检索 | `postinstall` 补丁扩展 zh trimmer 的字符集，保留英文技术词 |
 
 内容分工保持不变：
 
@@ -108,6 +109,7 @@ Docusaurus 内置版本化与 `zh-Hans` i18n。当前只有一条文档主线，
 - 搜索索引在构建期生成；Docusaurus 的本地搜索输出带 hash，**需要二次构建**才能让索引指向最终文件名；
 - 构建时间随页数增长，页数上来后需要评估 `@docusaurus/faster`；
 - 搜索插件是社区维护，`@node-rs/jieba` 是原生模块，升级时要验证平台兼容性；
+- 插件的 zh trimmer 默认只保留汉字，会裁掉 SQL、CTE、DuckDB 等英文词项；站点用 `scripts/patch-search-trimmer.mjs` 在安装后扩展字符集，插件升级时需要重新核对；
 - Docusaurus 的配置面比 VitePress 大，维护成本更高；
 - 中文分词效果取决于 jieba 词典，专业术语可能需要自定义词典。
 

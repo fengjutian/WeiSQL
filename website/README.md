@@ -45,6 +45,8 @@ website/
 
 `hashed: false` 是为了避免“二次构建才能得到稳定索引文件名”的问题；索引的缓存策略由 `netlify.toml` 的 `/*search-index*` 头控制。
 
+插件自带的 zh trimmer 只保留汉字，会把 `SQL`、`CTE`、`DuckDB` 这类英文技术词裁掉。`scripts/patch-search-trimmer.mjs` 在 `postinstall` 中把 `A-Za-z0-9_` 加入允许字符集；脚本幂等，找不到预期文本会直接失败，避免插件升级后静默失效。
+
 ## 内容约定
 
 新增页面前先读 `CONTENT-GUIDE.md`。要点：

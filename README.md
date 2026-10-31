@@ -1,4 +1,4 @@
-﻿# WeiSQL AI
+# WeiSQL AI
 
 [![CI](https://github.com/fengjutian/WeiSQL/actions/workflows/ci.yml/badge.svg)](https://github.com/fengjutian/WeiSQL/actions/workflows/ci.yml)
 

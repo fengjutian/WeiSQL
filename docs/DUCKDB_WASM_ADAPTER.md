@@ -1,6 +1,6 @@
 # DuckDB-Wasm Adapter
 
-- 状态：Accepted and implemented（`@weisql/duckdb-wasm-adapter` 0.1.0，36 个测试 + 真实 Chromium 探针）
+- 状态：Accepted and implemented（`@weisql/duckdb-wasm-adapter` 0.1.0，37 个测试 + 真实 Chromium 探针）
 - 适用：浏览器端只读 SQL；Node.js 请用 `@weisql/duckdb-adapter`
 - 契约：[SQL Adapter 契约](SQL_ADAPTER_CONTRACT.md)
 
@@ -95,6 +95,12 @@ Manifest
 DECIMAL 这一条不是可选项：不设置 `castDecimalToDouble` 时 Arrow 会把 `1.5` 交成
 `Uint32Array`（unscaled words），既不是 `SQLValue`，也会让两端结果不一致。
 
+**结果行数预算**：`maxRows` 与 Node 适配器语义相同——超限抛 `INVALID_ARGUMENT`
+（`details.maxRows`），不截断。`SELECT` / `VALUES` / `TABLE` 会被包装成
+`SELECT * FROM (<sql>) ... LIMIT maxRows + 1`，由 WASM 引擎提前停止；
+`DESCRIBE` / `SHOW` / `SUMMARIZE` / `EXPLAIN` / `PIVOT` / `UNPIVOT` 无法安全包装，
+在返回后检查。
+
 ## 5. L4 与版本
 
 - 默认开启 L4：对每张已物化的表执行 `DESCRIBE`，列名缺失或类型不匹配返回
@@ -182,7 +188,7 @@ fixture 3 行、扩展已缓存。
 
 - 单元：`sql-guard`（白名单、注释、字符串里的分号、CTE 分类、UTF-8 偏移、fail-closed）、`values`（参数与行归一化）、`cancellation`（abort 竞速与引擎未停标记）、`error-contract`（扩展缺失与无 tokenizer 的退化路径）。
 - 集成：用 `@duckdb/duckdb-wasm/blocking` 在 Node 里跑**同一个 WASM 引擎**，
-  覆盖打开、参数绑定、注入、只读拒绝、只读/写/递归 CTE、中文 CTE、值映射、非法 SQL、预取消、多表、短读、外部访问、L4、默认预算、生命周期（17 个用例）。
+  覆盖打开、参数绑定、注入、只读拒绝、只读/写/递归 CTE、中文 CTE、值映射、非法 SQL、预取消、多表、短读、外部访问、L4、默认预算、生命周期（18 个用例）。
   测试需要网络下载一次 parquet 扩展（缓存在 `~/.duckdb`）。
 - 跨环境：`probe:parity` 把同一批 SQL 分别交给 Node DuckDB 与浏览器 DuckDB-Wasm，逐行比较并核对错误码。
 - 浏览器：`npm run probe:wasm` 在真实 Chromium 中断言 `db.sql()` 结果、参数绑定、只读 CTE、过滤检索与写入拒绝；

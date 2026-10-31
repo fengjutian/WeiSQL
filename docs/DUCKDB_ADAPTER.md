@@ -1,7 +1,7 @@
 # WeiSQL DuckDB Adapter（Node.js）
 
 - 包：`@weisql/duckdb-adapter`
-- 状态：V1 首版已实现，14 个自动化测试覆盖 `SQL_ADAPTER_CONTRACT.md` 的契约项
+- 状态：V1 首版已实现，23 个自动化测试覆盖 `SQL_ADAPTER_CONTRACT.md` 的契约项
 - 引擎：`@duckdb/node-api` 2.x（DuckDB 2.0，win32-x64/linux-x64/darwin 预编译绑定）
 - 适用运行时：Node.js 20+（依赖原生绑定，不可用于浏览器）
 
@@ -91,6 +91,8 @@ const adapter = createDuckDbAdapter({ tableLoading: "lazy" });
 - `DECIMAL` 由驱动转成 `number`，超过 15 位有效数字会丢精度；
 - `INTERVAL`、`UNION`、`BIT` 等未做专门映射，按驱动默认值透传，属于未验证能力；
 - 可空性不参与 L4 比对：`read_parquet` 不保留 `NOT NULL` 约束，`DESCRIBE` 对声明非空列也返回 `YES`。
+
+**结果行数预算**：`db.sql(sql, params, { maxRows })` 超过预算时返回 `INVALID_ARGUMENT`（`details.maxRows`），不会静默截断。`SELECT` 会被改写为 `SELECT * FROM (<sql>) AS "weisql_row_limit" LIMIT maxRows + 1`，由引擎提前停止，只多物化一行；`EXPLAIN` 无法包装，在返回后检查。只读分类仍针对**原始语句**做一次 `prepare()`，改写不会放松写入边界。
 
 ## 5. 取消与生命周期
 

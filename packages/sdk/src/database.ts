@@ -21,6 +21,11 @@ export interface WeiSQLDatabase {
   readonly manifest: Readonly<WeiSQLManifest>;
   readonly state: RuntimeState;
   sql<T extends Record<string, unknown> = Record<string, unknown>>(query: string, params?: readonly SQLValue[], options?: QueryOptions): Promise<readonly T[]>;
+  /**
+   * Streams rows instead of materializing them. Falls back to `query()` when the
+   * adapter has no streaming path; `maxRows`/`signal` keep the same meaning.
+   */
+  sqlStream<T extends Record<string, unknown> = Record<string, unknown>>(query: string, params?: readonly SQLValue[], options?: QueryOptions): Promise<AsyncIterable<T>>;
   readonly vector: { search(vectorName: string, queryVector: Float32Array | readonly number[], options?: VectorSearchOptions): Promise<readonly VectorHit[]> };
   readonly text: { search(indexName: string, query: string, options?: TextSearchOptions): Promise<readonly TextHit[]> };
   readonly hybrid: { search(options: HybridSearchOptions): Promise<readonly HybridFusionHit[]> };
@@ -78,6 +83,16 @@ class Database implements WeiSQLDatabase {
     this.ensureOpen(); aborted(options?.signal);
     if (!this.sqlAdapter) throw new WeiSQLError("SQL_UNSUPPORTED", "No SQL adapter is configured");
     return this.sqlAdapter.query<T>(query, params, options);
+  }
+
+  async sqlStream<T extends Record<string, unknown>>(query: string, params: readonly SQLValue[] = [], options?: QueryOptions): Promise<AsyncIterable<T>> {
+    this.ensureOpen(); aborted(options?.signal);
+    if (!this.sqlAdapter) throw new WeiSQLError("SQL_UNSUPPORTED", "No SQL adapter is configured");
+    if (this.sqlAdapter.stream === undefined) {
+      const rows = await this.sqlAdapter.query<T>(query, params, options);
+      return (async function* () { yield* rows; })();
+    }
+    return this.sqlAdapter.stream<T>(query, params, options);
   }
 
   /**

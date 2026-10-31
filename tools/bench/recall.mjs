@@ -156,7 +156,7 @@ async function measure(vectors, rows, dimension, options) {
   const keys = new BigUint64Array(rows);
   for (let row = 0; row < rows; row++) keys[row] = BigInt(row);
   const buildStarted = performance.now();
-  index.add(keys, vectors, rows);
+  index.add(keys, vectors);
   const buildMs = performance.now() - buildStarted;
 
   const latencies = [];

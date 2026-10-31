@@ -1,0 +1,159 @@
+---
+title: 快速开始
+description: 在 5 分钟内验证数据包、跑通一次向量检索，并用 CLI 完成发布前校验。
+sidebar_position: 11
+---
+
+这页只做三件事：验证仓库、跑通一次检索、校验一个数据包。完成后你会知道 Runtime 的输入是什么、输出长什么样。
+
+## 0. 环境
+
+- Node.js 20 或更高版本（仓库开发使用 Node 24）
+- npm
+- 可选：Rust stable，仅用于运行对照基线
+- 可选：Chromium / Chrome / Edge，用于浏览器探针
+
+## 1. 安装与自检
+
+```bash
+npm install
+npm run build
+npm test
+npm run typecheck
+```
+
+`npm test` 会先构建 5 个包，再逐个运行测试。首次安装会拉取 DuckDB 的平台预编译绑定；如果只需要 SDK 的向量与文本能力，可以跳过 Adapter 测试，但完整自检建议全部通过。
+
+仓库自带一个真实数据包 `examples/fixture`，由 Builder 生成，可以直接用来体验：
+
+```bash
+npm run fixture          # 重新生成 examples/fixture（可选）
+npx weisql validate ./examples/fixture
+```
+
+预期输出类似：
+
+```text
+package:   D:\github\WeiSQL\examples\fixture
+dataset:   demo-documents
+tables:    1 (documents)
+vectors:   1 (document_embeddings: 3 rows, dimension 2, cosine)
+mode:      all
+resources: 4 checked, 4 sizes verified, 4 hashes verified, 955 declared bytes
+OK
+```
+
+## 2. 在 Node.js 中打开并检索
+
+`open()` 接受两种 Manifest 来源，**二选一**：
+
+- `manifestUrl`：通过 `fetch` 拉取 Manifest（浏览器、或任意 HTTP 服务）；
+- `manifest`：已经解析好的对象（Node 本地文件、`.wsql` 容器、测试）。
+
+本地目录不是 HTTP 服务，所以 Node 示例先用 `fs` 读取 Manifest，再用 `NodeFileResourceReader` 读取数据资源：
+
+```ts
+// demo.mjs（在仓库根目录运行，需先 npm run build）
+import { readFile } from "node:fs/promises";
+import { open, NodeFileResourceReader } from "@weisql/sdk";
+
+const rootDirectory = "./examples/fixture";
+const manifest = JSON.parse(await readFile(`${rootDirectory}/manifest.json`, "utf8"));
+
+const db = await open({
+  manifest,
+  resourceReader: new NodeFileResourceReader({ rootDirectory }),
+  verifyChecksums: "all",
+});
+
+const hits = await db.vector.search("document_embeddings", [1, 0], { topK: 3 });
+
+console.log(hits.map(hit => ({ id: hit.id, distance: hit.distance, row: hit.row })));
+console.log(db.capabilities());
+
+await db.close();
+```
+
+```bash
+node demo.mjs
+```
+
+你会看到 3 条命中和一份能力报告。`distance` 越小越相似；`capabilities()` 如实反映当前注入了哪些 Adapter，而不是“理论上支持”。
+
+:::note 生命周期
+`open()` 返回的数据库对象拥有注入 Reader 的生命周期；`close()` 会关闭它，并且可以重复调用。关闭后再查询会得到 `DATABASE_CLOSED`。
+:::
+
+## 3. 在浏览器中按需读取
+
+浏览器侧把数据包目录整体发布到静态托管，让 Manifest 与资源都能通过同一个 base URL 访问：
+
+```ts
+import { open, HttpResourceReader } from "@weisql/sdk";
+
+const baseUrl = "/datasets/demo/";
+const db = await open({
+  manifestUrl: `${baseUrl}manifest.json`,
+  resourceReader: new HttpResourceReader({ baseUrl }),
+  cache: { maxCacheBytes: 32 * 1024 * 1024, maxEntryBytes: 1024 * 1024 },
+});
+
+const hits = await db.vector.search("document_embeddings", queryVector, { topK: 10 });
+await db.close();
+```
+
+服务端必须支持 HTTP Range：返回 `206 Partial Content` 且 `Content-Range` 与请求一致。返回 `200` 的整文件响应会被判定为不支持 Range，而不是被悄悄当成局部数据。完整要求见[部署到 CDN](/tooling/deploy-cdn)。
+
+仓库里已经有一个可直接体验的页面：
+
+```bash
+npm run playground     # http://127.0.0.1:8099/playground/
+```
+
+它会在浏览器里演示向量检索、全文检索、RAG 证据、目录 / `.wsql` 切换和 DuckDB-Wasm SQL，且没有后端。
+
+## 4. 加一条 SQL 查询（可选）
+
+SQL 不是 SDK 内置引擎，而是注入 Adapter。Node.js 端使用仓库内的 `@weisql/duckdb-adapter`（尚未发布到 npm，workspace 内可直接引用；发布后才可用 `npm install @weisql/duckdb-adapter`）：
+
+```ts
+import { open, NodeFileResourceReader } from "@weisql/sdk";
+import { createDuckDbAdapter } from "@weisql/duckdb-adapter";
+
+const db = await open({
+  manifest,
+  resourceReader: new NodeFileResourceReader({ rootDirectory: "./examples/fixture" }),
+  sqlAdapter: createDuckDbAdapter(),
+});
+
+const rows = await db.sql(
+  "select id, title from documents where category = ? order by id",
+  ["genetics"],
+);
+
+console.log(rows);
+await db.close();
+```
+
+参数必须通过 `params` 绑定，不要拼接字符串。没有注入 Adapter 时 `sql()` 返回 `SQL_UNSUPPORTED`，不会返回模拟数据。
+
+浏览器端使用 `@weisql/duckdb-wasm-adapter`，并把 parquet 扩展同源托管；见 [DuckDB-Wasm](/adapters/duckdb-wasm)。
+
+## 5. 下一步
+
+- 想理解数据包长什么样：[核心概念](/start/concepts) 与 [Manifest 速查](/reference/manifest)
+- 想构建自己的数据包：[构建数据包](/tooling/build-package)
+- 想部署：[部署到 CDN](/tooling/deploy-cdn)
+- 想知道边界：[限制与路线](/reference/limitations)
+
+## 常见问题
+
+| 现象 | 可能原因 | 处理 |
+| --- | --- | --- |
+| `RESOURCE_NOT_FOUND` | 路径大小写不一致、漏传文件、base URL 拼错 | 用 `weisql inspect` 查看声明资源与实际文件 |
+| `CORS_OR_RANGE_UNSUPPORTED` | 服务端返回 200 或不暴露 `Content-Range` | 配置 Range 与 CORS，或改用 `.wsql` 单文件 |
+| `RESOURCE_INTEGRITY_FAILED` | 发布后被改动，或 Manifest 摘要是占位值 | 重新构建数据包，不要手改摘要 |
+| `INDEX_NOT_FOUND` | 没有注入 `resourceReader`，或 Manifest 指向不存在的索引 | 注入 Reader；或检查索引文件是否随包发布 |
+| `SQL_UNSUPPORTED` | 没有注入 SQL Adapter，或语句不是只读 | 注入 `@weisql/duckdb-adapter`；只执行 SELECT/EXPLAIN |
+
+延伸阅读：[README 快速开始](https://github.com/fengjutian/WeiSQL/blob/main/README.md)、[SDK API 契约](https://github.com/fengjutian/WeiSQL/blob/main/docs/SDK_API_CONTRACT_V1.md)。

@@ -18,6 +18,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   isolation and hit statistics.
 - Runtime: dual Manifest sources, lifecycle state machine, `capabilities()`,
   idempotent `close()`, `SqlAdapter` / `VectorAdapter` injection.
+- `QueryOptions.maxRows`: an explicit row budget for `db.sql()`; adapters reject
+  with `INVALID_ARGUMENT` instead of truncating.
 - Exact vector search, ID Map join, stable Top-K and the `exact-filter-first`
   and `vector-first` hybrid strategies.
 - `buildPackage()` Builder: writes vectors, ID Map, real digests and Manifest,
@@ -71,6 +73,10 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 
 - Read-only DuckDB adapter: statement-type enforcement, parameter binding,
   L4 schema verification, native interruption.
+- `db.sql(..., { maxRows })` rejects oversized results with `INVALID_ARGUMENT`
+  instead of truncating; plain `SELECT` is rewritten with `LIMIT maxRows + 1` so
+  the engine stops early, while classification still runs on the original
+  statement.
 - `tableLoading: "memory" | "lazy"` with the security/memory trade-off documented.
 - Two-level declared-byte budget: `maxTableBytes` (default 256 MiB) per table and
   `maxTotalTableBytes` (default 512 MiB) per package, checked before the DuckDB
@@ -88,6 +94,9 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   before slicing so Chinese literals cannot shift a keyword classification.
 - Parameter binding via prepared statements, limited to values the JSON binding
   can carry; `Date`, binary and out-of-range `bigint` are rejected.
+- `db.sql(..., { maxRows })` matches the Node adapter: `SELECT`/`VALUES`/`TABLE`
+  are wrapped with `LIMIT maxRows + 1` and oversized results raise
+  `INVALID_ARGUMENT`; metadata statements are checked after execution.
 - `DECIMAL` is cast to `DOUBLE` (`castDecimalToDouble`) so results are numbers,
   matching the Node adapter instead of leaking Arrow's unscaled words; `BIGINT`
   stays a `bigint`.

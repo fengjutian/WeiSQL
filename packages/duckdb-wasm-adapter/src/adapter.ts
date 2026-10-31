@@ -261,6 +261,83 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
     }
   }
 
+  /**
+   * Streams Arrow record batches. Aborting stops the wait immediately (the
+   * single-threaded engine may still finish); `maxRows` is checked per row.
+   */
+  async stream<T extends Record<string, unknown> = Record<string, unknown>>(
+    statement: string,
+    parameters: readonly SQLValue[] = [],
+    options?: QueryOptions,
+  ): Promise<AsyncIterable<T>> {
+    this.ensureReady();
+    const signal = options?.signal;
+    if (signal?.aborted) throw new WeiSQLError("QUERY_CANCELLED", "Query was cancelled before execution");
+    const maxRows = options?.maxRows;
+    if (maxRows !== undefined && (!Number.isSafeInteger(maxRows) || maxRows <= 0)) {
+      throw new WeiSQLError("INVALID_ARGUMENT", "maxRows must be a positive safe integer", { maxRows });
+    }
+    const tokens = await this.tokenizeForGuard(statement);
+    const verb = assertReadOnlyStatement(statement, tokens);
+    const connection = this.connection!;
+    const wrappable = verb === "SELECT" || verb === "VALUES" || verb === "TABLE";
+    const executable = maxRows !== undefined && wrappable ? withRowLimit(statement, maxRows) : statement;
+    const prepared = await connection.prepare(executable).catch((cause: unknown) => {
+      throw mapEngineError(cause, "prepare");
+    });
+    if (prepared.send === undefined) {
+      await Promise.resolve(prepared.close?.()).catch(() => undefined);
+      throw new WeiSQLError("SQL_UNSUPPORTED", "This database does not support streaming queries", {
+        engine: "duckdb-wasm",
+      });
+    }
+    const values = toWasmParameters(parameters);
+    let reader;
+    try {
+      reader = await prepared.send(...values);
+    } catch (cause) {
+      await Promise.resolve(prepared.close?.()).catch(() => undefined);
+      throw mapEngineError(cause, "execute");
+    }
+    let cancelled = false;
+    let detach = (): void => {};
+    if (signal !== undefined) {
+      const onAbort = (): void => {
+        cancelled = true;
+        void Promise.resolve(connection.cancelSent?.()).catch(() => undefined);
+      };
+      detach = () => signal.removeEventListener("abort", onAbort);
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
+    return (async function* (): AsyncGenerator<T> {
+      let count = 0;
+      try {
+        for await (const batch of reader) {
+          if (signal?.aborted) {
+            throw new WeiSQLError("QUERY_CANCELLED", "DuckDB-Wasm query was cancelled; the engine may still be running", {
+              engine: "duckdb-wasm",
+              engineMayStillRun: true,
+            });
+          }
+          for (const row of normalizeRows(batch.toArray())) {
+            count += 1;
+            if (maxRows !== undefined && count > maxRows) {
+              throw new WeiSQLError("INVALID_ARGUMENT", "Query returned more rows than maxRows", {
+                maxRows,
+                engine: "duckdb-wasm",
+              });
+            }
+            yield row as T;
+          }
+        }
+      } finally {
+        detach();
+        if (cancelled) void Promise.resolve(prepared.close?.()).catch(() => undefined);
+        else await Promise.resolve(prepared.close?.()).catch(() => undefined);
+      }
+    })();
+  }
+
   async close(): Promise<void> {
     if (this.stateValue === "CLOSED" || this.stateValue === "CLOSING") return;
     this.stateValue = "CLOSING";

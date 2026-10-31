@@ -1,0 +1,23 @@
+{
+  "name": "@weisql/docs",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WeiSQL AI documentation site (Docusaurus)",
+  "scripts": {
+    "dev": "docusaurus start --port 3000",
+    "build": "docusaurus build",
+    "serve": "docusaurus serve --port 3000",
+    "clear": "docusaurus clear"
+  },
+  "dependencies": {
+    "@docusaurus/core": "^3.10.2",
+    "@docusaurus/preset-classic": "^3.10.2",
+    "@easyops-cn/docusaurus-search-local": "^0.55.3",
+    "@mdx-js/react": "^3.1.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "engines": {
+    "node": ">=20.0"
+  }
+}

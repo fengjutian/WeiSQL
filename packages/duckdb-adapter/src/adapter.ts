@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { DuckDBInstance, StatementType } from "@duckdb/node-api";
-import type { DuckDBConnection } from "@duckdb/node-api";
+import type { DuckDBConnection, DuckDBPreparedStatement } from "@duckdb/node-api";
 import { WeiSQLError } from "@weisql/sdk";
 import type { QueryOptions, SqlAdapter, SqlAdapterCapabilities, SqlAdapterOpenContext, SQLValue } from "@weisql/sdk";
 
@@ -173,6 +173,103 @@ export class DuckDbSqlAdapter implements SqlAdapter {
     parameters: readonly SQLValue[] = [],
     options?: QueryOptions,
   ): Promise<readonly T[]> {
+    const { execution, dispose } = await this.beforeQuery(statement, parameters, options);
+    const signal = options?.signal;
+    const maxRows = options?.maxRows;
+    const connection = this.connection!;
+    try {
+      const interrupt = (): void => { connection.interrupt(); };
+      signal?.addEventListener("abort", interrupt, { once: true });
+      try {
+        const result = await execution.run().catch((cause: unknown) => {
+          throw mapEngineError(cause, "execute");
+        });
+        try {
+          const rows = await result.getRowObjectsJS();
+          if (maxRows !== undefined && rows.length > maxRows) {
+            throw new WeiSQLError("INVALID_ARGUMENT", "Query returned more rows than maxRows", {
+              maxRows,
+              engine: "duckdb",
+            });
+          }
+          return rows.map(row => normalizeRow(row as Record<string, unknown>)) as T[];
+        } finally {
+          result.closeSync();
+        }
+      } finally {
+        signal?.removeEventListener("abort", interrupt);
+      }
+    } finally {
+      dispose();
+    }
+  }
+
+  /**
+   * Streams rows chunk by chunk. Aborting interrupts the running query, so this
+   * path is genuinely lazy: rows already yielded stay valid, and the caller can
+   * stop with `break` (the async generator's `return` closes the result).
+   */
+  async stream<T extends Record<string, unknown> = Record<string, unknown>>(
+    statement: string,
+    parameters: readonly SQLValue[] = [],
+    options?: QueryOptions,
+  ): Promise<AsyncIterable<T>> {
+    const { execution, dispose } = await this.beforeQuery(statement, parameters, options);
+    const signal = options?.signal;
+    const maxRows = options?.maxRows;
+    const connection = this.connection!;
+    let result;
+    try {
+      result = await execution.stream().catch((cause: unknown) => {
+        throw mapEngineError(cause, "execute");
+      });
+    } catch (cause) {
+      dispose();
+      throw cause;
+    }
+    const names = result.columnNames();
+    const interrupt = (): void => { connection.interrupt(); };
+    signal?.addEventListener("abort", interrupt, { once: true });
+    return (async function* (): AsyncGenerator<T> {
+      let count = 0;
+      try {
+        for await (const chunk of result) {
+          if (signal?.aborted) {
+            throw new WeiSQLError("QUERY_CANCELLED", "DuckDB query was cancelled", { engine: "duckdb" });
+          }
+          const rowsInChunk = chunk.rowCount;
+          for (let rowIndex = 0; rowIndex < rowsInChunk; rowIndex += 1) {
+            const values = chunk.getRowValues(rowIndex);
+            const raw: Record<string, unknown> = {};
+            for (let column = 0; column < names.length; column += 1) raw[names[column]!] = values[column];
+            count += 1;
+            if (maxRows !== undefined && count > maxRows) {
+              throw new WeiSQLError("INVALID_ARGUMENT", "Query returned more rows than maxRows", {
+                maxRows,
+                engine: "duckdb",
+              });
+            }
+            yield normalizeRow(raw) as T;
+          }
+        }
+      } finally {
+        result.closeSync();
+        dispose();
+        signal?.removeEventListener("abort", interrupt);
+      }
+    })();
+  }
+
+  /**
+   * Shared guard for `query()` and `stream()`: validates options, applies the
+   * read-only boundary to the original statement, and returns the prepared
+   * statement (possibly the row-limited rewrite) with its cleanup.
+   */
+  private async beforeQuery(
+    statement: string,
+    parameters: readonly SQLValue[],
+    options?: QueryOptions,
+  ): Promise<{ execution: DuckDBPreparedStatement; dispose: () => void }> {
     this.ensureReady();
     if (typeof statement !== "string" || statement.trim().length === 0) {
       throw new WeiSQLError("INVALID_ARGUMENT", "SQL statement must be a non-empty string");
@@ -202,6 +299,10 @@ export class DuckDbSqlAdapter implements SqlAdapter {
     });
     let execution = original;
     let originalDestroyed = false;
+    const dispose = (): void => {
+      if (execution !== original) execution.destroySync();
+      if (!originalDestroyed) original.destroySync();
+    };
     try {
       const typeName = statementTypeName(original.statementType);
       if (original.statementType !== StatementType.SELECT && original.statementType !== StatementType.EXPLAIN) {
@@ -219,7 +320,7 @@ export class DuckDbSqlAdapter implements SqlAdapter {
 
       if (maxRows !== undefined && original.statementType === StatementType.SELECT) {
         // Ask the engine for one row past the budget: the engine stops early, so
-        // only that one extra row is ever materialized.
+        // only that one extra row is ever produced.
         original.destroySync();
         originalDestroyed = true;
         execution = await connection.prepare(withRowLimit(statement, maxRows)).catch((cause: unknown) => {
@@ -233,33 +334,13 @@ export class DuckDbSqlAdapter implements SqlAdapter {
         });
       }
       if (parameters.length > 0) execution.bind(toDuckDbValues(parameters));
-
-      const interrupt = (): void => { connection.interrupt(); };
-      signal?.addEventListener("abort", interrupt, { once: true });
-      try {
-        const result = await execution.run().catch((cause: unknown) => {
-          throw mapEngineError(cause, "execute");
-        });
-        try {
-          const rows = await result.getRowObjectsJS();
-          if (maxRows !== undefined && rows.length > maxRows) {
-            throw new WeiSQLError("INVALID_ARGUMENT", "Query returned more rows than maxRows", {
-              maxRows,
-              engine: "duckdb",
-            });
-          }
-          return rows.map(row => normalizeRow(row as Record<string, unknown>)) as T[];
-        } finally {
-          result.closeSync();
-        }
-      } finally {
-        signal?.removeEventListener("abort", interrupt);
-      }
-    } finally {
-      if (execution !== original) execution.destroySync();
-      if (!originalDestroyed) original.destroySync();
+    } catch (cause) {
+      dispose();
+      throw cause;
     }
+    return { execution, dispose };
   }
+
 
   async close(): Promise<void> {
     if (this.stateValue === "CLOSED") return;

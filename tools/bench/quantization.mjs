@@ -123,11 +123,15 @@ function percentile(sorted, fraction) {
 }
 
 const options = parseArguments(process.argv.slice(2));
+const generateStarted = performance.now();
 const { vectors, queries } = generate(options);
+const generateMs = Math.round(performance.now() - generateStarted);
 
 console.log(JSON.stringify({ rows: options.rows, dimension: options.dimension, clusters: options.clusters, queries: options.queries, topK: options.topK }));
 console.log("building exact ground truth…");
+const truthStarted = performance.now();
 const truth = queries.map(query => exactTopK(vectors, options.rows, options.dimension, query, options.topK));
+const truthMs = Math.round(performance.now() - truthStarted);
 
 const directory = await mkdtemp(path.join(tmpdir(), "weisql-quant-"));
 const results = [];
@@ -144,7 +148,7 @@ try {
     for (let row = 0; row < options.rows; row++) keys[row] = BigInt(row);
 
     const buildStarted = performance.now();
-    index.add(keys, vectors, options.rows);
+    index.add(keys, vectors);
     const buildMs = performance.now() - buildStarted;
 
     const latencies = [];
@@ -181,4 +185,4 @@ for (const row of results) {
   console.log(`${row.quantization.padEnd(12)}  ${String(row.recall).padEnd(8)}  ${String(row.p50Ms).padEnd(6)}  ${String(row.buildMs).padEnd(8)}  ${(row.indexBytes / 1024 / 1024).toFixed(2)}`);
 }
 console.log("");
-console.log(JSON.stringify({ results, caveat: "synthetic vectors; real-embedding benefit is not measured" }, null, 2));
+console.log(JSON.stringify({ generateMs, truthMs, results, caveat: "synthetic vectors; real-embedding benefit is not measured" }, null, 2));

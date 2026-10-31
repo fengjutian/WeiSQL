@@ -9,8 +9,15 @@ export interface WasmArrowTable {
   toArray(): readonly unknown[];
 }
 
+/** One Arrow record batch from a streaming query. */
+export interface WasmRecordBatch {
+  toArray(): readonly unknown[];
+}
+
 export interface WasmPreparedStatement {
   query(...params: unknown[]): Promise<WasmArrowTable>;
+  /** Streaming path; absent on minimal/injected implementations. */
+  send?(...params: unknown[]): Promise<AsyncIterable<WasmRecordBatch>>;
   close?(): Promise<void> | void;
 }
 

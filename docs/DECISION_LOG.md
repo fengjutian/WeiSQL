@@ -645,6 +645,17 @@
 - 决策四：需要规范化相等语义的用户，应在入库前生成一个规范化文本列（例如 JCS 序列化后的字符串）并声明为 `string`；这是数据管道的责任，不是查询引擎的隐式行为。
 - 后果：JSON 的行为完全可预测——能查到、能 SQL 过滤、不能被 `vector.search` 的过滤器使用。若未来要支持，必须先新增「规范化列」格式约定，属于格式变更。
 
+## ADR-068：结果行数用 `maxRows` 硬失败，并让引擎提前停止
+
+- 状态：Accepted and implemented
+- 背景：`db.sql()` 一次性返回全部行。浏览器里一条 `SELECT * FROM big_table` 就能把标签页打爆，而现有错误码集合已冻结，没有 `RESULT_TOO_LARGE`。
+- 决策一：`QueryOptions.maxRows` 是**硬失败**而不是截断——超过预算返回 `INVALID_ARGUMENT`（`details.maxRows`）。静默截断会让调用方把不完整结果当完整结果。
+- 决策二：普通 `SELECT` 改写为 `SELECT * FROM (<sql>) AS "weisql_row_limit" LIMIT maxRows + 1`，让引擎在预算处停止，最多只多物化一行；这是真正降低内存的手段，不是事后计数。
+- 决策三：Node 适配器仍先对**原始语句**执行一次 `prepare()` 做语句分类与参数计数，再 prepare 改写后的语句；写入边界不因改写而放松。DuckDB-Wasm 的动词分类来自 tokenizer，同样针对原始语句。
+- 决策四：无法安全包装的语句（`DESCRIBE` / `SHOW` / `SUMMARIZE` / `EXPLAIN`，以及 WASM 侧的 `PIVOT` / `UNPIVOT`）在返回后检查；它们返回的是有界元数据行，风险远小于全表 SELECT。
+- 决策五：`maxRows` 非法（0、负数、非安全整数）返回 `INVALID_ARGUMENT`；写入/多语句等错误码优先于行预算。
+- 后果：两端语义一致并有共享契约用例；结果集仍是一次性数组，真正的流式 API 仍未实现（README 的「尚未实现」保留这一条）。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

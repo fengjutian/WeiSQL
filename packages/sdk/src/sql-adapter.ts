@@ -24,5 +24,14 @@ export interface SqlAdapter {
     parameters?: readonly SQLValue[],
     options?: QueryOptions,
   ): Promise<readonly T[]>;
+  /**
+   * Optional streaming path. When absent, the Runtime falls back to `query()`
+   * and yields the already-materialized rows: correct, but not lazy.
+   */
+  stream?<T extends Record<string, unknown> = Record<string, unknown>>(
+    statement: string,
+    parameters?: readonly SQLValue[],
+    options?: QueryOptions,
+  ): Promise<AsyncIterable<T>>;
   close(): Promise<void>;
 }

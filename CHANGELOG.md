@@ -52,6 +52,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   optional `@weisql/duckdb-adapter` peer; works for directories and containers.
 - `weisql keygen`, `weisql sign` and `weisql verify-signature` sign directories or
   `.wsql` containers; `validate --signature [--trusted <keyId>]` gates on them.
+- `weisql inspect` summarizes a package and lists undeclared files; `pack
+  --only-declared` refuses to ship anything the Manifest does not declare.
 
 ### `@weisql/duckdb-adapter` 0.1.0
 

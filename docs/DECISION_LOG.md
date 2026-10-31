@@ -487,6 +487,16 @@
 - 决策五：`signManifest` 需要同时提供私钥与公钥——WebCrypto 不能从私钥导出公钥；CLI 用 node:crypto 在只给私钥时派生公钥，SDK 不做这个假设。
 - 后果：`keygen`（私钥 0600）、`sign`（目录与 `.wsql`）、`verify-signature`、`validate --signature --trusted` 全部落地。密钥轮换、多签名与信任链不在本次范围。
 
+## ADR-055：打包默认包含目录内容，`--only-declared` 才做白名单
+
+- 状态：Accepted and implemented
+- 背景：`pack` 原本递归收集目录里的所有文件。把 `.env`、`notes.txt` 或构建残留放进数据目录，它们就会静默进入发布包——这是最容易造成信息泄露的一类操作。
+- 决策一：默认行为不变（包含全部文件），因为数据包里可能存在 Manifest 未声明但确实需要随包分发的附属文件；改变默认值属于破坏性变更。
+- 决策二：`--only-declared` 只保留 `manifest.json` 与 `declaredResources()` 列出的文件，并把跳过的文件打印出来。被跳过不是错误，但必须在输出里可见。
+- 决策三：声明了却缺失的资源是**错误**，不是警告——这通常意味着构建不完整，发布前必须失败。
+- 决策四：`weisql inspect` 独立报告「磁盘上存在但 Manifest 未声明」的文件，让作者在打包前就能看到风险，而不是依赖打包参数。
+- 后果：`inspect` 与 `pack --only-declared` 都进入 CLI 与测试；发布流程文档建议先 `inspect` 再打包。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

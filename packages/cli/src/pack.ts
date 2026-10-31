@@ -1,7 +1,7 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { createContainer } from "@weisql/sdk";
+import { declaredResources, createContainer, validateManifest } from "@weisql/sdk";
 import type { ContainerFile } from "@weisql/sdk";
 
 export interface PackOptions {
@@ -10,6 +10,8 @@ export interface PackOptions {
   output?: string;
   /** Gzip each entry and write container format 1.1.0; defaults to false. */
   compress?: boolean;
+  /** Only include the Manifest and declared resources; report skipped files. */
+  onlyDeclared?: boolean;
   signal?: AbortSignal;
 }
 
@@ -17,6 +19,8 @@ export interface PackResult {
   directory: string;
   output: string;
   compressed: boolean;
+  onlyDeclared: boolean;
+  skipped: readonly string[];
   files: readonly { path: string; bytes: number }[];
   containerBytes: number;
 }
@@ -47,9 +51,20 @@ export async function packPackage(options: PackOptions): Promise<PackResult> {
   const info = await stat(directory).catch(() => undefined);
   if (info === undefined || !info.isDirectory()) throw new Error(`not a directory: ${directory}`);
 
-  const files: ContainerFile[] = [];
-  await collect(directory, "", files, options.signal);
-  if (!files.some(file => file.path === "manifest.json")) throw new Error("package has no manifest.json");
+  const collected: ContainerFile[] = [];
+  await collect(directory, "", collected, options.signal);
+  if (!collected.some(file => file.path === "manifest.json")) throw new Error("package has no manifest.json");
+
+  let files = collected;
+  let skipped: string[] = [];
+  if (options.onlyDeclared === true) {
+    const manifest = validateManifest(JSON.parse(new TextDecoder().decode(collected.find(file => file.path === "manifest.json")!.bytes)));
+    const allowed = new Set(["manifest.json", ...declaredResources(manifest).map(resource => resource.path)]);
+    const missing = [...allowed].filter(file => !collected.some(item => item.path === file));
+    if (missing.length > 0) throw new Error(`declared resources are missing from the directory: ${missing.join(", ")}`);
+    skipped = collected.filter(file => !allowed.has(file.path)).map(file => file.path).sort();
+    files = collected.filter(file => allowed.has(file.path));
+  }
 
   const container = await createContainer(files, { compress: options.compress === true });
   const output = path.resolve(options.output ?? `${path.basename(directory)}.wsql`);
@@ -60,6 +75,8 @@ export async function packPackage(options: PackOptions): Promise<PackResult> {
     directory,
     output,
     compressed: options.compress === true,
+    onlyDeclared: options.onlyDeclared === true,
+    skipped,
     files: files.map(file => ({ path: file.path, bytes: file.bytes.byteLength })),
     containerBytes: container.byteLength,
   };

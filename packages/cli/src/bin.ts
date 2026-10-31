@@ -3,6 +3,7 @@ import { stat } from "node:fs/promises";
 import path from "node:path";
 
 import { packPackage } from "./pack.js";
+import { inspectPackage } from "./inspect.js";
 import { generateKeyFiles, signPackage, verifyPackageSignature } from "./signing.js";
 import { unpackContainer } from "./unpack.js";
 import { validateContainer, validatePackage } from "./validate.js";
@@ -18,6 +19,7 @@ Commands:
   keygen [--output <prefix>]       Create an Ed25519 signing key pair
   sign <dir|file.wsql> --key <pem> Sign the Manifest
   verify-signature <dir|file.wsql> Verify the Manifest signature
+  inspect <dir|file.wsql>           Summarize a package without opening it
 
 Options:
   --mode <none|manifest|all>   Integrity mode for validate (default: all)
@@ -27,6 +29,7 @@ Options:
   --key <pem>                  Private key for sign
   --public <pem>               Public key for sign (derived when omitted)
   --compress                   Gzip entries when packing (container format 1.1.0)
+  --only-declared              Pack only the Manifest and declared resources
   --output <file|directory>    Output path for pack / unpack
   --json                       Print machine-readable JSON
   --help, -h                   Show this help
@@ -45,6 +48,7 @@ interface ParsedArguments {
   l4: boolean;
   signature: boolean;
   compress: boolean;
+  onlyDeclared: boolean;
   keyPath: string | undefined;
   publicKeyPath: string | undefined;
   trustedKeyIds: string[];
@@ -53,7 +57,7 @@ interface ParsedArguments {
 }
 
 function parseArguments(argv: readonly string[]): ParsedArguments | string {
-  const parsed: ParsedArguments = { command: undefined, target: undefined, mode: "all", output: undefined, l4: false, signature: false, compress: false, keyPath: undefined, publicKeyPath: undefined, trustedKeyIds: [], json: false, help: false };
+  const parsed: ParsedArguments = { command: undefined, target: undefined, mode: "all", output: undefined, l4: false, signature: false, compress: false, onlyDeclared: false, keyPath: undefined, publicKeyPath: undefined, trustedKeyIds: [], json: false, help: false };
   for (let index = 0; index < argv.length; index++) {
     const argument = argv[index]!;
     if (argument === "--help" || argument === "-h") {
@@ -74,6 +78,10 @@ function parseArguments(argv: readonly string[]): ParsedArguments | string {
     }
     if (argument === "--signature") {
       parsed.signature = true;
+      continue;
+    }
+    if (argument === "--only-declared") {
+      parsed.onlyDeclared = true;
       continue;
     }
     if (argument === "--trusted" || argument.startsWith("--trusted=")) {
@@ -165,7 +173,7 @@ async function main(argv: readonly string[]): Promise<number> {
     console.log(USAGE);
     return parsed.help ? 0 : 2;
   }
-  if (!["validate", "pack", "unpack", "keygen", "sign", "verify-signature"].includes(parsed.command)) {
+  if (!["validate", "pack", "unpack", "keygen", "sign", "verify-signature", "inspect"].includes(parsed.command)) {
     console.error(`error: unknown command '${parsed.command}'`);
     console.error(USAGE);
     return 2;
@@ -193,6 +201,35 @@ async function main(argv: readonly string[]): Promise<number> {
     return 2;
   }
   const target = parsed.target;
+
+  if (parsed.command === "inspect") {
+    try {
+      const summary = await inspectPackage(target);
+      if (parsed.json) console.log(JSON.stringify(summary, null, 2));
+      else {
+        console.log(`${summary.kind}:  ${summary.target}`);
+        console.log(`dataset:   ${summary.datasetId} (format ${summary.formatVersion})`);
+        console.log(`tables:    ${summary.tables.map(table => `${table.name} (${table.columns} columns, ${table.bytes} B)`).join("; ") || "none"}`);
+        console.log(`vectors:   ${summary.vectors.map(vector => `${vector.name}: ${vector.count} × ${vector.dimension} ${vector.metric}${vector.persistedIndex ? ", index" : ""}`).join("; ") || "none"}`);
+        if (summary.textIndexes.length > 0) {
+          console.log(`text:      ${summary.textIndexes.map(index => `${index.name}: ${index.documents} docs, ${index.terms} terms${index.hasDocuments ? ", documents" : ""}`).join("; ")}`);
+        }
+        if (summary.container !== undefined) {
+          console.log(`container: ${summary.container.files} files${summary.container.compression === undefined ? "" : `, ${summary.container.compression}`}`);
+        }
+        console.log(`signature: ${summary.signature.present ? (summary.signature.valid ? `valid (${summary.signature.keyId})` : `invalid (${summary.signature.reason})`) : "absent"}`);
+        console.log(`resources: ${summary.resources.declaredFiles} declared, ${summary.resources.files} files, ${summary.resources.declaredBytes} declared bytes`);
+        if (summary.resources.undeclared.length > 0) {
+          console.log(`undeclared: ${summary.resources.undeclared.join(", ")}`);
+        }
+        console.log("OK");
+      }
+      return 0;
+    } catch (cause) {
+      console.error(`error: ${cause instanceof Error ? cause.message : String(cause)}`);
+      return 1;
+    }
+  }
 
   if (parsed.command === "verify-signature") {
     try {
@@ -267,6 +304,7 @@ async function main(argv: readonly string[]): Promise<number> {
       const packed = await packPackage({
         directory: target,
         compress: parsed.compress,
+        onlyDeclared: parsed.onlyDeclared,
         ...(parsed.output === undefined ? {} : { output: parsed.output }),
       });
       if (parsed.json) console.log(JSON.stringify(packed, null, 2));
@@ -275,6 +313,7 @@ async function main(argv: readonly string[]): Promise<number> {
         console.log(`container: ${packed.output} (${packed.containerBytes} bytes${packed.compressed ? ", gzip" : ""})`);
         console.log(`files:     ${packed.files.length}`);
         for (const file of packed.files) console.log(`  ${file.path}  ${file.bytes} B`);
+        if (packed.skipped.length > 0) console.log(`skipped:   ${packed.skipped.join(", ")}`);
         console.log("OK");
       }
       return 0;

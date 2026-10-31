@@ -36,6 +36,7 @@ function readArguments(argv) {
     ann: false,
     expansionSearch: 512,
     text: false,
+    fusion: false,
     clusters: 0,
     clusterSpread: 0.35,
   };
@@ -52,6 +53,7 @@ function readArguments(argv) {
       case "--ann": options.ann = true; break;
       case "--expansion-search": options.expansionSearch = Number(value); index++; break;
       case "--text": options.text = true; break;
+      case "--fusion": options.fusion = true; break;
       case "--clusters": options.clusters = Number(value); index++; break;
       case "--cluster-spread": options.clusterSpread = Number(value); index++; break;
       default: throw new Error(`unknown option ${flag}`);
@@ -288,6 +290,96 @@ if (options.text) {
     note: "BM25 is exact; there is no recall/precision trade-off to report. Build time includes reading the Parquet text column.",
   };
 }
+// Optional RRF study: how much does the k constant change the fused ranking?
+// It measures stability, not relevance quality — relevance would need labels.
+let fusion;
+if (options.fusion) {
+  const manifestPath = path.join(options.packageDirectory, "manifest.json");
+  let fusionManifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  if ((fusionManifest.textIndexes?.length ?? 0) === 0) {
+    await run(process.execPath, [
+      path.join(REPO_ROOT, "tools", "build-text-index.mjs"),
+      options.packageDirectory,
+      "--table", "documents",
+      "--column", "body",
+      "--name", "documents_body_text",
+    ], { stdio: "ignore" });
+    fusionManifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  }
+
+  const textIndex = fusionManifest.textIndexes[0];
+  const vectorCollection = fusionManifest.vectorCollections[0];
+  const reader = new NodeFileResourceReader({ rootDirectory: options.packageDirectory });
+  const db = await open({ manifest: fusionManifest, resourceReader: reader, verifyChecksums: "none" });
+
+  const pairs = Math.min(options.queries, vectorCollection.count);
+  const presetBytes = await reader.readRange(vectorCollection.data.path, {
+    start: 0,
+    end: pairs * vectorCollection.dimension * 4,
+  });
+  const view = new DataView(presetBytes.buffer, presetBytes.byteOffset, presetBytes.byteLength);
+  const queries = [];
+  for (let row = 0; row < pairs; row++) {
+    const vector = new Float32Array(vectorCollection.dimension);
+    for (let dimension = 0; dimension < vectorCollection.dimension; dimension++) {
+      vector[dimension] = view.getFloat32((row * vectorCollection.dimension + dimension) * 4, true);
+    }
+    queries.push({ vector, text: `w${String((row * 137) % 5000).padStart(4, "0")}` });
+  }
+
+  const ks = [10, 30, 60, 100, 200];
+  const rankings = new Map(ks.map(k => [k, []]));
+  for (const k of ks) {
+    for (const query of queries) {
+      const hits = await db.hybrid.search({
+        topK: 10,
+        k,
+        vector: { name: vectorCollection.name, query: query.vector },
+        text: { name: textIndex.name, query: query.text },
+      });
+      rankings.get(k).push(hits.map(hit => hit.id));
+    }
+  }
+  await db.close();
+  await reader.close();
+
+  const baseline = rankings.get(60);
+  const metrics = ks.map(k => {
+    let overlapSum = 0;
+    let overlapMin = 1;
+    let top1Changes = 0;
+    let shiftSum = 0;
+    let shiftCount = 0;
+    rankings.get(k).forEach((ids, index) => {
+      const base = baseline[index] ?? [];
+      const baseSet = new Set(base);
+      overlapSum += ids.filter(id => baseSet.has(id)).length / Math.max(1, base.length);
+      overlapMin = Math.min(overlapMin, ids.filter(id => baseSet.has(id)).length / Math.max(1, base.length));
+      if (ids[0] !== base[0]) top1Changes++;
+      const positions = new Map(ids.map((id, position) => [id, position]));
+      for (const [position, id] of base.entries()) {
+        const other = positions.get(id);
+        if (other !== undefined) { shiftSum += Math.abs(other - position); shiftCount++; }
+      }
+    });
+    return {
+      k,
+      meanOverlap: Number((overlapSum / rankings.get(k).length).toFixed(3)),
+      minOverlap: Number(overlapMin.toFixed(3)),
+      top1Changes,
+      meanRankShift: shiftCount === 0 ? 0 : Number((shiftSum / shiftCount).toFixed(2)),
+    };
+  });
+
+  fusion = {
+    pairs: queries.length,
+    topK: 10,
+    baselineK: 60,
+    metrics,
+    note: "stability only: no relevance labels exist, so this does not show which k ranks better",
+  };
+}
+
 clearInterval(sampler);
 
 const sorted = [...latencies].sort((left, right) => left - right);
@@ -339,5 +431,6 @@ const result = {
 
 if (ann !== undefined) result.ann = ann;
 if (text !== undefined) result.text = text;
+if (fusion !== undefined) result.fusion = fusion;
 
 console.log(JSON.stringify(result, null, 2));

@@ -82,6 +82,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   recall depends on data geometry, not only on `expansion_search`.
 - Full-text benchmark mode (`--text`): synthetic Zipf corpus, index build time,
   index size breakdown and BM25 query latency.
+- Fusion stability study (`--fusion`): measures how RRF `k` changes the ranking,
+  and states that this is not a relevance-quality measurement.
 - ANN index builder and release checks.
 - Text index builder (`tools/build-text-index.mjs`) reading the Parquet column and
   updating the Manifest.

@@ -63,6 +63,11 @@ test("rejects corrupt magic, truncated headers and trailing bytes", async () => 
   const badLength = bytes.slice();
   new DataView(badLength.buffer).setUint32(8, 1_000_000, true);
   assert.throws(() => parseContainer(badLength), { code: "RESOURCE_INTEGRITY_FAILED" });
+
+  // Regression: non-UTF-8 magic bytes used to escape as a TypeError.
+  const hostile = bytes.slice();
+  hostile.set([0xff, 0xfe, 0xfd, 0xfc, 0xfb, 0xfa, 0xf9, 0xf8], 0);
+  assert.throws(() => parseContainer(hostile), { code: "RESOURCE_INTEGRITY_FAILED" });
 });
 
 test("rejects duplicate paths and empty containers", async () => {

@@ -120,9 +120,16 @@ export function parseContainer(bytes: Uint8Array): ParsedContainer {
   if (bytes.byteLength < HEADER_START) {
     throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container is shorter than its fixed header", { length: bytes.byteLength });
   }
-  const magic = decoder().decode(bytes.subarray(0, MAGIC_BYTES));
-  if (magic !== CONTAINER_MAGIC) {
-    throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container magic does not match", { expected: CONTAINER_MAGIC, actual: magic });
+  // Compare the magic byte-wise: decoding hostile bytes as UTF-8 would throw a
+  // TypeError, and this parser must only ever surface WeiSQLError.
+  const magic = encoder().encode(CONTAINER_MAGIC);
+  let matches = true;
+  for (let index = 0; index < MAGIC_BYTES; index++) {
+    if (bytes[index] !== magic[index]) { matches = false; break; }
+  }
+  if (!matches) {
+    const actual = [...bytes.subarray(0, MAGIC_BYTES)].map(byte => byte.toString(16).padStart(2, "0")).join(" ");
+    throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container magic does not match", { expected: CONTAINER_MAGIC, actual });
   }
   const headerBytes = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(MAGIC_BYTES, true);
   if (headerBytes === 0 || headerBytes > bytes.byteLength - HEADER_START) {

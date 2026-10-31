@@ -177,7 +177,13 @@ export class TextIndexReader {
       if (bytes.byteLength !== end - start) {
         throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Document record byte length mismatch", { row, expected: end - start, actual: bytes.byteLength });
       }
-      let text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      let text: string;
+      try {
+        text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      } catch (cause) {
+        // Hostile bytes must surface as an integrity error, not a TypeError.
+        throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Document record is not valid UTF-8", { row, cause: String(cause) });
+      }
       if (text.endsWith("\n")) text = text.slice(0, -1);
       let parsed: unknown;
       try {
@@ -256,7 +262,12 @@ export class TextIndexReader {
     if (bytes.byteLength !== next - start) {
       throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Term record byte length mismatch", { index, expected: next - start, actual: bytes.byteLength });
     }
-    let text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    let text: string;
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch (cause) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Term record is not valid UTF-8", { index, cause: String(cause) });
+    }
     if (text.endsWith("\n")) text = text.slice(0, -1);
     let parsed: unknown;
     try {

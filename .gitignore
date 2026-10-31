@@ -49,3 +49,6 @@ coverage/
 # Generated benchmark packages and results
 /bench/
 
+# Local scratch space and npm cache
+/.scratch/
+/.npm-cache/

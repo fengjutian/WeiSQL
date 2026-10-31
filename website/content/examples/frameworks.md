@@ -1,12 +1,12 @@
 ---
 title: 前端框架集成
-description: 在 React、Next.js 与 Vite 中打开 WeiSQL 数据包、管理生命周期与处理 SSR 的可复制示例。
+description: 在 React、Vue、Svelte、Next.js 与 Vite 中打开 WeiSQL 数据包、管理生命周期与处理 SSR 的可复制示例。
 sidebar_position: 39
 hero:
   kicker: "示例 · 框架"
   title: "接进现有前端"
-  lead: "Runtime 是浏览器端库：在 effect 里打开、在卸载时关闭、不要放到模块顶层。"
-  chips: ["React", "Next.js", "Vite", "cleanup"]
+  lead: "Runtime 是浏览器端库：在框架的挂载/卸载生命周期里打开与关闭，不要放到模块顶层。"
+  chips: ["React", "Vue", "Svelte", "Next.js", "Vite"]
 hide_title: true
 ---
 
@@ -133,7 +133,176 @@ export default defineConfig({
 
 `base` 改成 `/app/` 时，`BASE_URL` 会自动变成 `/app/`，不需要手写两套路径。
 
-## 4. 常见的 SSR 与打包问题
+## 4. Vue 3 / Nuxt
+
+用 `shallowRef` 保存实例，避免把 Runtime 类实例变成深层响应式对象：
+
+```vue
+<script setup lang="ts">
+import { onMounted, onUnmounted, shallowRef } from "vue";
+import {
+  open,
+  HttpResourceReader,
+  type WeiSQLDatabase,
+} from "@weisql/sdk";
+
+const db = shallowRef<WeiSQLDatabase | null>(null);
+const error = shallowRef<Error | null>(null);
+let controller: AbortController | null = null;
+let disposed = false;
+
+onMounted(async () => {
+  controller = new AbortController();
+  try {
+    const instance = await open({
+      manifestUrl: "/datasets/demo/manifest.json",
+      resourceReader: new HttpResourceReader({ baseUrl: "/datasets/demo/" }),
+      signal: controller.signal,
+    });
+    if (disposed) {
+      await instance.close();
+      return;
+    }
+    db.value = instance;
+  } catch (reason) {
+    if (!disposed) error.value = reason as Error;
+  }
+});
+
+onUnmounted(() => {
+  disposed = true;
+  controller?.abort();
+  void db.value?.close();
+});
+</script>
+```
+
+Nuxt 中把这个组件包进 `<ClientOnly>`，或对使用它的路由设置 `ssr: false`：
+
+```vue
+<template>
+  <ClientOnly>
+    <SearchPanel />
+  </ClientOnly>
+</template>
+```
+
+数据包放在 `public/datasets/demo/`；Nuxt 的 `public/` 等价于 Vite 的 `public/`。
+
+### 不要用 `useAsyncData` 缓存 Runtime 实例
+
+`useAsyncData` 适合可序列化的数据，不适合带生命周期的 Runtime：
+
+```ts
+// 不推荐
+const { data: db } = await useAsyncData("weisql", () =>
+  open({
+    manifestUrl: "/datasets/demo/manifest.json",
+    resourceReader: new HttpResourceReader({ baseUrl: "/datasets/demo/" }),
+  }),
+  { server: false },
+);
+```
+
+它不会在组件卸载时 `close()`，还可能把同一个实例复用给多个页面。需要共享时，用 `useState` 保存**是否已打开**，并让每个页面自己管理实例；或者写一个只在本组件生命周期内有效的 composable。
+
+## 5. SvelteKit
+
+Svelte 的 `onMount` 只在浏览器执行，返回的函数用于清理：
+
+```svelte
+<script lang="ts">
+  import { onMount } from "svelte";
+  import {
+    open,
+    HttpResourceReader,
+    type WeiSQLDatabase,
+  } from "@weisql/sdk";
+
+  let db: WeiSQLDatabase | null = null;
+  let error: Error | null = null;
+
+  onMount(() => {
+    const controller = new AbortController();
+    let disposed = false;
+
+    open({
+      manifestUrl: "/datasets/demo/manifest.json",
+      resourceReader: new HttpResourceReader({ baseUrl: "/datasets/demo/" }),
+      signal: controller.signal,
+    })
+      .then((instance) => {
+        if (disposed) return instance.close();
+        db = instance;
+      })
+      .catch((reason: unknown) => {
+        if (!disposed) error = reason as Error;
+      });
+
+    return () => {
+      disposed = true;
+      controller.abort();
+      void db?.close();
+    };
+  });
+</script>
+
+{#if error}
+  <p>数据包加载失败：{error.message}</p>
+{:else if db}
+  <p>索引已就绪</p>
+{:else}
+  <p>正在加载索引…</p>
+{/if}
+```
+
+SvelteKit 的静态资源放在 `static/datasets/demo/`，构建后路径是 `/datasets/demo/`。不要在 `+page.server.ts` 里调用 `open()`。
+
+### Svelte 5 runes
+
+Svelte 5 用 `$state.raw` 保存 Runtime 实例，避免被深度代理：
+
+```svelte
+<script lang="ts">
+  import { onMount } from "svelte";
+  import {
+    open,
+    HttpResourceReader,
+    type WeiSQLDatabase,
+  } from "@weisql/sdk";
+
+  let db = $state.raw<WeiSQLDatabase | null>(null);
+  let error = $state<Error | null>(null);
+
+  onMount(() => {
+    const controller = new AbortController();
+    let disposed = false;
+
+    open({
+      manifestUrl: "/datasets/demo/manifest.json",
+      resourceReader: new HttpResourceReader({ baseUrl: "/datasets/demo/" }),
+      signal: controller.signal,
+    })
+      .then((instance) => {
+        if (disposed) return instance.close();
+        db = instance;
+      })
+      .catch((reason: unknown) => {
+        if (!disposed) error = reason as Error;
+      });
+
+    return () => {
+      disposed = true;
+      controller.abort();
+      void db?.close();
+    };
+  });
+</script>
+```
+
+普通 `$state` 会递归代理对象，类实例不需要这种代理；用 `$state.raw` 还能避免代理带来的性能开销。
+
+## 6. 常见的 SSR 与打包问题
 
 <details>
 <summary>为什么不能把 open() 放在模块顶层？</summary>

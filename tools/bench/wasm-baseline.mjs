@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Runs the WASM build of the Rust baseline against the same golden fixture the
+// Runs the WASM build of the Rust baseline against the same golden fixtures the
 // TypeScript SDK and the native Rust tests use, so the browser artifact cannot
 // drift from either side.
 //
@@ -15,9 +15,18 @@ const DEFAULT_WASM = new URL(
   "../../crates/vector-wasm/target/wasm32-unknown-unknown/release/weisql_vector_wasm.wasm",
   import.meta.url,
 );
-const FIXTURE = new URL("../../crates/vector-benchmark/tests/fixtures/exact_cosine_golden.txt", import.meta.url);
+const FIXTURES = [
+  new URL("../../crates/vector-benchmark/tests/fixtures/exact_cosine_golden.txt", import.meta.url),
+  new URL("../../crates/vector-benchmark/tests/fixtures/metrics_golden.txt", import.meta.url),
+];
 const TOLERANCE = 1e-6;
-const ABI_VERSION = 1;
+const ABI_VERSION = 2;
+
+const METRIC_CODES = new Map([
+  ["cosine", 0],
+  ["l2", 1],
+  ["ip", 2],
+]);
 
 const ERROR_NAMES = new Map([
   [-1, "ERROR_ARGUMENT"],
@@ -43,6 +52,7 @@ function parseCases(text) {
       const [name, rows, dimension, topK] = rest;
       current = {
         name,
+        metric: "cosine",
         rows: Number(rows),
         dimension: Number(dimension),
         topK: Number(topK),
@@ -54,6 +64,9 @@ function parseCases(text) {
     }
     if (current === undefined) throw new Error(`record ${tag} before the first case`);
     switch (tag) {
+      case "metric":
+        current.metric = rest[0];
+        break;
       case "query":
         current.query = rest.map(Number);
         break;
@@ -83,6 +96,8 @@ function runCase(api, testCase) {
   if (values.length !== testCase.rows * testCase.dimension) {
     throw new Error(`case ${testCase.name}: fixture row width does not match its header`);
   }
+  const metricCode = METRIC_CODES.get(testCase.metric);
+  if (metricCode === undefined) throw new Error(`case ${testCase.name}: unknown metric ${testCase.metric}`);
 
   const vectorBytes = values.length * Float32Array.BYTES_PER_ELEMENT;
   const queryBytes = testCase.dimension * Float32Array.BYTES_PER_ELEMENT;
@@ -104,12 +119,13 @@ function runCase(api, testCase) {
     new Float32Array(input, vectorPointer, values.length).set(values);
     new Float32Array(input, queryPointer, testCase.dimension).set(testCase.query);
 
-    const count = api.weisql_cosine_topk(
+    const count = api.weisql_search_topk(
       vectorPointer,
       testCase.rows,
       testCase.dimension,
       queryPointer,
       testCase.topK,
+      metricCode,
       idPointer,
       distancePointer,
     );
@@ -152,7 +168,10 @@ let bytes;
 try {
   bytes = await readFile(wasmUrl);
 } catch (error) {
-  fail(`cannot read ${wasmUrl.pathname}: ${error.message}\nbuild it with: cargo build --release --target wasm32-unknown-unknown --manifest-path crates/vector-wasm/Cargo.toml`);
+  fail(
+    `cannot read ${wasmUrl.pathname}: ${error.message}\n` +
+      "build it with: cargo build --release --target wasm32-unknown-unknown --manifest-path crates/vector-wasm/Cargo.toml",
+  );
 }
 
 const { instance } = await WebAssembly.instantiate(bytes, {});
@@ -162,11 +181,14 @@ if (typeof api.weisql_abi_version !== "function") fail("wasm module is missing w
 const abi = api.weisql_abi_version();
 if (abi !== ABI_VERSION) fail(`wasm ABI version ${abi} != ${ABI_VERSION}`);
 
-const cases = parseCases(await readFile(FIXTURE, "utf8"));
-let total = 0;
-for (const testCase of cases) {
-  const count = runCase(api, testCase);
-  console.log(`ok ${testCase.name}: ${count} hits`);
-  total += count;
+let cases = 0;
+let hits = 0;
+for (const fixture of FIXTURES) {
+  for (const testCase of parseCases(await readFile(fixture, "utf8"))) {
+    const count = runCase(api, testCase);
+    console.log(`ok ${testCase.name} (${testCase.metric}): ${count} hits`);
+    cases += 1;
+    hits += count;
+  }
 }
-console.log(`wasm golden parity: ${cases.length} cases, ${total} hits, ABI v${abi}`);
+console.log(`wasm golden parity: ${cases} cases, ${hits} hits, ABI v${abi}`);

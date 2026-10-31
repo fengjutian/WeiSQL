@@ -210,10 +210,13 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   contracts aligned with TypeScript, and a `rust vector baseline` CI job
   (`fmt`/`clippy`/`test`/release smoke).
 - `crates/vector-wasm`: the baseline compiled to `wasm32-unknown-unknown` behind
-  a flat C ABI (`weisql_alloc` / `weisql_cosine_topk` / `weisql_dealloc`, ABI v1)
-  with no imports and no wasm-bindgen, about 17 KB stripped. The same golden
-  fixture now gates TypeScript, native Rust and the WASM artifact, and the core
-  gained `exact_cosine_search_contiguous` for zero-copy row-major buffers.
+  a flat C ABI (`weisql_alloc` / `weisql_search_topk` / `weisql_dealloc`, ABI v2)
+  with no imports and no wasm-bindgen, about 17 KB stripped. `metric` selects
+  cosine, L2 or inner product, matching the TypeScript search contract, and the
+  v1 `weisql_cosine_topk` entry point remains as an alias. Two golden fixtures
+  (9 cases) now gate TypeScript, native Rust and the WASM artifact, and the core
+  gained `exact_search` / `exact_search_contiguous` over a `Metric` enum with a
+  zero-copy row-major layout.
 - ANN index builder and release checks.
 - Text index builder (`tools/build-text-index.mjs`) reading the Parquet column and
   updating the Manifest.

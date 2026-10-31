@@ -106,15 +106,16 @@ impl std::error::Error for SearchError {}
 pub struct Hit {
     /// Stable numeric row identifier in this baseline. Production IDs must map to business IDs.
     pub id: usize,
-    /// Cosine distance = 1 - cosine similarity. Smaller is better.
+    /// Distance under the selected metric. Smaller is better.
     pub distance: f32,
 }
 
-/// Validate a dataset and return its common dimension.
+/// Validate a dataset for cosine search and return its common dimension.
 ///
 /// Runs a full scan: dimensions, finiteness and zero vectors are all checked.
 /// `exact_cosine_search` validates in a single pass instead, so call this only
-/// when you need validation without searching.
+/// when you need validation without searching. L2 and inner-product search
+/// accept zero vectors and therefore do not use this check.
 pub fn validate_dataset(vectors: &[Vec<f32>]) -> Result<usize, SearchError> {
     let dim = common_dimension(vectors)?;
     for (row, vector) in vectors.iter().enumerate() {
@@ -202,7 +203,14 @@ pub fn exact_search(
 ) -> Result<Vec<Hit>, SearchError> {
     check_top_k(top_k)?;
     let dim = common_dimension(vectors)?;
-    search(vectors.len(), dim, vectors.iter().map(Vec::as_slice), query, top_k, metric)
+    search(
+        vectors.len(),
+        dim,
+        vectors.iter().map(Vec::as_slice),
+        query,
+        top_k,
+        metric,
+    )
 }
 
 /// Exact Top-K search over one contiguous row-major buffer for any [`Metric`].

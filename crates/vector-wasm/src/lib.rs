@@ -92,7 +92,18 @@ pub unsafe extern "C" fn weisql_cosine_topk(
     out_ids: *mut u32,
     out_distances: *mut f32,
 ) -> i32 {
-    unsafe { run(vectors, rows, dimension, query, top_k, Metric::Cosine, out_ids, out_distances) }
+    unsafe {
+        run(
+            vectors,
+            rows,
+            dimension,
+            query,
+            top_k,
+            Metric::Cosine,
+            out_ids,
+            out_distances,
+        )
+    }
 }
 
 /// Exact Top-K search over a contiguous row-major buffer.
@@ -122,7 +133,18 @@ pub unsafe extern "C" fn weisql_search_topk(
     let Some(metric) = Metric::from_code(metric) else {
         return ERROR_ARGUMENT;
     };
-    unsafe { run(vectors, rows, dimension, query, top_k, metric, out_ids, out_distances) }
+    unsafe {
+        run(
+            vectors,
+            rows,
+            dimension,
+            query,
+            top_k,
+            metric,
+            out_ids,
+            out_distances,
+        )
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

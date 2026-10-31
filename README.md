@@ -66,7 +66,7 @@ npm run desktop:build   # 生成安装包
 - 流式 TypeScript 精确搜索正确性基线
 - Rust 精确 Cosine 搜索基线（单次扫描、`f64` 累加、定容最大堆）
 - TypeScript ↔ Rust 跨语言黄金对照：同一固定数据集两侧排名与距离一致（6 个用例，CI 双向校验）
-- WASM 构建（`npm run build:wasm`）：无 wasm-bindgen、无导入的 17 KB 模块，同一 fixture 第三实现对照（`npm run test:wasm-golden`）
+- WASM 构建（`npm run build:wasm`）：无 wasm-bindgen、无导入的 17 KB 模块，cosine/L2/IP 三种度量，同一 fixture 第三方实现对照（`npm run test:wasm-golden`）
 
 ## 尚未实现 / 未验证
 
@@ -137,7 +137,7 @@ Rust 示例参数依次为向量数量、维度、Top-K 和可选的测量轮数
 
 跨语言黄金对照：`tools/bench/rust-golden.mjs` 用 SDK 的 `exactVectorSearch` 把 6 个固定数据集写入 `crates/vector-benchmark/tests/fixtures/exact_cosine_golden.txt`，Rust 的 `golden_tests.rs` 在 1e-6 容差内断言相同排名与距离。修改任一侧语义都会让 `npm run test:rust-golden` 或 `cargo test` 失败；需要更新基线时运行 `node tools/bench/rust-golden.mjs --write`。
 
-WASM：[vector-wasm](crates/vector-wasm/src/lib.rs) 把 `exact_cosine_search_contiguous` 暴露为无导入的 C ABI（`weisql_alloc` / `weisql_cosine_topk` / `weisql_dealloc`，ABI v1），发布构建约 17 KB。`tools/bench/wasm-baseline.mjs` 用同一 fixture 在 Node 中实例化并逐项断言，形成 TypeScript、原生 Rust、WASM 三方一致。
+WASM：[vector-wasm](crates/vector-wasm/src/lib.rs) 把 `exact_search_contiguous` 暴露为无导入的 C ABI（`weisql_alloc` / `weisql_search_topk` / `weisql_dealloc`，ABI v2，`metric` 取 0/1/2 对应 cosine/L2/IP），发布构建约 17 KB。`tools/bench/wasm-baseline.mjs` 用两份 fixture（9 个用例）在 Node 中实例化并逐项断言，形成 TypeScript、原生 Rust、WASM 三方一致。
 
 ## Manifest V1
 

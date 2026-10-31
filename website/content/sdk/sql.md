@@ -1,10 +1,10 @@
 ---
 title: SQL 查询
-description: 用 db.sql() 执行参数绑定的只读 SQL，选择 Node 或浏览器 DuckDB Adapter，理解只读边界与行数预算。
+description: 用 db.sql() 与 db.sqlStream() 执行参数绑定的只读 SQL，选择 Node 或浏览器 DuckDB Adapter，理解只读边界与行数预算。
 sidebar_position: 25
 ---
 
-本页讲 `db.sql()` 的调用契约与两个官方 SQL Adapter 的行为差异。读完后你能正确绑定参数、设置 `maxRows`，并判断当前环境支持哪些语句与参数类型。
+本页讲 `db.sql()` / `db.sqlStream()` 的调用契约与两个官方 SQL Adapter 的行为差异。读完后你能正确绑定参数、设置 `maxRows`，并判断当前环境支持哪些语句与参数类型。
 
 ## 最小示例
 
@@ -93,6 +93,41 @@ try {
 }
 ```
 
+## db.sqlStream()
+
+需要边读边处理大结果集时，用 `sqlStream()` 拿一个异步可迭代对象：
+
+```ts
+const stream = await db.sqlStream(
+  "select id, title from documents order by id",
+  [],
+  { maxRows: 1000 },
+);
+
+for await (const row of stream) {
+  console.log(row.id, row.title);
+  // 处理完当前行就可以继续；提前 break 会关闭底层结果并释放资源。
+}
+```
+
+```ts
+sqlStream<T extends Record<string, unknown>>(
+  query: string,
+  params?: readonly SQLValue[],
+  options?: QueryOptions,
+): Promise<AsyncIterable<T>>;
+```
+
+行为要点：
+
+- 两个官方 Adapter 都实现了真正的分批读取：Node 用 `execution.stream()`，浏览器用 Arrow record batch；调用方不需要等全部结果物化。
+- `maxRows` 在迭代过程中强制：第 `maxRows + 1` 行到达时抛 `INVALID_ARGUMENT`，已经 `yield` 的行仍然有效。
+- 对没有实现 `stream()` 的自定义 Adapter，Runtime 会回退到 `query()` 并把已物化的数组逐行 yield；结果正确，但不节省内存。
+- 取消语义跟随 Adapter：Node 的 `signal` 会 `interrupt()`；浏览器是 best-effort，停止等待但引擎可能继续跑。
+- 生成器提前 `break`、抛错或正常结束都会关闭底层结果；不要在 `for await` 外长期持有迭代器。
+
+`sql()` 仍适合小结果集或需要一次性拿到数组的场景；两者共享同一套只读边界与参数绑定。
+
 ## Node.js：createDuckDbAdapter
 
 | 选项 | 类型 | 默认 | 说明 |
@@ -158,7 +193,7 @@ L4 校验在表载入后按 Manifest 的列名与类型比对 `DESCRIBE`，不�
 ## 行为边界
 
 - SDK 只定义 `SqlAdapter` 契约，不绑定引擎；两个 Adapter 的 SQL 函数覆盖不完全等价。
-- 结果为一次性返回，没有流式接口；`maxRows` 只能拒绝超限，不能分页。
+- `sql()` 一次性返回数组；需要边读边处理时用 `sqlStream()`。`maxRows` 只能拒绝超限，不能分页。
 - 浏览器端不支持 `Date` 与二进制参数；OPFS 持久化未实现。
 - 真实 CDN 上的 WASM 首载、CORS 与多机冷缓存未验证；性能数字不能从 Node 外推到 WASM。
 - `lazy` 模式没有文件函数白名单，安全前提是 SQL 由应用作者编写。

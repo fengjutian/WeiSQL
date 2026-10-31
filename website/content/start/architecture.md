@@ -63,7 +63,8 @@ vector.search(name, query, { topK, filter })
 SQL 由 Adapter 执行，Runtime 只负责编排与校验：
 
 ```text
-db.sql(query, params)
+db.sql(query, params)        // 一次性数组
+db.sqlStream(query, params)  // 分批异步迭代
   ├─ Adapter.prepare()  → 语句分类必须是 SELECT / EXPLAIN
   ├─ 参数通过预处理语句绑定（拒绝插值）
   ├─ 执行，结果映射为普通对象

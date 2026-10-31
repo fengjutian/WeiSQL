@@ -214,8 +214,15 @@ async function runSql() {
   try {
     if (state.sqlDb === undefined) setText("sql-status", "加载 DuckDB-Wasm…");
     const sqlDb = await ensureSqlDb();
+    const streaming = $("sql-stream").checked;
     const started = performance.now();
-    const rows = await sqlDb.sql($("sql-query").value);
+    const rows = [];
+    if (streaming) {
+      // Incremental delivery: rows arrive by Arrow batch instead of one array.
+      for await (const row of await sqlDb.sqlStream($("sql-query").value)) rows.push(row);
+    } else {
+      rows.push(...await sqlDb.sql($("sql-query").value));
+    }
     const elapsed = Math.round(performance.now() - started);
     const head = $("sql-head");
     const body = $("sql-results");
@@ -246,8 +253,12 @@ async function runSql() {
         body.append(tr);
       }
     }
-    setText("sql-status", `${rows.length} 行 · ${elapsed} ms · ${sqlDb.capabilities().sql ? "DuckDB-Wasm" : "?"}`);
-    window.__PLAYGROUND_STATE = { ...(window.__PLAYGROUND_STATE ?? {}), sqlIds: rows.map(row => row.id).filter(Boolean) };
+    setText("sql-status", `${rows.length} 行 · ${elapsed} ms · ${sqlDb.capabilities().sql ? "DuckDB-Wasm" : "?"}${streaming ? " · 流式" : ""}`);
+    window.__PLAYGROUND_STATE = {
+      ...(window.__PLAYGROUND_STATE ?? {}),
+      sqlIds: rows.map(row => row.id).filter(Boolean),
+      sqlStreaming: streaming,
+    };
   } catch (error) {
     setText("sql-status", "失败");
     setText("error", String(error && error.message ? error.message : error));

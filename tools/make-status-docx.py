@@ -256,9 +256,9 @@ def build(target: Path):
         document,
         ["包", "测试数", "覆盖重点"],
         [
-            ["@weisql/sdk", "207", "校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约"],
-            ["@weisql/duckdb-adapter", "23", "只读边界、参数绑定、两种表加载、两层字节预算、取消"],
-            ["@weisql/duckdb-wasm-adapter", "37", "关键字白名单、CTE 分类、值映射、两层预算、取消、错误契约、真实 WASM 集成"],
+            ["@weisql/sdk", "208", "校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约"],
+            ["@weisql/duckdb-adapter", "24", "只读边界、参数绑定、两种表加载、两层字节预算、取消"],
+            ["@weisql/duckdb-wasm-adapter", "38", "关键字白名单、CTE 分类、值映射、两层预算、取消、错误契约、真实 WASM 集成"],
             ["@weisql/usearch-adapter", "13", "度量映射、持久化索引、后过滤、生命周期"],
             ["@weisql/cli", "38", "校验退出码、--json、pack、unpack、容器校验、--l4"],
             ["合计", "321", ""],

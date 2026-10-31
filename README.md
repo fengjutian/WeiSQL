@@ -306,7 +306,7 @@ npm run playground     # http://127.0.0.1:8099/playground/
 - **全文检索**：输入 `dna` 或 `细胞` 即可看到 BM25 排序与分数（分数越大越相关）；
 - **RAG 证据**：一次点击在字符预算内组装证据，展示 id、名次、字符数与是否截断；
 - 启动时会把 fixture 复制到临时目录并生成文本索引，仓库里不保留派生文件；
-- **浏览器 SQL**：搜索框里可改 SQL，第一次点「运行」会加载 DuckDB-Wasm（约 34 MB）与同源 parquet 扩展，随后返回真实结果；写语句会以 `SQL_UNSUPPORTED` 拒绝，只读 CTE 可用。
+- **浏览器 SQL**：搜索框里可改 SQL，第一次点「运行」会加载 DuckDB-Wasm（约 34 MB）与同源 parquet 扩展，随后返回真实结果；勾选「流式」改用 `db.sqlStream()` 逐批消费；写语句会以 `SQL_UNSUPPORTED` 拒绝，只读 CTE 可用。
 - **浏览器过滤检索**：在「类别」里选 `genetics` 会走 `exact-filter-first`（先 SQL 过滤再精确比较），诊断显示 `backend=typescript-exact+sql-filter`、`exact=true`。
 
 `npm run playground` 会自动把匹配的 parquet 扩展缓存到 `.cache/` 并由同一静态服务提供，因此浏览器无需跨域下载扩展。

@@ -62,7 +62,7 @@ const db = await open({ manifest, resourceReader: reader });
 | `verifyChecksums` | `"none" \| "manifest" \| "all"` | `"none"` | 打开时的 L3 策略，详见下文 |
 | `fetch` | `typeof fetch` | 全局 `fetch` | 拉取 Manifest 用；保留全局接收者以避免浏览器 `Illegal invocation` |
 | `resourceReader` | `ResourceReader` | 无 | 资源读取器；向量、全文、`verifyChecksums` 都需要它 |
-| `sqlAdapter` | `SqlAdapter` | 无 | 注入后 `sql()` 与向量过滤可用 |
+| `sqlAdapter` | `SqlAdapter` | 无 | 注入后 `sql()` / `sqlStream()` 与向量过滤可用 |
 | `vectorAdapter` | `VectorAdapter` | 无 | 注入后向量搜索走 Adapter；不注入走内置精确管线 |
 | `cache` | `CacheOptions` | 无 | 提供时自动把 `resourceReader` 包进 `CachedResourceReader` |
 | `signal` | `AbortSignal` | 无 | 取消打开过程 |
@@ -88,7 +88,7 @@ const db = await open({ manifest, resourceReader: reader });
 - `mode` 只有 `"readonly"`；V1 不提供写接口，也不从底层引擎推断写能力。
 - 注入 `sqlAdapter` 或 `vectorAdapter` 时必须同时提供 `resourceReader`，否则 `INVALID_ARGUMENT`。Adapter 的所有字节都来自 Reader，没有 Reader 就没有独立的数据通道。
 - 未注入 `resourceReader` 时：向量搜索与全文搜索都抛 `INDEX_NOT_FOUND`；SQL 也无法启用，因为注入任何 Adapter 都要求同时提供 Reader。
-- 未注入 `sqlAdapter` 时：`sql()` 抛 `SQL_UNSUPPORTED`；带 `filter` 的向量搜索同样抛 `SQL_UNSUPPORTED`，不会静默忽略过滤条件。
+- 未注入 `sqlAdapter` 时：`sql()` 与 `sqlStream()` 抛 `SQL_UNSUPPORTED`；带 `filter` 的向量搜索同样抛 `SQL_UNSUPPORTED`，不会静默忽略过滤条件。
 - 数据包与 Manifest 均视为不可信输入；路径、摘要和声明字节数在读取前校验。
 
 ## state 状态机

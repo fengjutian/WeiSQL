@@ -166,6 +166,29 @@ if (sqlState.sqlIds.join(",") !== "doc-001,doc-002,doc-003") {
   await fail(`SQL results were ${JSON.stringify(sqlState.sqlIds)}`);
 }
 const sqlRows = await page.locator("#sql-results tr").count();
+const sqlStatusBefore = await page.locator("#sql-status").innerText();
+
+// Streaming SQL: the same query through sqlStream() must render the same rows.
+try {
+  await page.check("#sql-stream");
+  await page.click("#sql-run");
+  await page.waitForFunction(
+    () => window.__PLAYGROUND_STATE?.sqlStreaming === true && (window.__PLAYGROUND_STATE?.sqlIds ?? []).length === 3,
+    undefined,
+    { timeout: 60_000 },
+  );
+  await page.uncheck("#sql-stream");
+} catch (error) {
+  await fail(`streaming SQL failed: ${String(error).slice(0, 300)}\n${await page.locator("#sql-status").innerText()}`);
+}
+const streamingSqlState = await page.evaluate(() => window.__PLAYGROUND_STATE);
+if (streamingSqlState.sqlIds.join(",") !== "doc-001,doc-002,doc-003") {
+  await fail(`streaming SQL results were ${JSON.stringify(streamingSqlState.sqlIds)}`);
+}
+const sqlStatus = await page.locator("#sql-status").innerText();
+if (!sqlStatus.includes("流式")) {
+  await fail(`streaming SQL status did not mention 流式: ${sqlStatus}`);
+}
 
 // Filtered vector search: the same Runtime now has a SQL engine, so the
 // exact-filter-first strategy must run in the browser.
@@ -200,7 +223,8 @@ console.log(JSON.stringify({
   ragRows,
   container: { mode: containerState.mode, ids: containerState.ids, loadedBytes: containerState.loadedBytes, textIds: containerState.textIds },
   streaming: { mode: streamingState.mode, ids: streamingState.ids, textIds: streamingState.textIds },
-  sql: { ids: sqlState.sqlIds, rows: sqlRows },
+  sql: { ids: sqlState.sqlIds, rows: sqlRows, status: sqlStatusBefore },
+  sqlStream: { ids: streamingSqlState.sqlIds, status: sqlStatus },
   filter: { ids: filterState.ids, diagnostics: filterDiagnostics.split("\n").filter(Boolean) },
 }, null, 2));
 

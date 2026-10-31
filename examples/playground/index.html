@@ -116,6 +116,7 @@
         <h2>SQL（DuckDB-Wasm）</h2>
         <div class="row">
           <input id="sql-query" type="search" style="flex:1;min-width:280px" value="select id, title, category from documents order by id" aria-label="SQL 查询" />
+          <label><input id="sql-stream" type="checkbox" /> 流式</label>
           <button id="sql-run">运行</button>
           <span class="muted" id="sql-status"></span>
         </div>

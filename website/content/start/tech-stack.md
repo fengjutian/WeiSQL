@@ -23,7 +23,7 @@ WeiSQL 的选型围绕一个目标：**让数据包在浏览器和 Node.js 之�
 | 校验 | JSON Schema + 手写语义校验 | V1 | L1/L2 | 目标态规范与实现有差异 |
 | 摘要 | 零依赖增量 SHA-256 | — | L3 资源完整性 | 只证明一致性，不证明来源 |
 | 签名 | Ed25519（WebCrypto） | — | Manifest 发布者身份 | 密钥管理由使用方负责 |
-| 测试 | `node:test` + Playwright + cargo test | — | 318 个自动化测试 | 性能数字仍需本地复现 |
+| 测试 | `node:test` + Playwright + cargo test | — | 321 个自动化测试 | 性能数字仍需本地复现 |
 | 文档 | Docusaurus + jieba 搜索 | 3.10 | 本站 | 见[选型 ADR](/engineering/docs-framework-adr) |
 
 ## 2. 包与依赖方向

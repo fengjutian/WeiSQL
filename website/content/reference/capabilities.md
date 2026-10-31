@@ -15,7 +15,7 @@ sidebar_position: 51
 | 已实现 · 未验证 | 代码存在，缺少目标场景的测量（真实数据、真实 CDN、大表等） |
 | 未实现 | 当前没有可用实现 |
 
-测试规模来自 `docs/PROJECT_STATUS.md` 的快照：五个包合计 318 个测试（SDK 207、DuckDB 23、DuckDB-Wasm 37、USearch 13、CLI 38）。数量会随提交变化，别把它当版本承诺。
+测试规模来自 `docs/PROJECT_STATUS.md` 的快照：五个包合计 321 个测试（SDK 208、DuckDB 24、DuckDB-Wasm 38、USearch 13、CLI 38）。数量会随提交变化，别把它当版本承诺。
 
 ## SDK 与格式层
 
@@ -46,6 +46,7 @@ sidebar_position: 51
 | 能力 | 状态 | 依据与条件 |
 | --- | --- | --- |
 | 只读 SQL（DuckDB） | 已实现 · 已测试 | `@duckdb/node-api` 2.x，依赖原生绑定 |
+| SQL 流式读取 | 已实现 · 已测试 | `sqlStream()` 分批读取；`maxRows` 在迭代中强制 |
 | 表加载 `memory`（默认） | 已实现 · 已测试 | `CREATE TABLE ... AS SELECT`，关闭外部文件访问 |
 | 表加载 `lazy` | 已实现 · 已测试 | 临时文件 + 视图，保留外部访问；仅适合应用作者编写的 SQL |
 | 参数绑定 | 已实现 · 已测试 | `Date` → UTC 微秒，`Uint8Array` → BLOB |

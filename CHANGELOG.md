@@ -32,12 +32,16 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   the SDK never calls a model.
 - `.wsql` single-file container: `createContainer()`, `parseContainer()`,
   `ContainerReader` and `StreamingContainerReader` with an HTTP Range source.
+- Container format 1.1.0: optional per-entry gzip (`compress: true`), with
+  digests computed over the decompressed content.
 
 ### `@weisql/cli` 0.1.0
 
 - `weisql validate <dir|file.wsql>` with `--mode` / `--json` and exit codes 0/1/2.
 - `weisql pack <dir> --output <file>` produces a `.wsql` container; validating a
   container checks both the container digests and the Manifest resources.
+- `weisql pack --compress` writes a gzip container (format 1.1.0) that still
+  validates, unpacks and streams.
 - `weisql unpack <file.wsql>` verifies every digest before writing anything, and
   rejects entry paths that could escape the output directory.
 - `weisql validate --l4` verifies Parquet content against the Manifest through an

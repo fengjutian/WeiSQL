@@ -20,16 +20,27 @@ file bytes...           按头部顺序紧邻排列
 
 ```json
 {
-  "formatVersion": "1.0.0",
+  "formatVersion": "1.1.0",
+  "compression": "gzip",
   "files": [
-    { "path": "manifest.json", "offset": 0, "bytes": 1908, "sha256": "…" }
+    { "path": "manifest.json", "offset": 0, "bytes": 1908, "storedBytes": 741, "sha256": "…" }
   ]
 }
 ```
 
 - `offset` **相对于数据区起点**，必须从 0 开始连续排列；
-- 每个条目的 `sha256` 覆盖该文件内容；
+- `bytes` 是解压后大小（Manifest 描述的就是这个值），`storedBytes` 是写入后的大小；两者在未压缩容器中相等且 `storedBytes` 可省略；
+- 每个条目的 `sha256` 覆盖**解压后**的内容，因此校验不受压缩方式影响；
 - 数据区末尾不允许有未被头部覆盖的字节（防截断/拼接）。
+
+### 版本
+
+| 版本 | 含义 |
+| --- | --- |
+| `1.0.0` | 未压缩；不得声明 `compression` |
+| `1.1.0` | 每个条目独立 gzip；`compression: "gzip"` |
+
+读取方接受两者；写入方按是否压缩选择版本。压缩是逐条目的，因此未压缩条目与压缩条目不能混用（头部只有一个 `compression` 字段）。
 
 ## 3. 明确的设计取舍
 
@@ -46,6 +57,7 @@ file bytes...           按头部顺序紧邻排列
 
 ```bash
 weisql pack ./my-package --output ./my-package.wsql
+weisql pack ./my-package --compress --output ./my-package.wsql   # gzip，格式 1.1.0
 weisql validate ./my-package.wsql
 weisql unpack ./my-package.wsql --output ./extracted
 ```
@@ -80,6 +92,8 @@ const db = await open({ manifest, resourceReader: reader, verifyChecksums: "all"
 
 打开时只读 12 字节固定头 + JSON 头部；每次查询只请求需要的文件区间。若托管方忽略 `Range` 并返回 200 整包，源会退化为整包切片——仍可用，但失去按需读取的意义。
 
+压缩容器同样支持流式读取，但**压缩条目内的 Range 需要先取回整条并解压**再切片；这是压缩换体积的必然代价，文档与代码注释都写明了这一点。
+
 ## 5. 校验与失败语义
 
 | 情况 | 结果 |
@@ -94,6 +108,5 @@ const db = await open({ manifest, resourceReader: reader, verifyChecksums: "all"
 
 ## 6. 尚未完成
 
-1. 压缩（gzip/brotli）与对应版本协商。
-2. 容器内的 Range 请求映射到 HTTP Range 的服务器端支持（当前由源直接发 Range，无需服务器配合）。
-3. 与 `.wsql` 扩展名绑定的 MIME 类型注册。
+1. 压缩算法协商（目前只有 gzip；brotli 需要新的版本号）。
+2. 与 `.wsql` 扩展名绑定的 MIME 类型注册。

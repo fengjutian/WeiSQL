@@ -70,6 +70,54 @@ test("rejects corrupt magic, truncated headers and trailing bytes", async () => 
   assert.throws(() => parseContainer(hostile), { code: "RESOURCE_INTEGRITY_FAILED" });
 });
 
+test("round-trips a gzip-compressed container (format 1.1.0)", async () => {
+  const source = [
+    { path: "manifest.json", bytes: encoder.encode('{"format":"weisql"}\n') },
+    { path: "data/table.parquet", bytes: new Uint8Array(4096).fill(7) },
+  ];
+  const bytes = await createContainer(source, { compress: true });
+  const parsed = parseContainer(bytes);
+  assert.equal(parsed.header.formatVersion, "1.1.0");
+  assert.equal(parsed.header.compression, "gzip");
+  assert.ok(parsed.header.files[1].storedBytes < parsed.header.files[1].bytes);
+
+  const reader = new ContainerReader(bytes);
+  assert.deepEqual(await reader.read("data/table.parquet"), source[1].bytes);
+  assert.deepEqual(await reader.readRange("data/table.parquet", { start: 10, end: 20 }), new Uint8Array(10).fill(7));
+  assert.equal((await reader.stat("data/table.parquet")).size, 4096);
+  assert.deepEqual(await reader.verify(), []);
+  await reader.close();
+});
+
+test("compressed containers report corrupted blocks and reject bad headers", async () => {
+  const bytes = await createContainer([{ path: "manifest.json", bytes: encoder.encode("hello hello hello hello") }], { compress: true });
+  const parsed = parseContainer(bytes);
+  const tampered = bytes.slice();
+  tampered[parsed.dataStart] ^= 0xff;
+  const reader = new ContainerReader(tampered);
+  const mismatches = await reader.verify();
+  assert.equal(mismatches.length, 1);
+
+  // 1.0.0 must not declare compression.
+  const header = encoder.encode(JSON.stringify({
+    formatVersion: "1.0.0",
+    compression: "gzip",
+    files: [{ path: "a", offset: 0, bytes: 1, sha256: "0".repeat(64) }],
+  }));
+  const container = new Uint8Array(12 + header.byteLength + 1);
+  container.set(encoder.encode(CONTAINER_MAGIC), 0);
+  new DataView(container.buffer).setUint32(8, header.byteLength, true);
+  container.set(header, 12);
+  assert.throws(() => parseContainer(container), { code: "RESOURCE_INTEGRITY_FAILED" });
+
+  const future = encoder.encode(JSON.stringify({ formatVersion: "2.0.0", files: [] }));
+  const unsupported = new Uint8Array(12 + future.byteLength);
+  unsupported.set(encoder.encode(CONTAINER_MAGIC), 0);
+  new DataView(unsupported.buffer).setUint32(8, future.byteLength, true);
+  unsupported.set(future, 12);
+  assert.throws(() => parseContainer(unsupported), { code: "FORMAT_VERSION_UNSUPPORTED" });
+});
+
 test("rejects duplicate paths and empty containers", async () => {
   await assert.rejects(createContainer([]), { code: "INVALID_ARGUMENT" });
   await assert.rejects(

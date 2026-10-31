@@ -89,6 +89,20 @@ test("HTTP source falls back when the host ignores Range", async () => {
   assert.deepEqual([...await reader.readRange("vectors/embeddings.f32", { start: 0, end: 3 })], [1, 2, 3]);
 });
 
+test("streams a gzip-compressed container", async () => {
+  const bytes = await createContainer([
+    { path: "manifest.json", bytes: encoder.encode('{"format":"weisql"}\n') },
+    { path: "data/table.parquet", bytes: new Uint8Array(2048).fill(3) },
+  ], { compress: true });
+  const { fetcher } = rangeFetch(bytes);
+  const source = createHttpContainerSource({ url: "https://example.test/pkg.wsql", fetch: fetcher });
+  const reader = await StreamingContainerReader.open(source);
+  assert.equal(reader.header.compression, "gzip");
+  assert.equal(new TextDecoder().decode(await reader.read("manifest.json")), '{"format":"weisql"}\n');
+  assert.deepEqual(await reader.readRange("data/table.parquet", { start: 100, end: 110 }), new Uint8Array(10).fill(3));
+  assert.deepEqual(await reader.verify(), []);
+});
+
 test("streaming open rejects truncated containers and bad sources", async () => {
   const bytes = await sample();
   const truncated = {

@@ -5,7 +5,7 @@
 
 ## 1. 一句话状态
 
-工程原型：Manifest V1 与数据包格式稳定，四个包共 **225 个自动化测试**，CI 覆盖构建/类型/测试/发布元数据，精确检索、ANN、全文、融合、RAG 与单文件容器均有实现与实测数字；**尚未发布 npm 包**，也没有任何未经测量的性能承诺。
+工程原型：Manifest V1 与数据包格式稳定，四个包共 **230 个自动化测试**，CI 覆盖构建/类型/测试/发布元数据，精确检索、ANN、全文、融合、RAG 与单文件容器均有实现与实测数字；**尚未发布 npm 包**，也没有任何未经测量的性能承诺。
 
 ## 2. 能力矩阵
 
@@ -25,7 +25,7 @@
 | 全文检索 BM25 | ✅ | ✅ | ✅ | ✅ p50 ≈10.5 ms @100k 文档 |
 | RRF 融合 | ✅ | ✅ | ✅ | — |
 | RAG 证据组装 | ✅ | ✅ | ✅ | ✅ 端到端 |
-| `.wsql` 单文件容器（pack/validate/unpack/流式） | ✅ | ✅ | ✅ | ✅ 3.6 KB 包往返 |
+| `.wsql` 单文件容器（pack/validate/unpack、流式、gzip 1.1.0） | ✅ | ✅ | ✅ | ✅ 3.6 KB 包往返 |
 | 浏览器路径（Chromium） | ✅ | 探针 | ✅ | ✅ 与 Node 逐字段一致 |
 | 发布前检查 + Apache-2.0 | ✅ | — | ✅ | ✅ |
 
@@ -44,11 +44,11 @@
 
 | 包 | 测试数 | 覆盖重点 |
 | --- | --- | --- |
-| `@weisql/sdk` | 173 | 校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约 |
+| `@weisql/sdk` | 176 | 校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约 |
 | `@weisql/duckdb-adapter` | 19 | 只读边界、参数绑定、两种表加载、取消 |
 | `@weisql/usearch-adapter` | 13 | 度量映射、持久化索引、后过滤、生命周期 |
-| `@weisql/cli` | 20 | 校验退出码、`--json`、`pack`、`unpack`、容器校验、`--l4` |
-| **合计** | **225** | |
+| `@weisql/cli` | 22 | 校验退出码、`--json`、`pack`/`--compress`、`unpack`、容器校验、`--l4` |
+| **合计** | **230** | |
 
 CI（`.github/workflows/ci.yml`）：
 
@@ -103,7 +103,7 @@ CI（`.github/workflows/ci.yml`）：
 | ANN 过滤的完整性保证 | 只有显式后过滤，可能少于 topK，已在诊断中标注 |
 | 同主版本内的索引格式变更 | 只按主版本判定，无法探测其内部变化 |
 | RRF 的 `k` 调优 | 使用文献默认 60，未做实验 |
-| `.wsql` 压缩 | V1 不压缩；流式读取已实现 |
+| `.wsql` 压缩算法协商 | 目前只有 gzip；brotli 需要新版本号 |
 | Builder CSV/JSON 输入 | 需要 Parquet 写入依赖，未引入 |
 | 中文分词 | CJK 逐字，精度换可预测性 |
 
@@ -145,4 +145,4 @@ CI（`.github/workflows/ci.yml`）：
 1. 配置 npm 令牌 → `npm publish --dry-run` 核对四个包 → 正式发布；
 2. 在真实 embedding 数据上测 Recall@K，替换 §5.1 的合成数字；
 3. 第二台机器复现基准，形成区间而非单点；
-4. 视需要再做 `.wsql` 压缩。
+4. 视需要再做压缩算法协商或 Builder 的 CSV/JSON 输入。

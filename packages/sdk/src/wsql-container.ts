@@ -20,20 +20,29 @@ import type { ByteRange, ResourceMetadata, ResourceReader, ResourceReadOptions }
 import { validateByteRange } from "./resource-reader.js";
 
 export const CONTAINER_MAGIC = "WSQLPKG1";
-export const CONTAINER_FORMAT_VERSION = "1.0.0";
+/** Latest version this build can write. */
+export const CONTAINER_FORMAT_VERSION = "1.1.0";
+/** Every version this build can read. */
+export const CONTAINER_FORMAT_VERSIONS = ["1.0.0", "1.1.0"] as const;
 const MAGIC_BYTES = 8;
 const LENGTH_BYTES = 4;
 const HEADER_START = MAGIC_BYTES + LENGTH_BYTES;
 
 export interface ContainerEntry {
   path: string;
+  /** Offset of the stored (possibly compressed) block inside the data section. */
   offset: number;
+  /** Size after decompression; this is what the Manifest describes. */
   bytes: number;
+  /** Size on disk; defaults to `bytes` when the container is uncompressed. */
+  storedBytes?: number;
   sha256: string;
 }
 
 export interface ContainerHeader {
   formatVersion: string;
+  /** Absent for uncompressed containers, including every 1.0.0 container. */
+  compression?: "gzip";
   files: ContainerEntry[];
 }
 
@@ -43,8 +52,8 @@ export interface ContainerFile {
 }
 
 export interface CreateContainerOptions {
-  /** Header format version; defaults to 1.0.0. */
-  formatVersion?: string;
+  /** Gzip each file and write format 1.1.0; defaults to false (1.0.0). */
+  compress?: boolean;
 }
 
 function encoder() {
@@ -55,12 +64,29 @@ function decoder() {
   return new TextDecoder("utf-8", { fatal: true });
 }
 
+/** BlobPart requires an ArrayBuffer; a Uint8Array may be backed by a shared buffer. */
+function bufferOf(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
+async function gzip(bytes: Uint8Array): Promise<Uint8Array> {
+  const stream = new Blob([bufferOf(bytes)]).stream().pipeThrough(new CompressionStream("gzip"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function gunzip(bytes: Uint8Array): Promise<Uint8Array> {
+  const stream = new Blob([bufferOf(bytes)]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
 /** Builds a container from in-memory files. Order is preserved in the header. */
 export async function createContainer(files: readonly ContainerFile[], options: CreateContainerOptions = {}): Promise<Uint8Array> {
-  const formatVersion = options.formatVersion ?? CONTAINER_FORMAT_VERSION;
+  const compress = options.compress === true;
+  const formatVersion = compress ? "1.1.0" : "1.0.0";
   if (files.length === 0) throw new WeiSQLError("INVALID_ARGUMENT", "A container needs at least one file");
   const seen = new Set<string>();
   const entries: ContainerEntry[] = [];
+  const storedBlocks: Uint8Array[] = [];
   let offset = 0;
   for (const file of files) {
     if (file.path.length === 0) throw new WeiSQLError("INVALID_ARGUMENT", "Container file paths must not be empty");
@@ -71,10 +97,18 @@ export async function createContainer(files: readonly ContainerFile[], options: 
     }
     if (seen.has(file.path)) throw new WeiSQLError("INVALID_ARGUMENT", `Duplicate container path '${file.path}'`);
     seen.add(file.path);
-    entries.push({ path: file.path, offset, bytes: file.bytes.byteLength, sha256: await sha256Hex(file.bytes) });
-    offset += file.bytes.byteLength;
+    const stored = compress ? await gzip(file.bytes) : file.bytes;
+    storedBlocks.push(stored);
+    entries.push({
+      path: file.path,
+      offset,
+      bytes: file.bytes.byteLength,
+      ...(compress ? { storedBytes: stored.byteLength } : {}),
+      sha256: await sha256Hex(file.bytes),
+    });
+    offset += stored.byteLength;
   }
-  const header: ContainerHeader = { formatVersion, files: entries };
+  const header: ContainerHeader = { formatVersion, ...(compress ? { compression: "gzip" as const } : {}), files: entries };
   const headerBytes = encoder().encode(JSON.stringify(header));
   const total = HEADER_START + headerBytes.byteLength + offset;
   const output = new Uint8Array(total);
@@ -82,9 +116,9 @@ export async function createContainer(files: readonly ContainerFile[], options: 
   new DataView(output.buffer).setUint32(MAGIC_BYTES, headerBytes.byteLength, true);
   output.set(headerBytes, HEADER_START);
   let position = HEADER_START + headerBytes.byteLength;
-  for (const file of files) {
-    output.set(file.bytes, position);
-    position += file.bytes.byteLength;
+  for (const block of storedBlocks) {
+    output.set(block, position);
+    position += block.byteLength;
   }
   return output;
 }
@@ -139,10 +173,18 @@ function parseHeader(headerJson: Uint8Array, dataBytes: number): ContainerHeader
     throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container header is not valid JSON", { cause: String(cause) });
   }
   if (typeof parsed !== "object" || parsed === null) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container header must be an object");
-  const header = parsed as { formatVersion?: unknown; files?: unknown };
-  if (header.formatVersion !== CONTAINER_FORMAT_VERSION) {
-    throw new WeiSQLError("FORMAT_VERSION_UNSUPPORTED", "Unsupported container format version", { supported: CONTAINER_FORMAT_VERSION, actual: header.formatVersion });
+  const header = parsed as { formatVersion?: unknown; compression?: unknown; files?: unknown };
+  if (typeof header.formatVersion !== "string" || !(CONTAINER_FORMAT_VERSIONS as readonly string[]).includes(header.formatVersion)) {
+    throw new WeiSQLError("FORMAT_VERSION_UNSUPPORTED", "Unsupported container format version", { supported: CONTAINER_FORMAT_VERSIONS, actual: header.formatVersion });
   }
+  const formatVersion = header.formatVersion;
+  if (header.compression !== undefined && header.compression !== "gzip") {
+    throw new WeiSQLError("FORMAT_VERSION_UNSUPPORTED", "Unsupported container compression", { supported: ["gzip"], actual: header.compression });
+  }
+  if (formatVersion === "1.0.0" && header.compression !== undefined) {
+    throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container 1.0.0 cannot declare compression", { compression: header.compression });
+  }
+  const compression = header.compression === "gzip" ? ("gzip" as const) : undefined;
   if (!Array.isArray(header.files) || header.files.length === 0) {
     throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container header must list at least one file");
   }
@@ -151,21 +193,34 @@ function parseHeader(headerJson: Uint8Array, dataBytes: number): ContainerHeader
   let expectedOffset = 0;
   for (const [index, entry] of header.files.entries()) {
     if (typeof entry !== "object" || entry === null) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container entry must be an object", { index });
-    const record = entry as { path?: unknown; offset?: unknown; bytes?: unknown; sha256?: unknown };
+    const record = entry as { path?: unknown; offset?: unknown; bytes?: unknown; storedBytes?: unknown; sha256?: unknown };
     if (typeof record.path !== "string" || record.path.length === 0) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container entry is missing a path", { index });
     assertSafeContainerPath(record.path);
     if (seen.has(record.path)) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container lists a path twice", { path: record.path });
     seen.add(record.path);
     if (!Number.isSafeInteger(record.offset) || (record.offset as number) < 0) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container entry has an invalid offset", { path: record.path });
     if (!Number.isSafeInteger(record.bytes) || (record.bytes as number) < 0) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container entry has an invalid size", { path: record.path });
+    if (record.storedBytes !== undefined && (!Number.isSafeInteger(record.storedBytes) || (record.storedBytes as number) < 0)) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container entry has an invalid stored size", { path: record.path });
+    }
+    if (compression === undefined && record.storedBytes !== undefined && record.storedBytes !== record.bytes) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Uncompressed container entry cannot have a different stored size", { path: record.path });
+    }
     if (typeof record.sha256 !== "string" || !/^[a-fA-F0-9]{64}$/.test(record.sha256)) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container entry has an invalid digest", { path: record.path });
+    const storedBytes = record.storedBytes === undefined ? (record.bytes as number) : (record.storedBytes as number);
     if ((record.offset as number) !== expectedOffset) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container entries must be contiguous and ordered", { path: record.path });
-    if ((record.offset as number) + (record.bytes as number) > dataBytes) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container entry extends past the end of the data section", { path: record.path });
-    expectedOffset += record.bytes as number;
-    files.push({ path: record.path, offset: record.offset as number, bytes: record.bytes as number, sha256: record.sha256 });
+    if ((record.offset as number) + storedBytes > dataBytes) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container entry extends past the end of the data section", { path: record.path });
+    expectedOffset += storedBytes;
+    files.push({
+      path: record.path,
+      offset: record.offset as number,
+      bytes: record.bytes as number,
+      ...(compression === undefined ? {} : { storedBytes }),
+      sha256: record.sha256,
+    });
   }
   if (expectedOffset !== dataBytes) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container has trailing bytes not covered by its header", { dataBytes, covered: expectedOffset });
-  return { formatVersion: CONTAINER_FORMAT_VERSION, files };
+  return { formatVersion, ...(compression === undefined ? {} : { compression }), files };
 }
 
 export function parseContainer(bytes: Uint8Array): ParsedContainer {
@@ -324,12 +379,8 @@ export class StreamingContainerReader implements ResourceReader {
     if (range.end > entry.bytes) {
       throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Range extends past the file inside the container", { path, range, size: entry.bytes });
     }
-    const start = this.dataStart + entry.offset + range.start;
-    const bytes = await this.source.readRange({ start, end: start + (range.end - range.start) }, options);
-    if (bytes.byteLength !== range.end - range.start) {
-      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container read returned the wrong length", { path, expected: range.end - range.start, actual: bytes.byteLength });
-    }
-    return bytes;
+    const content = await this.content(entry, options);
+    return content.slice(range.start, range.end);
   }
 
   async stat(path: string): Promise<ResourceMetadata> {
@@ -340,8 +391,13 @@ export class StreamingContainerReader implements ResourceReader {
     const mismatches: { path: string; expected: string; actual: string }[] = [];
     for (const path of paths ?? this.header.files.map(entry => entry.path)) {
       const entry = this.entry(path);
-      const bytes = await this.read(path);
-      const actual = await sha256Hex(bytes);
+      let actual: string;
+      try {
+        actual = await sha256Hex(await this.content(entry));
+      } catch {
+        mismatches.push({ path, expected: entry.sha256, actual: "unreadable" });
+        continue;
+      }
       if (actual !== entry.sha256) mismatches.push({ path, expected: entry.sha256, actual });
     }
     return mismatches;
@@ -349,6 +405,27 @@ export class StreamingContainerReader implements ResourceReader {
 
   async close(): Promise<void> {
     this.closed = true;
+  }
+
+  /** Reads a whole stored entry and decompresses it when needed. */
+  private async content(entry: ContainerEntry, options?: ResourceReadOptions): Promise<Uint8Array> {
+    const storedBytes = entry.storedBytes ?? entry.bytes;
+    const start = this.dataStart + entry.offset;
+    const stored = await this.source.readRange({ start, end: start + storedBytes }, options);
+    if (stored.byteLength !== storedBytes) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container read returned the wrong length", { path: entry.path, expected: storedBytes, actual: stored.byteLength });
+    }
+    if (this.header.compression !== "gzip") return stored;
+    let content: Uint8Array;
+    try {
+      content = await gunzip(stored);
+    } catch (cause) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container entry could not be decompressed", { path: entry.path, cause: String(cause) });
+    }
+    if (content.byteLength !== entry.bytes) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container entry has the wrong decompressed size", { path: entry.path, expected: entry.bytes, actual: content.byteLength });
+    }
+    return content;
   }
 
   private entry(path: string): ContainerEntry {
@@ -390,8 +467,8 @@ export class ContainerReader implements ResourceReader {
       throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Range extends past the file inside the container", { path, range, size: entry.bytes });
     }
     if (options?.signal?.aborted) throw new WeiSQLError("QUERY_CANCELLED", "Container read was cancelled");
-    const start = this.parsed.dataStart + entry.offset + range.start;
-    return this.bytes.slice(start, start + (range.end - range.start));
+    const content = await this.content(entry);
+    return content.slice(range.start, range.end);
   }
 
   async stat(path: string): Promise<ResourceMetadata> {
@@ -403,7 +480,15 @@ export class ContainerReader implements ResourceReader {
     const targets = paths ?? this.parsed.header.files.map(entry => entry.path);
     for (const path of targets) {
       const entry = this.entry(path);
-      const actual = await sha256Hex(this.slice(entry));
+      let actual: string;
+      try {
+        actual = await sha256Hex(await this.content(entry));
+      } catch {
+        // A block that cannot be decompressed is a mismatch, not a crash: verify
+        // is the tool that reports corruption.
+        mismatches.push({ path, expected: entry.sha256, actual: "unreadable" });
+        continue;
+      }
       if (actual !== entry.sha256) mismatches.push({ path, expected: entry.sha256, actual });
     }
     return mismatches;
@@ -420,8 +505,21 @@ export class ContainerReader implements ResourceReader {
     return entry;
   }
 
-  private slice(entry: ContainerEntry): Uint8Array {
+  /** Stored bytes, decompressed when the container declares gzip. */
+  private async content(entry: ContainerEntry): Promise<Uint8Array> {
     const start = this.parsed.dataStart + entry.offset;
-    return this.bytes.slice(start, start + entry.bytes);
+    const storedBytes = entry.storedBytes ?? entry.bytes;
+    const stored = this.bytes.slice(start, start + storedBytes);
+    if (this.parsed.header.compression !== "gzip") return stored;
+    let content: Uint8Array;
+    try {
+      content = await gunzip(stored);
+    } catch (cause) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container entry could not be decompressed", { path: entry.path, cause: String(cause) });
+    }
+    if (content.byteLength !== entry.bytes) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container entry has the wrong decompressed size", { path: entry.path, expected: entry.bytes, actual: content.byteLength });
+    }
+    return content;
   }
 }

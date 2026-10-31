@@ -8,12 +8,15 @@ export interface PackOptions {
   directory: string;
   /** Output file; defaults to `<directory basename>.wsql` in the current directory. */
   output?: string;
+  /** Gzip each entry and write container format 1.1.0; defaults to false. */
+  compress?: boolean;
   signal?: AbortSignal;
 }
 
 export interface PackResult {
   directory: string;
   output: string;
+  compressed: boolean;
   files: readonly { path: string; bytes: number }[];
   containerBytes: number;
 }
@@ -48,7 +51,7 @@ export async function packPackage(options: PackOptions): Promise<PackResult> {
   await collect(directory, "", files, options.signal);
   if (!files.some(file => file.path === "manifest.json")) throw new Error("package has no manifest.json");
 
-  const container = await createContainer(files);
+  const container = await createContainer(files, { compress: options.compress === true });
   const output = path.resolve(options.output ?? `${path.basename(directory)}.wsql`);
   await mkdir(path.dirname(output), { recursive: true });
   await writeFile(output, container);
@@ -56,6 +59,7 @@ export async function packPackage(options: PackOptions): Promise<PackResult> {
   return {
     directory,
     output,
+    compressed: options.compress === true,
     files: files.map(file => ({ path: file.path, bytes: file.bytes.byteLength })),
     containerBytes: container.byteLength,
   };

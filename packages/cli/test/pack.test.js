@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { packPackage, unpackContainer, validateContainer, validatePackage } from "../dist/index.js";
+import { parseContainer } from "@weisql/sdk";
 
 const run = promisify(execFile);
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
@@ -102,6 +103,42 @@ test("unpack refuses a tampered container before writing anything", async (t) =>
   const directory = path.join(path.dirname(output), "should-not-exist");
   await assert.rejects(unpackContainer({ file: output, directory }), /digests do not match/);
   await assert.rejects(readFile(path.join(directory, "manifest.json")));
+});
+
+test("packs a compressed container that still validates", async (t) => {
+  const directory = await mkdtemp(path.join(tmpdir(), "weisql-pack-gzip-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const output = path.join(directory, "package.wsql");
+
+  const packed = await packPackage({ directory: FIXTURE, output, compress: true });
+  assert.equal(packed.compressed, true);
+
+  const parsed = parseContainer(new Uint8Array(await readFile(output)));
+  assert.equal(parsed.header.formatVersion, "1.1.0");
+  assert.equal(parsed.header.compression, "gzip");
+
+  const validation = await validateContainer({ file: output });
+  assert.equal(validation.ok, true);
+  assert.equal(validation.integrity?.checkedResources, 4);
+  assert.equal(validation.integrity?.hashesVerified, 4);
+
+  const unpacked = await unpackContainer({ file: output, directory: path.join(directory, "out") });
+  assert.equal(unpacked.files.length, 5);
+  assert.equal(unpacked.digestsVerified, 5);
+});
+
+test("CLI pack --compress writes a streaming-readable container", async (t) => {
+  const directory = await mkdtemp(path.join(tmpdir(), "weisql-pack-cli-gzip-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const output = path.join(directory, "package.wsql");
+
+  const packed = await run(process.execPath, [BIN, "pack", FIXTURE, "--compress", "--output", output, "--json"]);
+  const summary = JSON.parse(packed.stdout);
+  assert.equal(summary.compressed, true);
+
+  const validated = await run(process.execPath, [BIN, "validate", output, "--json"]);
+  const report = JSON.parse(validated.stdout);
+  assert.equal(report.ok, true);
 });
 
 test("CLI pack and validate round-trip a container", async (t) => {

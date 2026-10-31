@@ -18,6 +18,7 @@ Commands:
 Options:
   --mode <none|manifest|all>   Integrity mode for validate (default: all)
   --l4                         Also verify Parquet content (needs @weisql/duckdb-adapter)
+  --compress                   Gzip entries when packing (container format 1.1.0)
   --output <file|directory>    Output path for pack / unpack
   --json                       Print machine-readable JSON
   --help, -h                   Show this help
@@ -34,12 +35,13 @@ interface ParsedArguments {
   mode: IntegrityMode;
   output: string | undefined;
   l4: boolean;
+  compress: boolean;
   json: boolean;
   help: boolean;
 }
 
 function parseArguments(argv: readonly string[]): ParsedArguments | string {
-  const parsed: ParsedArguments = { command: undefined, target: undefined, mode: "all", output: undefined, l4: false, json: false, help: false };
+  const parsed: ParsedArguments = { command: undefined, target: undefined, mode: "all", output: undefined, l4: false, compress: false, json: false, help: false };
   for (let index = 0; index < argv.length; index++) {
     const argument = argv[index]!;
     if (argument === "--help" || argument === "-h") {
@@ -52,6 +54,10 @@ function parseArguments(argv: readonly string[]): ParsedArguments | string {
     }
     if (argument === "--l4") {
       parsed.l4 = true;
+      continue;
+    }
+    if (argument === "--compress") {
+      parsed.compress = true;
       continue;
     }
     if (argument === "--mode") {
@@ -155,11 +161,15 @@ async function main(argv: readonly string[]): Promise<number> {
       return 2;
     }
     try {
-      const packed = await packPackage({ directory: parsed.target, ...(parsed.output === undefined ? {} : { output: parsed.output }) });
+      const packed = await packPackage({
+        directory: parsed.target,
+        compress: parsed.compress,
+        ...(parsed.output === undefined ? {} : { output: parsed.output }),
+      });
       if (parsed.json) console.log(JSON.stringify(packed, null, 2));
       else {
         console.log(`package:   ${packed.directory}`);
-        console.log(`container: ${packed.output} (${packed.containerBytes} bytes)`);
+        console.log(`container: ${packed.output} (${packed.containerBytes} bytes${packed.compressed ? ", gzip" : ""})`);
         console.log(`files:     ${packed.files.length}`);
         for (const file of packed.files) console.log(`  ${file.path}  ${file.bytes} B`);
         console.log("OK");

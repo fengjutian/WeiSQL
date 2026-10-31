@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { opfsDatabaseFileName, selectOpfsEvictions } from "../dist/opfs.js";
+import { acquireOpfsLock, opfsDatabaseFileName, selectOpfsEvictions } from "../dist/opfs.js";
 
 const table = (name, bytes, sha256) => ({
   name,
@@ -44,6 +44,33 @@ test("OPFS eviction keeps the current database and the newest others", () => {
   assert.equal(selectOpfsEvictions(entries, base("3"), 1).length, 6);
   // Files that are not our databases are never touched.
   assert.ok(!selectOpfsEvictions(entries, base("1"), 4).includes("unrelated.txt"));
+});
+
+test("Web Locks exclusion falls back when the database is already held", async () => {
+  let held = false;
+  const locks = {
+    async request(_name, _options, callback) {
+      if (held) {
+        await callback(null);
+        return;
+      }
+      held = true;
+      try {
+        await callback({ name: _name });
+      } finally {
+        held = false;
+      }
+    },
+  };
+  const first = await acquireOpfsLock("weisql-opfs-test", locks);
+  assert.ok(first, "first tab should acquire the lock");
+  assert.equal(await acquireOpfsLock("weisql-opfs-test", locks), undefined, "second tab must not wait or share");
+  await first.release();
+  const third = await acquireOpfsLock("weisql-opfs-test", locks);
+  assert.ok(third, "released lock should be acquirable again");
+  await third.release();
+  // Browsers without Web Locks must not run unlocked.
+  assert.equal(await acquireOpfsLock("weisql-opfs-test", {}), undefined);
 });
 
 test("OPFS database name is stable, order-independent and content-sensitive", async () => {

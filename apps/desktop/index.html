@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WeiSQL Desktop</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 5l3.2 14L12 9l5.8 10L21 5" />
+            </svg>
+          </span>
+          <div class="brand-text">
+            <strong>WeiSQL Desktop</strong>
+            <span>只读数据包客户端</span>
+          </div>
+        </div>
+        <div id="package-path" class="package-path" title="尚未打开数据包">尚未打开数据包</div>
+        <div class="topbar-actions">
+          <button id="open-directory" class="btn">打开目录</button>
+          <button id="open-container" class="btn">打开 .wsql</button>
+          <button id="open-sample" class="btn ghost">示例数据包</button>
+        </div>
+      </header>
+
+      <div class="layout">
+        <aside class="sidebar">
+          <section class="side-section">
+            <h2>数据包</h2>
+            <dl id="package-info" class="kv">
+              <div class="placeholder">打开一个数据包后显示摘要。</div>
+            </dl>
+          </section>
+          <section class="side-section">
+            <h2>完整性</h2>
+            <div id="integrity" class="integrity muted">未校验</div>
+          </section>
+          <section class="side-section">
+            <h2>能力</h2>
+            <dl id="capabilities" class="kv"></dl>
+          </section>
+          <section class="side-section">
+            <h2>诊断</h2>
+            <dl id="diagnostics" class="kv"></dl>
+          </section>
+        </aside>
+
+        <main class="content">
+          <nav class="tabs" role="tablist" aria-label="视图">
+            <button class="tab" data-tab="overview" role="tab" aria-selected="true">概览</button>
+            <button class="tab" data-tab="sql" role="tab" aria-selected="false">SQL</button>
+            <button class="tab" data-tab="vector" role="tab" aria-selected="false">向量检索</button>
+            <button class="tab" data-tab="text" role="tab" aria-selected="false">全文检索</button>
+          </nav>
+
+          <section id="panel-overview" class="panel" data-panel="overview">
+            <div id="overview-empty" class="empty-state">
+              <div class="empty-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <ellipse cx="12" cy="5" rx="8" ry="3" />
+                  <path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
+                  <path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
+                </svg>
+              </div>
+              <h1>打开一个 WeiSQL 数据包</h1>
+              <p>选择一个数据包目录或 <code>.wsql</code> 单文件，即可浏览表结构、执行只读 SQL、按向量或全文检索。所有查询都在本机完成，没有数据库服务。</p>
+              <div class="row center">
+                <button id="empty-open-directory" class="btn primary">打开目录</button>
+                <button id="empty-open-container" class="btn">打开 .wsql</button>
+                <button id="empty-open-sample" class="btn ghost">先看示例</button>
+              </div>
+              <p class="hint">拖动文件夹到窗口也可以打开（桌面版）。</p>
+              <div id="open-error" class="error" hidden></div>
+            </div>
+            <div id="overview-content" hidden>
+              <div class="section-head">
+                <h2>表</h2>
+                <span id="table-count" class="badge"></span>
+              </div>
+              <div id="tables" class="tables"></div>
+              <div class="grid-2">
+                <section class="card">
+                  <h3>向量集合</h3>
+                  <div id="vectors" class="list"></div>
+                </section>
+                <section class="card">
+                  <h3>全文索引</h3>
+                  <div id="text-indexes" class="list"></div>
+                </section>
+              </div>
+            </div>
+          </section>
+
+          <section id="panel-sql" class="panel" data-panel="sql" hidden>
+            <div class="section-head">
+              <h2>只读 SQL</h2>
+              <span class="badge">DuckDB-Wasm · 首次运行加载约 34 MB</span>
+            </div>
+            <textarea id="sql-query" class="code-input" spellcheck="false" rows="5">select * from documents limit 50</textarea>
+            <div class="toolbar">
+              <button id="sql-run" class="btn primary">运行</button>
+              <label class="inline">行数上限 <input id="sql-limit" type="number" min="1" max="10000" value="200" /></label>
+              <span class="muted">Ctrl + Enter 运行</span>
+              <span id="sql-status" class="status-text"></span>
+            </div>
+            <div class="error" id="sql-error" hidden></div>
+            <div class="table-wrap" id="sql-result-wrap" hidden>
+              <table id="sql-table">
+                <thead></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <p class="hint">写语句会被拒绝；需要增量结果时 SDK 提供 <code>sqlStream()</code>，此客户端当前使用一次性查询。</p>
+          </section>
+
+          <section id="panel-vector" class="panel" data-panel="vector" hidden>
+            <div class="section-head">
+              <h2>向量检索</h2>
+              <span class="badge">精确搜索 · 可加 SQL 过滤</span>
+            </div>
+            <div class="toolbar">
+              <label class="inline">集合 <select id="vector-collection"></select></label>
+              <label class="inline">topK <input id="vector-topk" type="number" min="1" max="100" value="5" /></label>
+              <button id="vector-load-presets" class="btn small">读取示例向量</button>
+              <span id="vector-presets" class="chips"></span>
+            </div>
+            <label class="field">
+              查询向量
+              <input id="vector-query" class="code-input single" placeholder="例如 0.12, -0.4, 0.88" spellcheck="false" />
+            </label>
+            <div class="toolbar filter-row">
+              <label class="inline"><input id="vector-filter-enabled" type="checkbox" /> 过滤</label>
+              <input id="vector-filter-column" list="vector-columns" placeholder="列名" />
+              <datalist id="vector-columns"></datalist>
+              <input id="vector-filter-value" placeholder="值" />
+              <button id="vector-run" class="btn primary">检索</button>
+              <span id="vector-status" class="status-text"></span>
+            </div>
+            <div class="error" id="vector-error" hidden></div>
+            <div class="table-wrap" id="vector-result-wrap" hidden>
+              <table id="vector-table">
+                <thead><tr><th>row</th><th>id</th><th>distance</th><th>诊断</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <p class="hint">距离越小越相似。带过滤时会启动 DuckDB-Wasm，先过滤再精确检索（exact-filter-first）。</p>
+          </section>
+
+          <section id="panel-text" class="panel" data-panel="text" hidden>
+            <div class="section-head">
+              <h2>全文检索（BM25）</h2>
+              <span class="badge">Unicode 分词 · 分数越大越相关</span>
+            </div>
+            <div class="toolbar">
+              <label class="inline">索引 <select id="text-index"></select></label>
+              <input id="text-query" placeholder="输入查询词，例如 dna" />
+              <label class="inline">topK <input id="text-topk" type="number" min="1" max="100" value="10" /></label>
+              <button id="text-run" class="btn primary">检索</button>
+              <span id="text-status" class="status-text"></span>
+            </div>
+            <div class="error" id="text-error" hidden></div>
+            <div class="table-wrap" id="text-result-wrap" hidden>
+              <table id="text-table">
+                <thead><tr><th>row</th><th>id</th><th>score</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <p class="hint" id="text-empty">此数据包未声明全文索引。</p>
+          </section>
+        </main>
+      </div>
+
+      <footer class="statusbar">
+        <span id="status">就绪</span>
+        <span class="spacer"></span>
+        <span id="backend-badge" class="badge subtle">browser</span>
+      </footer>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

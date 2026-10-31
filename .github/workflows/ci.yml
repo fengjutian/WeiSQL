@@ -39,6 +39,11 @@ jobs:
       - run: npm run release:pack
       - run: npm run bench:self-test
 
+      # The committed golden fixture must still be exactly what the TypeScript
+      # exact search produces; the Rust job asserts the other half of the pair.
+      - name: TypeScript ↔ Rust golden fixture
+        run: npm run test:rust-golden
+
       # Same contract on both operating systems: the blockers here are the WASM
       # extension download and native DuckDB bindings, not the SQL text.
       - name: SQL adapter contract

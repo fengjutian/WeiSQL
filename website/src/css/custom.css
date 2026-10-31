@@ -139,6 +139,55 @@ html {
   color: var(--ifm-color-emphasis-800);
 }
 
+.theme-doc-markdown details {
+  margin: 0.9rem 0;
+  padding: 0 1rem;
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 12px;
+  background: var(--ifm-background-surface-color);
+}
+
+.theme-doc-markdown details[open] {
+  padding-bottom: 0.9rem;
+}
+
+.theme-doc-markdown summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0.85rem 0;
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+}
+
+.theme-doc-markdown summary::-webkit-details-marker {
+  display: none;
+}
+
+.theme-doc-markdown summary::after {
+  color: var(--ifm-color-primary);
+  content: "+";
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.theme-doc-markdown details[open] summary::after {
+  content: "−";
+}
+
+.theme-doc-markdown details p {
+  margin: 0.2rem 0 0.7rem;
+  color: var(--ifm-color-emphasis-700);
+  line-height: 1.8;
+}
+
+.theme-doc-markdown details a {
+  text-underline-offset: 0.2em;
+}
+
 .menu__link--active:not(.menu__link--sublist) {
   border-left: 3px solid var(--ifm-color-primary);
   padding-left: calc(var(--ifm-menu-link-padding-horizontal) - 3px);

@@ -1,0 +1,7 @@
+dist/
+public/duckdb/
+public/extensions/
+public/sample/
+app-icon.png
+src-tauri/target/
+src-tauri/gen/schemas/

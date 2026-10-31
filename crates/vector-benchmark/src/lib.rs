@@ -30,6 +30,7 @@ pub enum SearchError {
     QueryZeroVector,
     QueryNonFiniteValue { dimension: usize },
     InvalidTopK { top_k: usize, limit: usize },
+    BufferLengthMismatch { rows: usize, dimension: usize, actual: usize },
 }
 
 impl SearchError {
@@ -44,6 +45,7 @@ impl SearchError {
             | Self::QueryNonFiniteValue { .. } => "VECTOR_INVALID_VALUE",
             Self::EmptyDimension | Self::DimensionMismatch { .. } => "VECTOR_DIMENSION_MISMATCH",
             Self::InvalidTopK { .. } => "INVALID_ARGUMENT",
+            Self::BufferLengthMismatch { .. } => "VECTOR_INVALID_VALUE",
         }
     }
 }
@@ -69,6 +71,10 @@ impl fmt::Display for SearchError {
             Self::InvalidTopK { top_k, limit } => {
                 write!(f, "top_k must be between 1 and {limit}, got {top_k}")
             }
+            Self::BufferLengthMismatch { rows, dimension, actual } => write!(
+                f,
+                "vector buffer has {actual} values but {rows} rows of {dimension} were expected"
+            ),
         }
     }
 }

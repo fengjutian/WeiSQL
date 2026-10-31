@@ -122,7 +122,8 @@ const adapter = createDuckDbWasmAdapter({
 - **关闭**：`close()` 在 terminate 前再 flush 一次。
 - **回退**：OPFS/WebCrypto 不可用、打开缓存失败、flush 失败都退回内存模式，不阻断 `open()`；此时不声明 `opfs` 能力。
 - **回收**：每次落盘后清理旧缓存，保留当前数据库与最近 3 个（共 4 个），WAL 伴随文件一起删除；只处理 `weisql-<32 hex>.db` 文件。
-- **局限**：假设单标签页使用（未实现跨标签页锁）；命中缓存后只校验 schema（L4），不重新比对行内容。
+- **跨标签页**：用 Web Locks（`ifAvailable`）对 `weisql-opfs-<file>` 取独占锁，锁持有到 `close()`。第二个标签页拿不到锁就**回退内存**，不排队、不共享写；不支持 Web Locks 的浏览器同样回退。
+- **局限**：命中缓存后只校验 schema（L4），不重新比对行内容；锁只覆盖同一浏览器配置内的标签页，不跨设备。
 
 ## 5. L4 与版本
 

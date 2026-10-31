@@ -268,10 +268,10 @@ DuckDB-Wasm 与浏览器 SQL 已验证、WASM 向量搜索仍待推进；CDN 按
 | USearch ANN Adapter | 已实现；HNSW 内存索引、三种度量映射、`exact: false` 如实标注；召回与延迟对照见 `BENCHMARK_HARNESS.md` |
 | ANN 真实数据集召回 | 未评估；现有 Recall@K 均来自合成数据，不能外推 |
 | 全文检索 | 已实现；Manifest `textIndexes`、倒排索引读取器、BM25 排序与 Unicode 分词，`text.search()` 已接入 Runtime |
-| Rust 向量能力 | 精确 Cosine 搜索正确性基线已实现，7 个测试通过 |
+| Rust 向量能力 | 精确 Cosine 搜索正确性基线已实现，21 个测试通过（含 6 个跨语言黄金用例）；单次扫描 + `f64` 累加 + 定容最大堆，CI 接入 `fmt`/`clippy`/`test` 与 release 基准烟测 |
 | 浏览器路径 | SDK 与 SQL 均已在真实 Chromium 中验证（Range、L3、精确搜索、缓存、DuckDB-Wasm SQL）；Netlify/CDN 未部署 |
 | 跨环境对照 | Node 与 Chromium 逐字段对照已通过（8 向量 + 5 文本 + 9 SQL + RAG + 容器 + 6 个 Manifest 错误用例） |
-| CI | GitHub Actions 已建立：Ubuntu/Windows 双平台 build→typecheck→test→release:check，另有 fixture 可复现、派生索引、容器、`bench:wasm --smoke`、SQL 契约，以及 Ubuntu 上的 Chromium 探针作业 |
+| CI | GitHub Actions 已建立：Ubuntu/Windows 双平台 build→typecheck→test→release:check，另有 fixture 可复现、派生索引、容器、`bench:wasm --smoke`、SQL 契约、Rust 基线作业，以及 Ubuntu 上的 Chromium 探针作业 |
 | `.wsql` 容器 | 已实现：pack/validate/unpack、流式 Reader、gzip 1.1.0 |
 | 性能结论 | 有可复现的装置与合成数据测量，尚无产品级性能承诺 |
 | npm 发布 | 未发布；版本形状与产物检查由 `npm run release:check` 把关 |

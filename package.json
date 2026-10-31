@@ -2,7 +2,8 @@
   "name": "weisql-ai-workspace",
   "private": true,
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
     "build": "npm run build --workspace @weisql/sdk && npm run build --workspace @weisql/duckdb-adapter && npm run build --workspace @weisql/duckdb-wasm-adapter && npm run build --workspace @weisql/usearch-adapter && npm run build --workspace @weisql/cli",
@@ -25,6 +26,7 @@
     "bench:quantization": "node tools/bench/quantization.mjs",
     "bench:recall": "node tools/bench/recall.mjs",
     "bench:self-test": "node tools/bench/quantization.mjs --self-test && node tools/bench/recall.mjs --self-test",
+    "test:rust-golden": "node tools/bench/rust-golden.mjs",
     "release:check": "node tools/release-check.mjs",
     "release:pack": "node tools/check-tarballs.mjs",
     "release:e2e": "node tools/pack-e2e.mjs",
@@ -33,7 +35,11 @@
     "docs:install": "npm --prefix website install",
     "docs:dev": "npm --prefix website run dev",
     "docs:build": "npm --prefix website run build",
-    "docs:serve": "npm --prefix website run serve"
+    "docs:serve": "npm --prefix website run serve",
+    "desktop:dev": "npm run tauri:dev --workspace @weisql/desktop",
+    "desktop:build": "npm run tauri:build --workspace @weisql/desktop",
+    "desktop:web": "npm run dev --workspace @weisql/desktop",
+    "desktop:test": "npm run test:e2e --workspace @weisql/desktop"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

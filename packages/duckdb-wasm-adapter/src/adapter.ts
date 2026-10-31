@@ -2,7 +2,7 @@ import { WeiSQLError } from "@weisql/sdk/errors";
 import type { QueryOptions, SqlAdapter, SqlAdapterCapabilities, SqlAdapterOpenContext, SQLValue } from "@weisql/sdk";
 
 import { quoteIdentifier, verifyTableSchema } from "./schema.js";
-import { opfsDatabaseFileName, opfsFileExists, pruneOpfsDatabases } from "./opfs.js";
+import { acquireOpfsLock, opfsDatabaseFileName, opfsFileExists, pruneOpfsDatabases } from "./opfs.js";
 import { assertReadOnlyStatement } from "./sql-guard.js";
 import type { SqlTokenStream } from "./sql-guard.js";
 import { normalizeRows, toWasmParameters } from "./values.js";
@@ -122,6 +122,7 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
   private opfsExisted = false;
   private opfsReused = false;
   private opfsFileName: string | undefined;
+  private opfsLock: { release(): Promise<void> } | undefined;
   private capabilitiesValue: SqlAdapterCapabilities = Object.freeze({
     engine: "duckdb-wasm",
     parameterBinding: true,
@@ -180,8 +181,19 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
           const fileName = await opfsDatabaseFileName(context.manifest);
           this.opfsFileName = fileName;
           this.opfsExisted = await opfsFileExists(fileName);
-          databasePath = `opfs://${fileName}`;
-          this.persistRequested = true;
+          const lock = await acquireOpfsLock(`weisql-opfs-${fileName}`);
+          if (lock === undefined) {
+            // Another tab owns this database, or the browser has no Web Locks:
+            // use memory instead of risking two writers on one OPFS file.
+            this.persistRequested = false;
+            this.opfsExisted = false;
+            this.opfsFileName = undefined;
+            databasePath = undefined;
+          } else {
+            this.opfsLock = lock;
+            this.persistRequested = true;
+            databasePath = `opfs://${fileName}`;
+          }
         } catch {
           // OPFS or WebCrypto unavailable (older browser, private mode): keep
           // working in memory instead of failing the whole package.
@@ -199,6 +211,8 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
         // cache): retry in memory once.
         this.persistRequested = false;
         this.opfsExisted = false;
+        this.opfsFileName = undefined;
+        await this.releaseOpfsLock();
         await this.instantiate(undefined);
       }
       this.connection = await this.database!.connect();
@@ -477,6 +491,12 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
     }
   }
 
+  private async releaseOpfsLock(): Promise<void> {
+    const lock = this.opfsLock;
+    this.opfsLock = undefined;
+    if (lock !== undefined) await lock.release().catch(() => undefined);
+  }
+
   private async instantiate(databasePath?: string): Promise<void> {
     if (this.options.database !== undefined) {
       this.database = this.options.database;
@@ -620,6 +640,7 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
     this.ownsDatabase = false;
     this.persistRequested = false;
     this.opfsExisted = false;
+    await this.releaseOpfsLock();
     this.opfsFileName = undefined;
     if (failures.length > 0 && this.stateValue !== "FAILED") {
       throw new WeiSQLError("INTERNAL_ERROR", "DuckDB-Wasm resources could not be released cleanly", {

@@ -33,6 +33,7 @@ WeiSQL AI 是一个**只读数据运行时**。它把 Parquet 表、Float32 向�
 | 构建并校验自己的数据包 | [构建数据包](/docs/tooling/build-package)、[CLI](/docs/tooling/cli) |
 | 部署到 CDN / Netlify | [部署到 CDN](/docs/tooling/deploy-cdn) |
 | 看哪些能力还没验证 | [限制与路线](/docs/reference/limitations) |
+| 先问边界与常见疑问 | [常见问题](/docs/reference/faq) |
 
 ## 能力速览
 

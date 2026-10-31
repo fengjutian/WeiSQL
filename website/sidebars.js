@@ -72,6 +72,7 @@ const sidebars = {
         "reference/capabilities",
         "reference/compatibility",
         "reference/limitations",
+        "reference/faq",
         "reference/glossary",
       ],
     },

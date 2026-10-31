@@ -21,6 +21,52 @@ interface OpfsStorageLike {
   getDirectory(): Promise<OpfsDirectoryLike>;
 }
 
+export interface OpfsLockHandle {
+  release(): Promise<void>;
+}
+
+interface LockManagerLike {
+  request(
+    name: string,
+    options: { mode: "exclusive"; ifAvailable: true },
+    callback: (lock: unknown | null) => Promise<void>,
+  ): Promise<unknown>;
+}
+
+/**
+ * Cross-tab mutual exclusion via the Web Locks API.
+ *
+ * The lock is held until `release()`; `ifAvailable` means a second tab does not
+ * wait (and does not corrupt the database) — it gets `undefined` and the adapter
+ * falls back to in-memory. Browsers without Web Locks also get `undefined`
+ * rather than an unlocked OPFS file, because concurrent writes there are unsafe.
+ */
+export async function acquireOpfsLock(
+  name: string,
+  locks: LockManagerLike | undefined = (globalThis as { navigator?: { locks?: LockManagerLike } }).navigator?.locks,
+): Promise<OpfsLockHandle | undefined> {
+  if (locks?.request === undefined) return undefined;
+  let releaseHold: () => void = () => {};
+  const held = new Promise<void>(resolve => { releaseHold = resolve; });
+  let decide: (acquired: boolean) => void = () => {};
+  const decision = new Promise<boolean>(resolve => { decide = resolve; });
+  const request = locks.request(name, { mode: "exclusive", ifAvailable: true }, async lock => {
+    if (lock === null) {
+      decide(false);
+      return;
+    }
+    decide(true);
+    await held;
+  }).catch(() => decide(false));
+  if (!(await decision)) return undefined;
+  return {
+    release: async () => {
+      releaseHold();
+      await request.catch(() => undefined);
+    },
+  };
+}
+
 /**
  * Deterministic cache key: a change to any table's declared size or SHA-256
  * produces a different file, so a stale materialized table can never be reused

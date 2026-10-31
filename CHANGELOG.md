@@ -104,7 +104,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   table bytes and SHA-256, a hit skips materialization but still runs L4, and
   `flushFiles()` runs before `terminate()`. OPFS/WebCrypto/flush failures fall
   back to memory (ADR-070, ADR-071). Old entries are pruned to the current
-  database plus the three newest, WAL files included.
+  database plus the three newest, WAL files included. A Web Locks exclusive lock
+  covers each database; a second tab gets memory instead of sharing writes.
 - `db.sql(..., { maxRows })` matches the Node adapter: `SELECT`/`VALUES`/`TABLE`
   are wrapped with `LIMIT maxRows + 1` and oversized results raise
   `INVALID_ARGUMENT`; metadata statements are checked after execution.
@@ -195,6 +196,16 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   `.f32` file, keeping exact search as ground truth.
 - `bench:self-test` runs harness self-checks in CI (quantization size ordering,
   `.npy` parsing and recall computation).
+- Cross-language golden fixture: `tools/bench/rust-golden.mjs` renders six fixed
+  datasets through `exactVectorSearch`, and
+  `crates/vector-benchmark/tests/golden_tests.rs` asserts the Rust baseline
+  returns the same ranking and distances (1e-6 tolerance). CI regenerates the
+  TypeScript side and runs the Rust side, so drift fails whichever language
+  changed.
+- Rust baseline hardened: one validation/scan pass, `f64` accumulation, a
+  fixed-capacity max heap instead of a full sort, `top_k`/zero-dimension
+  contracts aligned with TypeScript, and a `rust vector baseline` CI job
+  (`fmt`/`clippy`/`test`/release smoke).
 - ANN index builder and release checks.
 - Text index builder (`tools/build-text-index.mjs`) reading the Parquet column and
   updating the Manifest.

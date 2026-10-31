@@ -67,6 +67,30 @@ test("infers JSON types, including int64 and nullability", async () => {
   assert.equal(rows[2].big, null);
 });
 
+test("converts nested JSON objects and arrays into a json column", async () => {
+  const rows = [
+    { id: "a", meta: { tags: ["x", "y"], score: 1 } },
+    { id: "b", meta: { tags: [] } },
+    { id: "c", meta: null },
+  ];
+  const converted = convertSource(JSON.stringify(rows), "json");
+  assert.deepEqual(converted.columns, [
+    { name: "id", type: "string", nullable: false },
+    { name: "meta", type: "json", nullable: true },
+  ]);
+  const read = await readBack(converted.parquet);
+  assert.deepEqual(read[0].meta, { tags: ["x", "y"], score: 1 });
+  assert.deepEqual(read[1].meta, { tags: [] });
+  assert.equal(read[2].meta, null);
+});
+
+test("rejects mixing nested JSON with scalar values", () => {
+  assert.throws(
+    () => convertSource(JSON.stringify([{ meta: { a: 1 } }, { meta: "text" }]), "json"),
+    /mixes incompatible types/,
+  );
+});
+
 test("rejects mixed-type columns and bad input", () => {
   assert.throws(() => convertSource('[{"a":1},{"a":"x"}]', "json"), /mixes incompatible types/);
   assert.throws(() => convertSource("[]", "json"), /no rows/);

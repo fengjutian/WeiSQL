@@ -26,6 +26,7 @@ const MANIFEST_TYPE = {
   INT64: "int64",
   DOUBLE: "float64",
   BOOLEAN: "boolean",
+  JSON: "json",
 };
 
 /** Parses RFC 4180 CSV: quoted fields, doubled quotes, CRLF, optional BOM. */
@@ -135,6 +136,9 @@ function inferColumn(name, values) {
     return { name, type: "DOUBLE", nullable };
   }
   if (present.every(value => typeof value === "string")) return { name, type: "STRING", nullable };
+  // Nested JSON: objects and arrays are kept as JSON values and declared as
+  // `json` in the Manifest. Mixing them with scalars stays an error.
+  if (present.every(value => typeof value === "object")) return { name, type: "JSON", nullable };
   throw new Error(`column '${name}' mixes incompatible types: ${[...new Set(present.map(value => typeof value))].join(", ")}`);
 }
 

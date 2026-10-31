@@ -88,6 +88,8 @@ WeiSQL 的核心设计只有一句话：**把“数据库服务”换成“可�
 
 ## 2. 一次向量查询
 
+<Module>
+
 以默认的 `exact-filter-first` 策略为例，一次 `vector.search()` 会经过六步：
 
 <FlowSteps
@@ -133,7 +135,11 @@ WeiSQL 的核心设计只有一句话：**把“数据库服务”换成“可�
 `vector-first` 则先取有界候选窗口，再用 SQL 过滤；只有窗口覆盖整个集合时才可能
 `exact: true`（靠穷尽，而非构造）。它省掉的是全量 ID Map 扫描，不是向量扫描。
 
+</Module>
+
 ## 3. SQL 查询链路
+
+<Module>
 
 <FlowSteps
   steps={[
@@ -157,7 +163,11 @@ WeiSQL 的核心设计只有一句话：**把“数据库服务”换成“可�
 
 Adapter 打开时会从 `ResourceReader` 读表字节、按 Manifest 比对列定义（L4），再把表加载到引擎。Node 默认 `memory` 模式，物化后关闭外部文件访问；`lazy` 保留外部访问，只适合由应用作者编写 SQL 的场景。
 
+</Module>
+
 ## 4. 信任边界
+
+<Module>
 
 Manifest 和所有远程资源都按**不可信输入**处理：
 
@@ -187,7 +197,11 @@ Manifest 和所有远程资源都按**不可信输入**处理：
   签名与信任固定。
 </Callout>
 
+</Module>
+
 ## 5. 三种部署形态
+
+<Module>
 
 <CardGrid columns={3}>
   <DocCard title="目录 + CDN" tag="推荐">
@@ -203,7 +217,11 @@ Manifest 和所有远程资源都按**不可信输入**处理：
 
 三种形态对上层 API 完全一致，因为它们都实现同一个 `ResourceReader` 契约。
 
+</Module>
+
 ## 6. 设计原则
+
+<Module>
 
 <CardGrid columns={2}>
   <DocCard title="显式失败" index="01">
@@ -226,17 +244,27 @@ Manifest 和所有远程资源都按**不可信输入**处理：
   </DocCard>
 </CardGrid>
 
+</Module>
+
 ## 7. 为什么还有一个 Rust crate
+
+<Module>
 
 <Callout tone="amber" title="对照基线，不是生产引擎">
   `crates/vector-benchmark` 是确定性精确 Cosine 基线，用于对照 TypeScript
   实现的正确性与性能，不进入运行时。它的存在是为了让“TS 算得对不对”有一个独立参照。
 </Callout>
 
+</Module>
+
 ## 延伸阅读
+
+<Module>
 
 - [核心概念](/docs/start/concepts)：数据包、Manifest 与 L1–L4 的心智模型
 - [技术栈](/docs/start/tech-stack)：语言、引擎、格式与版本
 - [Runtime API](/docs/api/runtime)：`open()`、状态机与 `capabilities()`
 - [总体技术规范](https://github.com/fengjutian/WeiSQL/blob/main/docs/TECHNICAL_SPEC_V1.md)
 - [Runtime 兼容性](https://github.com/fengjutian/WeiSQL/blob/main/docs/RUNTIME_COMPATIBILITY.md)
+
+</Module>

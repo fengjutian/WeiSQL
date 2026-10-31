@@ -16,7 +16,7 @@ export { CachedResourceReader } from "./cached-resource-reader.js";
 export type { CachedResourceReaderOptions, CacheStats } from "./cached-resource-reader.js";
 export { NodeFileResourceReader } from "./node-file-resource-reader.js";
 export type { NodeFileResourceReaderOptions } from "./node-file-resource-reader.js";
-export { declaredResources, validateIdMapContent, verifyManifestResources } from "./integrity.js";
+export { declaredResources, validateIdIndexContent, validateIdMapContent, verifyManifestResources } from "./integrity.js";
 export type { DeclaredResource, DeclaredResourceKind, IntegrityMode, IntegrityOptions, IntegrityReport, VerifyManifestResourcesInput } from "./integrity.js";
 export { Sha256, sha256Hex, toHex } from "./sha256.js";
 export { buildPackage } from "./builder.js";

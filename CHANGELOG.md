@@ -33,7 +33,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - Exact filtered search reads only the allowed vector rows when the filter is
   narrow (≤ 1/8 of the collection), merging contiguous rows into one read.
 - Vector collections carry an optional sorted `id → row` index; filtered search
-  loads it once and binary-searches instead of scanning the whole ID Map.
+  loads it once and binary-searches instead of scanning the whole ID Map. L3
+  verifies its bytes and, in `all` mode, that it is a sorted row permutation.
 - Manifest signing: Ed25519 over canonical JSON, `signManifest()` /
   `verifyManifestSignature()` with optional pinned key ids; `buildPackage()`
   signs during the build when a key pair is supplied.

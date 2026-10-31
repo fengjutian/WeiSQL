@@ -2,6 +2,7 @@ import { WeiSQLError } from "./errors.js";
 import { validateResourcePath } from "./resource-path.js";
 import type { ResourceReader } from "./resource-reader.js";
 import { Sha256, toHex } from "./sha256.js";
+import { compareIds } from "./sorted-id-index.js";
 import type { VectorCollectionDescriptor, WeiSQLManifest } from "./types.js";
 
 /** Integrity strategy. `none` never touches a resource; `manifest` checks size only; `all` hashes content. */
@@ -32,7 +33,7 @@ export interface VerifyManifestResourcesInput {
   options?: IntegrityOptions;
 }
 
-export type DeclaredResourceKind = "table" | "vector-data" | "id-map-data" | "id-map-offsets" | "index" | "text-data" | "text-offsets" | "text-lengths" | "text-ids" | "text-id-offsets" | "text-documents" | "text-document-offsets";
+export type DeclaredResourceKind = "table" | "vector-data" | "id-map-data" | "id-map-offsets" | "id-index-data" | "id-index-offsets" | "index" | "text-data" | "text-offsets" | "text-lengths" | "text-ids" | "text-id-offsets" | "text-documents" | "text-document-offsets";
 
 export interface DeclaredResource {
   path: string;
@@ -97,7 +98,7 @@ export async function verifyManifestResources(input: VerifyManifestResourcesInpu
     }
     report.sizeVerified++;
     if (mode !== "all") continue;
-    const keep = resource.kind === "id-map-data" || resource.kind === "id-map-offsets";
+    const keep = resource.kind === "id-map-data" || resource.kind === "id-map-offsets" || resource.kind === "id-index-data";
     const bytes = await hashResource(input.reader, resource, chunkBytes, signal, readOptions, keep);
     report.hashesVerified++;
     if (bytes !== undefined) retained.set(resource.path, bytes);
@@ -119,6 +120,10 @@ export function declaredResources(manifest: Readonly<WeiSQLManifest>): DeclaredR
     add("vector-data", collection.name, collection.data);
     add("id-map-data", collection.name, collection.idMap.data);
     add("id-map-offsets", collection.name, collection.idMap.offsets);
+    if (collection.idIndex) {
+      add("id-index-data", collection.name, collection.idIndex.data);
+      add("id-index-offsets", collection.name, collection.idIndex.offsets);
+    }
     if (collection.index) add("index", collection.name, collection.index.file);
   }
   for (const text of manifest.textIndexes ?? []) {
@@ -178,6 +183,64 @@ function validateCollections(manifest: Readonly<WeiSQLManifest>, retained: Map<s
       throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "ID Map resources were not read for content validation", { collection: collection.name });
     }
     validateIdMapContent(collection, offsets, data);
+    if (collection.idIndex !== undefined) {
+      const indexData = retained.get(collection.idIndex.data.path);
+      if (indexData === undefined) {
+        throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "ID index resource was not read for content validation", { collection: collection.name });
+      }
+      validateIdIndexContent(collection, indexData);
+    }
+  }
+}
+
+/**
+ * The id index must be a sorted permutation of the collection rows: sorted so the
+ * runtime binary search is sound, a permutation so it cannot hide or duplicate a
+ * row.
+ */
+export function validateIdIndexContent(collection: Readonly<VectorCollectionDescriptor>, data: Uint8Array): void {
+  const index = collection.idIndex;
+  if (index === undefined) throw new WeiSQLError("INVALID_ARGUMENT", "Collection has no id index to validate", { collection: collection.name });
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(data);
+  } catch (cause) {
+    throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "ID index is not valid UTF-8", { collection: collection.name, cause: String(cause) });
+  }
+  const lines = text.split("\n").filter(line => line !== "");
+  if (lines.length !== index.count) {
+    throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "ID index count does not match the Manifest", { collection: collection.name, expected: index.count, actual: lines.length });
+  }
+  let previous: string | number | undefined;
+  const rows = new Set<number>();
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(lines[lineIndex]!);
+    } catch (cause) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "ID index record is not valid JSON", { collection: collection.name, line: lineIndex, cause: String(cause) });
+    }
+    const record = parsed as { id?: unknown; row?: unknown };
+    const rawId = record.id;
+    let identifier: string | number;
+    if (index.idType === "string") {
+      if (typeof rawId !== "string") throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "ID index id type does not match the Manifest", { collection: collection.name, line: lineIndex });
+      identifier = rawId;
+    } else {
+      if (typeof rawId !== "number" || !Number.isSafeInteger(rawId)) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "ID index id type does not match the Manifest", { collection: collection.name, line: lineIndex });
+      identifier = rawId;
+    }
+    if (previous !== undefined && compareIds(previous, identifier) >= 0) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "ID index is not strictly sorted by id", { collection: collection.name, line: lineIndex });
+    }
+    previous = identifier;
+    if (!Number.isSafeInteger(record.row) || (record.row as number) < 0 || (record.row as number) >= collection.count) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "ID index row is out of range", { collection: collection.name, line: lineIndex });
+    }
+    if (rows.has(record.row as number)) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "ID index repeats a row", { collection: collection.name, line: lineIndex });
+    }
+    rows.add(record.row as number);
   }
 }
 

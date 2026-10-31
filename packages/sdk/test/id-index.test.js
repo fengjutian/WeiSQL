@@ -5,7 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { NodeFileResourceReader, SortedIdIndexReader, buildPackage, open, validateManifest } from "../dist/index.js";
+import { NodeFileResourceReader, SortedIdIndexReader, buildPackage, declaredResources, open, validateIdIndexContent, validateManifest, verifyManifestResources } from "../dist/index.js";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const SOURCE_PARQUET = path.join(REPO_ROOT, "examples", "source", "documents.parquet");
@@ -151,4 +151,30 @@ test("the id index loads once and rejects malformed data", async () => {
     data: { ...descriptor.data, bytes: malformed.byteLength },
   });
   await assert.rejects(broken.rowsOf(["a"]), { code: "RESOURCE_INTEGRITY_FAILED" });
+});
+
+test("L3 verifies the id index and rejects a corrupt one", async (t) => {
+  const temp = await mkdtemp(path.join(tmpdir(), "weisql-idindex-"));
+  t.after(() => rm(temp, { recursive: true, force: true }));
+  const report = await build(temp);
+  const collection = report.manifest.vectorCollections[0];
+
+  const kinds = declaredResources(report.manifest).map(resource => resource.kind);
+  assert.ok(kinds.includes("id-index-data"));
+  assert.ok(kinds.includes("id-index-offsets"));
+
+  const reader = new NodeFileResourceReader({ rootDirectory: path.join(temp, "package") });
+  try {
+    const integrity = await verifyManifestResources({ manifest: report.manifest, reader, options: { mode: "all" } });
+    assert.equal(integrity.checkedResources, 6);
+    assert.equal(integrity.hashesVerified, 6);
+  } finally {
+    await reader.close();
+  }
+
+  const unsorted = new TextEncoder().encode('{"id":"doc-002","row":1}\n{"id":"doc-001","row":0}\n{"id":"doc-003","row":2}\n');
+  assert.throws(() => validateIdIndexContent(collection, unsorted), /strictly sorted/);
+
+  const duplicate = new TextEncoder().encode('{"id":"doc-001","row":0}\n{"id":"doc-002","row":0}\n{"id":"doc-003","row":2}\n');
+  assert.throws(() => validateIdIndexContent(collection, duplicate), /repeats a row/);
 });

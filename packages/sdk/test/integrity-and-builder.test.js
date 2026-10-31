@@ -119,8 +119,8 @@ test("Builder publishes a package whose Manifest matches real bytes and digests"
   assert.equal(collection.idMap.uniqueIds, true);
   assert.equal(collection.data.bytes, 3 * 2 * 4);
   assert.equal(collection.idMap.offsets.bytes, 3 * 8);
-  assert.equal(report.integrity.checkedResources, 4);
-  assert.equal(report.integrity.hashesVerified, 4);
+  assert.equal(report.integrity.checkedResources, 6);
+  assert.equal(report.integrity.hashesVerified, 6);
   assert.ok(report.artifacts.some(artifact => artifact.path === "manifest.json"));
 });
 
@@ -164,7 +164,10 @@ test("'manifest' mode verifies sizes without claiming to verify hashes", async t
   const manifest = JSON.parse(await readFile(path.join(target, "manifest.json"), "utf8"));
   const reader = new NodeFileResourceReader({ rootDirectory: target });
   const report = await verifyManifestResources({ manifest, reader, options: { mode: "manifest" } });
-  assert.deepEqual(report, { checkedResources: 4, sizeVerified: 4, hashesVerified: 0, totalDeclaredBytes: 832 + 24 + 75 + 24 });
+  const collection = manifest.vectorCollections[0];
+  const totalDeclaredBytes = manifest.tables[0].file.bytes + collection.data.bytes + collection.idMap.data.bytes
+    + collection.idMap.offsets.bytes + collection.idIndex.data.bytes + collection.idIndex.offsets.bytes;
+  assert.deepEqual(report, { checkedResources: 6, sizeVerified: 6, hashesVerified: 0, totalDeclaredBytes });
   const none = await verifyManifestResources({ manifest, reader, options: { mode: "none" } });
   assert.deepEqual(none, { checkedResources: 0, sizeVerified: 0, hashesVerified: 0, totalDeclaredBytes: 0 });
 });

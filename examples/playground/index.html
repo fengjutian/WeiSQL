@@ -33,7 +33,7 @@
   <body>
     <main>
       <h1>WeiSQL Playground</h1>
-      <p class="sub">精确向量检索示例。数据包与代码均从本地静态服务按需读取，无后端。</p>
+      <p class="sub">向量检索、全文检索与 RAG 证据组装的浏览器端示例。数据包与代码均从本地静态服务按需读取，无后端。</p>
 
       <section>
         <h2>数据包</h2>
@@ -59,12 +59,35 @@
       </section>
 
       <section>
+        <h2>全文检索（BM25）</h2>
+        <div class="row">
+          <input id="text-query" type="search" value="dna" aria-label="全文查询" />
+          <button id="text-search">检索</button>
+          <span class="muted" id="text-status"></span>
+        </div>
+        <table>
+          <thead><tr><th>row</th><th>id</th><th>score ↑</th></tr></thead>
+          <tbody id="text-results"><tr><td colspan="3" class="muted">尚未查询</td></tr></tbody>
+        </table>
+        <p class="muted" id="text-note">分数越大越相关，与向量距离方向相反。</p>
+      </section>
+
+      <section>
+        <h2>RAG 证据</h2>
+        <div class="row">
+          <button id="rag">组装证据</button>
+          <span class="muted" id="rag-status"></span>
+        </div>
+        <ol id="rag-evidence"></ol>
+      </section>
+
+      <section>
         <h2>诊断</h2>
         <dl id="diagnostics"></dl>
       </section>
 
       <p class="muted">
-        SQL 与混合检索需要 DuckDB-Wasm；当前环境无法下载其 parquet 扩展，因此这里只演示向量检索。
+        SQL 与混合过滤需要 DuckDB-Wasm；当前环境无法下载其 parquet 扩展，因此这里演示向量检索、全文检索与 RAG 证据组装——三者都在浏览器内完成。
       </p>
       <p class="error" id="error"></p>
     </main>

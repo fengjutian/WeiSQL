@@ -106,6 +106,76 @@ async function search() {
   }
 }
 
+async function textSearch() {
+  if (state.textIndex === undefined) return;
+  setText("text-status", "检索中…");
+  setText("error", "");
+  try {
+    const started = performance.now();
+    const hits = await state.db.text.search(state.textIndex.name, $("text-query").value, { topK: Number($("topk").value) });
+    const elapsed = Math.round(performance.now() - started);
+    const body = $("text-results");
+    body.replaceChildren();
+    if (hits.length === 0) {
+      const row = document.createElement("tr");
+      const cell = document.createElement("td");
+      cell.colSpan = 3;
+      cell.className = "muted";
+      cell.textContent = "没有命中";
+      row.append(cell);
+      body.append(row);
+    }
+    for (const hit of hits) {
+      const row = document.createElement("tr");
+      for (const value of [hit.row, hit.id, hit.score.toFixed(4)]) {
+        const cell = document.createElement("td");
+        cell.textContent = String(value);
+        row.append(cell);
+      }
+      body.append(row);
+    }
+    setText("text-status", `${hits.length} 条结果 · ${elapsed} ms · ${hits[0]?.diagnostics?.backend ?? "-"}`);
+    window.__PLAYGROUND_STATE = { ...(window.__PLAYGROUND_STATE ?? {}), ok: true, textIds: hits.map(hit => hit.id), textScores: hits.map(hit => Number(hit.score.toFixed(6))) };
+  } catch (error) {
+    setText("text-status", "失败");
+    setText("error", String(error && error.message ? error.message : error));
+  }
+}
+
+async function assembleEvidence() {
+  if (state.textIndex === undefined) return;
+  setText("rag-status", "组装中…");
+  setText("error", "");
+  try {
+    const result = await state.db.rag.search({
+      text: { name: state.textIndex.name, query: $("text-query").value },
+      topK: 3,
+      maxCharacters: 200,
+    });
+    const list = $("rag-evidence");
+    list.replaceChildren();
+    for (const evidence of result.evidences) {
+      const item = document.createElement("li");
+      const head = document.createElement("code");
+      head.textContent = `${evidence.id} · rank ${evidence.rank} · ${evidence.characters} chars${evidence.truncated ? " · 已截断" : ""}`;
+      const text = document.createElement("div");
+      text.textContent = evidence.text;
+      item.append(head, text);
+      list.append(item);
+    }
+    setText("rag-status", `${result.evidences.length} 条证据 · ${result.usedCharacters}/${result.diagnostics.maxCharacters} 字符${result.truncated ? " · 已截断" : ""}`);
+    window.__PLAYGROUND_STATE = {
+      ...(window.__PLAYGROUND_STATE ?? {}),
+      ok: true,
+      ragIds: result.evidences.map(evidence => evidence.id),
+      ragTexts: result.evidences.map(evidence => evidence.text),
+    };
+  } catch (error) {
+    setText("rag-status", "失败");
+    setText("error", String(error && error.message ? error.message : error));
+  }
+}
+
 async function main() {
   const base = new URL("/fixture/", location.href).href;
   const cache = new CachedResourceReader({
@@ -122,11 +192,13 @@ async function main() {
 
   const collection = manifest.vectorCollections[0];
   state.collection = collection;
+  state.textIndex = manifest.textIndexes?.[0];
 
   renderDefinitionList($("package-info"), [
     ["dataset", manifest.datasetId],
     ["tables", manifest.tables.map(table => `${table.name} (${table.columns.length} columns)`).join(", ")],
     ["vectors", `${collection.name} · ${collection.count} rows · dimension ${collection.dimension} · ${collection.metric}`],
+    ["text index", state.textIndex === undefined ? "none" : `${state.textIndex.name} · ${state.textIndex.termCount} terms · column ${state.textIndex.column}`],
     ["format", `${manifest.format} ${manifest.formatVersion}`],
     ["state", db.state],
     ["capabilities", Object.entries(db.capabilities()).map(([key, value]) => `${key}=${value}`).join(" ")],
@@ -138,6 +210,16 @@ async function main() {
 
   $("search").addEventListener("click", () => void search());
   await search();
+
+  if (state.textIndex === undefined) {
+    $("text-search").disabled = true;
+    $("rag").disabled = true;
+    setText("text-note", "此数据包未声明全文索引，无法演示 BM25 与 RAG。");
+  } else {
+    $("text-search").addEventListener("click", () => void textSearch());
+    $("rag").addEventListener("click", () => void assembleEvidence());
+    await textSearch();
+  }
 
   window.__PLAYGROUND_READY = true;
   setText("status", "就绪");

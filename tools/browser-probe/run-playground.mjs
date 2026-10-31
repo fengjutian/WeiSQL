@@ -10,6 +10,7 @@ import path from "node:path";
 import { chromium } from "playwright-core";
 
 import { createProbeServer } from "./server.mjs";
+import { prepareProbePackage } from "./prepare-package.mjs";
 
 function findChromium() {
   const cache = path.join(os.homedir(), "AppData", "Local", "ms-playwright");
@@ -39,7 +40,8 @@ if (!executablePath) {
   process.exit(2);
 }
 
-const probe = createProbeServer();
+const probePackage = await prepareProbePackage();
+const probe = createProbeServer(probePackage.packageDirectory);
 const port = await probe.listen();
 const browser = await chromium.launch({ executablePath, args: ["--no-sandbox", "--disable-dev-shm-usage"] });
 const page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
@@ -52,6 +54,7 @@ const fail = async (message) => {
   if (logs.length > 0) console.error(logs.join("\n"));
   await browser.close();
   await probe.close();
+  await probePackage.cleanup();
   process.exit(1);
 };
 
@@ -79,14 +82,45 @@ const afterPreset = await page.evaluate(() => window.__PLAYGROUND_STATE);
 const renderedRows = await page.locator("#results tr").count();
 const diagnostics = await page.locator("#diagnostics").innerText();
 
+// Full-text: typing a query must render BM25 hits for the same package.
+try {
+  await page.fill("#text-query", "dna");
+  await page.click("#text-search");
+  await page.waitForFunction(() => (window.__PLAYGROUND_STATE?.textIds ?? []).length > 0, undefined, { timeout: 20_000 });
+} catch (error) {
+  await fail(`text search interaction failed: ${String(error).slice(0, 300)}`);
+}
+
+// RAG: the assembled evidence must carry document text, not just ids.
+try {
+  await page.click("#rag");
+  await page.waitForFunction(() => (window.__PLAYGROUND_STATE?.ragTexts ?? []).length > 0, undefined, { timeout: 20_000 });
+} catch (error) {
+  await fail(`RAG interaction failed: ${String(error).slice(0, 300)}`);
+}
+
+const textState = await page.evaluate(() => window.__PLAYGROUND_STATE);
+if (!textState.textIds.includes("doc-001")) {
+  await fail(`text search did not return doc-001: ${JSON.stringify(textState.textIds)}`);
+}
+const textRows = await page.locator("#text-results tr").count();
+const ragRows = await page.locator("#rag-evidence li").count();
+
 console.log(JSON.stringify({
   browser: executablePath,
   initial,
   afterPreset,
   renderedRows,
   diagnostics: diagnostics.split("\n").filter(Boolean),
+  textIds: textState.textIds,
+  textScores: textState.textScores,
+  textRows,
+  ragIds: textState.ragIds,
+  ragTexts: textState.ragTexts,
+  ragRows,
 }, null, 2));
 
 await browser.close();
 await probe.close();
+await probePackage.cleanup();
 process.exit(0);

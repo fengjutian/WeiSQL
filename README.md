@@ -264,13 +264,16 @@ OK
 npm run playground     # http://127.0.0.1:8099/playground/
 ```
 
-页面从静态服务按需读取 `examples/fixture`，没有后端：
+页面从静态服务按需读取数据包，没有后端：
 
 - 查询向量不是硬编码的——页面直接从 `vectors/*.f32` 读前 3 行作为预设，点选即检索；
 - 结果展示 `row` / `id` / `distance`，诊断区给出后端、`exact`、耗时与缓存命中统计；
-- SQL 与混合检索在此不可用，因为浏览器端需要 DuckDB-Wasm（扩展下载受阻，见 [ADR-020](docs/DECISION_LOG.md)）。
+- **全文检索**：输入 `dna` 或 `细胞` 即可看到 BM25 排序与分数（分数越大越相关）；
+- **RAG 证据**：一次点击在字符预算内组装证据，展示 id、名次、字符数与是否截断；
+- 启动时会把 fixture 复制到临时目录并生成文本索引，仓库里不保留派生文件；
+- SQL 与混合过滤在此不可用，因为浏览器端需要 DuckDB-Wasm（扩展下载受阻，见 [ADR-020](docs/DECISION_LOG.md)）。
 
-自动化验收：`npm run probe:playground` 在真实 Chromium 中打开页面，断言初始结果为 `doc-001..doc-003`，再点击第三个预设并断言 `doc-003` 排到第一。
+自动化验收：`npm run probe:playground` 在真实 Chromium 中打开页面，断言初始结果为 `doc-001..doc-003`，点击第三个预设后 `doc-003` 排到第一，再断言全文检索命中 `doc-001` 且 RAG 证据包含正文。
 
 ![WeiSQL Playground](docs/assets/playground.png)
 
@@ -395,7 +398,7 @@ packages/sdk/              TypeScript SDK、资源层、Builder 和向量基线
 packages/duckdb-adapter/   Node.js DuckDB 只读 SQL Adapter
 packages/usearch-adapter/  USearch ANN VectorAdapter（内存索引）
 packages/cli/              `weisql validate` 数据包校验命令
-examples/playground/       浏览器端示例应用（向量检索演示）
+examples/playground/       浏览器端示例应用（向量、全文与 RAG 演示）
 tools/                     源 Parquet、ANN/全文索引生成、基准与浏览器探针脚本
 ```
 

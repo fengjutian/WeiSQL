@@ -33,7 +33,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - Exact filtered search reads only the allowed vector rows when the filter is
   narrow (≤ 1/8 of the collection), merging contiguous rows into one read.
 - Manifest signing: Ed25519 over canonical JSON, `signManifest()` /
-  `verifyManifestSignature()` with optional pinned key ids.
+  `verifyManifestSignature()` with optional pinned key ids; `buildPackage()`
+  signs during the build when a key pair is supplied.
 - RAG retrieval: `db.rag.search()` assembling budgeted evidence with provenance;
   the SDK never calls a model.
 - `.wsql` single-file container: `createContainer()`, `parseContainer()`,
@@ -63,6 +64,18 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   L4 schema verification, native interruption.
 - `tableLoading: "memory" | "lazy"` with the security/memory trade-off documented.
 
+### `@weisql/duckdb-wasm-adapter` 0.1.0
+
+- Read-only DuckDB-Wasm `SqlAdapter` for browsers: worker-based `AsyncDuckDB`,
+  tables materialized from `ResourceReader` bytes, L4 schema verification.
+- Read-only enforced with a leading-keyword allow-list and an explicit `WITH`
+  rejection, because DuckDB-Wasm exposes no prepared-statement classification.
+- Parameter binding via prepared statements, limited to values the JSON binding
+  can carry; `Date`, binary and out-of-range `bigint` are rejected.
+- Self-hosted parquet extension (`extensionRepository`); `extensions.duckdb.org`
+  sends no CORS headers, so cross-origin loading fails by design.
+- `capabilities()` reports `engine: "duckdb-wasm"` and `cancellation: "best-effort"`.
+
 ### `@weisql/usearch-adapter` 0.1.0
 
 - HNSW `VectorAdapter` with measured metric mapping and honest `exact: false`.
@@ -81,6 +94,10 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 
 - GitHub Actions CI: build, typecheck, tests and release checks on Ubuntu and
   Windows, plus fixture reproducibility, derived indexes and container packing.
+- `@weisql/sdk` exports `./errors` so browser adapters can import `WeiSQLError`
+  without pulling the Node-only resource readers into a bundle.
+- `npm run probe:wasm` runs the DuckDB-Wasm probe in Chromium; `npm run
+  vendor:wasm-extension` caches the parquet extension matching the WASM core.
 - Browser probe, playground example, cross-environment parity check.
 - Playground now demonstrates full-text search and RAG evidence against a package
   it builds at start-up, and can switch between directory, `.wsql` and streaming
@@ -94,6 +111,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   index size breakdown and BM25 query latency.
 - Fusion stability study (`--fusion`): measures how RRF `k` changes the ranking,
   and states that this is not a relevance-quality measurement.
+- Filtered benchmark mode (`--filter`): reports vector bytes, ID Map bytes and
+  latency for a narrow and a broad filter.
 - ANN index builder and release checks.
 - Text index builder (`tools/build-text-index.mjs`) reading the Parquet column and
   updating the Manifest.

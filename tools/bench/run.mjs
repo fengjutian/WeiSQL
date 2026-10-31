@@ -37,6 +37,7 @@ function readArguments(argv) {
     expansionSearch: 512,
     text: false,
     fusion: false,
+    filter: false,
     clusters: 0,
     clusterSpread: 0.35,
   };
@@ -54,6 +55,7 @@ function readArguments(argv) {
       case "--expansion-search": options.expansionSearch = Number(value); index++; break;
       case "--text": options.text = true; break;
       case "--fusion": options.fusion = true; break;
+      case "--filter": options.filter = true; break;
       case "--clusters": options.clusters = Number(value); index++; break;
       case "--cluster-spread": options.clusterSpread = Number(value); index++; break;
       default: throw new Error(`unknown option ${flag}`);
@@ -72,6 +74,7 @@ class CountingReader {
     this.fullReads = 0;
     this.statCalls = 0;
     this.bytesByPath = new Map();
+    this.readsByPath = new Map();
   }
   async read(pathname, options) {
     this.fullReads++;
@@ -84,6 +87,7 @@ class CountingReader {
     const bytes = await this.inner.readRange(pathname, range, options);
     this.rangeBytes += bytes.byteLength;
     this.bytesByPath.set(pathname, (this.bytesByPath.get(pathname) ?? 0) + bytes.byteLength);
+    this.readsByPath.set(pathname, (this.readsByPath.get(pathname) ?? 0) + 1);
     return bytes;
   }
   async stat(pathname, options) {
@@ -380,6 +384,59 @@ if (options.fusion) {
   };
 }
 
+// Optional filtered-search phase: real SQL filters through DuckDB, then the
+// scan reads either the allowed rows (narrow filter) or the whole file (broad).
+let filtered;
+if (options.filter) {
+  const { createDuckDbAdapter } = await import("@weisql/duckdb-adapter");
+  const table = manifest.tables.find(item => item.name === collection.tableName);
+
+  const measure = async (label, filter) => {
+    const inner = new NodeFileResourceReader({ rootDirectory: options.packageDirectory });
+    const counting = new CountingReader(inner);
+    const db = await open({
+      manifest,
+      resourceReader: counting,
+      sqlAdapter: createDuckDbAdapter({ tableLoading: "lazy" }),
+      verifyChecksums: "none",
+    });
+    try {
+      const samples = 5;
+      const latencies = [];
+      let hits = 0;
+      for (let index = 0; index < samples; index++) {
+        const started = performance.now();
+        const results = await db.vector.search(collection.name, queries[0], { topK: options.topK, filter });
+        latencies.push(performance.now() - started);
+        hits = results.length;
+      }
+      const sorted = [...latencies].sort((left, right) => left - right);
+      const vectorBytes = counting.bytesByPath.get(collection.data.path) ?? 0;
+      const idMapBytes = (counting.bytesByPath.get(collection.idMap.data.path) ?? 0) + (counting.bytesByPath.get(collection.idMap.offsets.path) ?? 0);
+      return {
+        label,
+        hits,
+        samples,
+        p50Ms: Number(percentile(sorted, 0.5).toFixed(1)),
+        vectorBytesPerQuery: Math.round(vectorBytes / samples),
+        idMapBytesPerQuery: Math.round(idMapBytes / samples),
+        vectorRangeRequests: counting.readsByPath.get(collection.data.path) ?? 0,
+      };
+    } finally {
+      await db.close();
+      await inner.close();
+    }
+  };
+
+  const hasCategory = table !== undefined && table.columns.some(column => column.name === "category");
+  const tailStart = `doc-${String(Math.max(0, collection.count - 1000)).padStart(6, "0")}`;
+  filtered = {
+    selective: await measure(`id >= ${tailStart} (contiguous tail, 1000 rows)`, { id: { gte: tailStart } }),
+    ...(hasCategory ? { broad: await measure("category = alpha (~1/3, scattered)", { category: "alpha" }) } : {}),
+    caveat: "vector bytes are measured per query; the ID Map scan is reported separately because it is a fixed cost",
+  };
+}
+
 clearInterval(sampler);
 
 const sorted = [...latencies].sort((left, right) => left - right);
@@ -432,5 +489,6 @@ const result = {
 if (ann !== undefined) result.ann = ann;
 if (text !== undefined) result.text = text;
 if (fusion !== undefined) result.fusion = fusion;
+if (filtered !== undefined) result.filtered = filtered;
 
 console.log(JSON.stringify(result, null, 2));

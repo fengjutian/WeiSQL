@@ -506,6 +506,29 @@
 - 决策三：超过阈值仍顺序扫描。均匀过滤几乎每个块都命中，按行读只会把顺序 I/O 变成大量小请求。
 - 决策四：不走基准就宣称加速。测试断言的是**读取量**（选择性 12 行 vs 全文件、宽过滤仍读全文件），不是耗时；规模收益需要真实数据与 I/O 条件才能测量。
 - 后果：窄过滤的读取量随允许行数而不是集合大小增长；行为与阈值写入文档，测试覆盖两条路径。
+- 实测（`npm run bench -- --filter`，100k × 128）：选择性过滤把向量读取从 51.2 MB 降到 0.51 MB、请求数 98 → 1，但 p50 从 135 ms 升到 327 ms——SQL 解析与全量 ID Map 扫描（4.0 MB/查询）是固定成本。**读取量下降不等于查询变快**；要兑现收益需要持久化反向索引。
+
+## ADR-057：浏览器 SQL 走 DuckDB-Wasm，扩展自托管而不是跨域下载
+
+- 状态：Accepted and implemented
+- 背景：ADR-020 把 DuckDB-Wasm 记为「parquet 扩展需从 extensions.duckdb.org 下载，当前不可达」。复测发现主机本身可达，**真正的阻塞是 CORS**：Node 能下载是因为 Node 不执行 CORS，页面里的 `XMLHttpRequest` 一定失败；同时 DuckDB-Wasm 的 JS API 不暴露 prepared statement 的 `StatementType`，Node 适配器的引擎级只读分类不可复用。
+- 决策一：新增独立包 `@weisql/duckdb-wasm-adapter`，不把 WASM 塞进 SDK。SDK 仍然零引擎依赖，浏览器与 Node 各带各的引擎，能力差异可以分别声明。
+- 决策二：表数据只从 `ResourceReader` 读取，再 `registerFileBuffer` + `CREATE TABLE ... AS SELECT`。DuckDB 不直接访问数据包 URL，Range、缓存、L3 校验不会因为走 SQL 被绕过。
+- 决策三：parquet 扩展由部署方自托管（`npm run vendor:wasm-extension` 按 WASM 核心版本下载），适配器用 `extensionRepository` 指向同源目录；不设置时 `open()` 明确失败为 `SQL_UNSUPPORTED`（`phase: "extension"`），不静默降级。
+- 决策四：只读用**首关键字白名单**，并**显式拒绝 `WITH`**。没有 `StatementType` 时，放行 `WITH` 等于把 `WITH ... DELETE` 交给引擎；宁可少支持一个语法，也不宣称一个挡不住的边界。白名单另加单语句扫描（识别字符串、标识符、注释、dollar-quoted）。
+- 决策五：参数绑定保留，但如实收窄类型：DuckDB-Wasm 用 JSON 传参，`Date`、二进制与超范围 `bigint` 直接 `INVALID_ARGUMENT`，不做静默转换；取消声明为 `best-effort`。
+- 决策六：L4（`DESCRIBE` 与 Manifest 比对）默认开启，规则与 Node 适配器一致，但代码不跨包复用——浏览器包不能依赖 `@duckdb/node-api`，复制比引入 Node 依赖更安全。
+- 后果：浏览器 SQL 可用（Chromium 探针：`open()` 1.37–1.70 s，查询 < 50 ms，写操作 `SQL_UNSUPPORTED`）；代价是 CTE 不可用、扩展必须同源托管、首次加载 34 MB WASM。README 与状态报告已按此更新，不再保留「浏览器 SQL 未实现」的说法。
+
+## ADR-057：Builder 在构建时签名，而不是事后补签
+
+- 状态：Accepted and implemented
+- 背景：`weisql sign` 是事后步骤。发布流程里多一步就多一次遗忘的机会，而且 Builder 本来就是 Manifest 的唯一写入者。
+- 决策一：`buildPackage()` 增加可选 `signing: { privateKeyPem, publicKeyPem }`，在写盘前完成签名；`report.signature.keyId` 暴露指纹。
+- 决策二：签名发生在**写 Manifest 之前**，因此暂存区自检、L3 校验与随后发布的字节都是已签名的版本，不存在「先通过校验再补签」的窗口。
+- 决策三：没有密钥时不签名、也不报错。Builder 不得替调用方决定信任模型；`validate --signature` 才是要求签名的闸门。
+- 决策四：签名后仍走 `validateManifest`（含签名结构校验），避免写出解析器无法接受的 Manifest。
+- 后果：发布链路简化为 `buildPackage({ signing })` → `weisql validate --signature`。密钥管理（轮换、多签）仍不在范围内。
 
 ## 明确禁止的未经验证声明
 

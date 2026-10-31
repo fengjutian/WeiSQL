@@ -5,7 +5,7 @@
 
 ## 1. 一句话状态
 
-工程原型：Manifest V1 与数据包格式稳定，四个包共 **252 个自动化测试**，CI 覆盖构建/类型/测试/发布元数据，精确检索、ANN、全文、融合、RAG 与单文件容器均有实现与实测数字；**尚未发布 npm 包**，也没有任何未经测量的性能承诺。
+工程原型：Manifest V1 与数据包格式稳定，五个包共 **273 个自动化测试**，CI 覆盖构建/类型/测试/发布元数据，精确检索、ANN、全文、融合、RAG、单文件容器与浏览器 SQL 均有实现与实测数字；**尚未发布 npm 包**，也没有任何未经测量的性能承诺。
 
 ## 2. 能力矩阵
 
@@ -20,6 +20,7 @@
 | 精确向量检索 | ✅ | ✅ | ✅ | ✅ 129–152 ms p50 @100k×128 |
 | Hybrid 过滤两策略（等值/IN/范围/日期） | ✅ | ✅ | ✅ | — |
 | DuckDB 只读 SQL（memory / lazy） | ✅ | ✅ | ✅ | — |
+| DuckDB-Wasm 浏览器 SQL（CTE 除外） | ✅ | ✅ + 探针 | ✅ | ✅ open() 1.37–1.70 s，查询 < 50 ms（3 行） |
 | USearch ANN（持久化/现场构建） | ✅ | ✅ | ✅ | ✅ 0.385–0.740 Recall@10 |
 | ANN 后过滤（显式可选） | ✅ | ✅ | ✅ | — |
 | 全文检索 BM25 | ✅ | ✅ | ✅ | ✅ p50 ≈10.5 ms @100k 文档 |
@@ -36,6 +37,7 @@
 ```text
 @weisql/sdk 0.1.0                零运行时依赖
 ├── @weisql/duckdb-adapter 0.1.0 @duckdb/node-api 2.0.0-r.1
+├── @weisql/duckdb-wasm-adapter 0.1.0 @duckdb/duckdb-wasm 1.32.0
 ├── @weisql/usearch-adapter 0.1.0 usearch 2.26.5
 └── @weisql/cli 0.1.0
 ```
@@ -46,11 +48,12 @@
 
 | 包 | 测试数 | 覆盖重点 |
 | --- | --- | --- |
-| `@weisql/sdk` | 185 | 校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约 |
+| `@weisql/sdk` | 187 | 校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约 |
 | `@weisql/duckdb-adapter` | 20 | 只读边界、参数绑定、两种表加载、取消 |
+| `@weisql/duckdb-wasm-adapter` | 19 | 关键字白名单、参数类型收窄、真实 WASM 引擎集成（打开/绑定/L4/生命周期） |
 | `@weisql/usearch-adapter` | 13 | 度量映射、持久化索引、后过滤、生命周期 |
 | `@weisql/cli` | 34 | 校验退出码、`--json`、`pack`/`--compress`、`unpack`、容器校验、`--l4` |
-| **合计** | **252** | |
+| **合计** | **273** | |
 
 CI（`.github/workflows/ci.yml`）：
 
@@ -68,10 +71,14 @@ CI（`.github/workflows/ci.yml`）：
 | ANN 加速 | ≈9.5× | 100k × 128，`expansionSearch=512` | 合成数据 |
 | ANN Recall@10 | 0.385–0.740 | 均匀 0.735；紧聚类 0.385 | **强依赖数据分布**，见 §5.1 |
 | ANN 索引构建 | 2.7–15.2 s | 同上 | 构建时间随分布变化 |
+| 过滤查询向量读取 | 51.2 → 0.51 MB | 100k 行，窄过滤 | 端到端仍 327 ms：SQL + ID Map 扫描是固定成本 |
 | 全文索引体积 | 74.2 MB（742 B/文档） | 100k 文档、5000 词项、50 tokens/文档 | 其中正文 33.1 MB |
 | 全文查询 p50 | 10.2–10.8 ms | 同上 | 固定开销 ≈8 ms + 每命中随机读 |
 | 全文索引构建 | 4.5 s | 同上 | 含读取 Parquet 文本列 |
 | 浏览器一致性 | 8 向量 + 5 文本 + RAG + 容器 | Chromium 1248 vs Node 24 | 3 条记录、2 维，不能外推 |
+| 浏览器 SQL `open()` | 1.37–1.70 s | Chromium 1248，扩展同源且已缓存 | 3 行表；首次加载另有 34 MB WASM |
+| 浏览器 SQL 查询 | < 50 ms | 同上 | 3 行表，不含首次加载 |
+| parquet 扩展体积 | 498,915 B（`wasm_eh`，v1.4.3） | 自托管 | 版本必须与 WASM 核心一致 |
 
 ### 5.1 ANN 召回与分布（100k × 128，Top-10，`expansionSearch=512`）
 
@@ -95,7 +102,6 @@ CI（`.github/workflows/ci.yml`）：
 | npm 发布 | 缺少组织与访问令牌；LICENSE 已确定为 Apache-2.0 |
 | 真实数据集 Recall@K | 需要真实 embedding 语料 |
 | 多机 / 冷缓存基准 | 需要第二台机器与清缓存手段 |
-| DuckDB-Wasm | Parquet 扩展需从外部下载，当前不可达 |
 | 真实 CDN / CORS 验收 | 需要实际部署环境 |
 
 ### 6.2 设计未定或明确不做
@@ -109,10 +115,13 @@ CI（`.github/workflows/ci.yml`）：
 | JSON 等值过滤 | 需要规范化形式，当前明确拒绝 |
 | 时间戳与嵌套列的源数据推断 | 转换工具只覆盖标量类型 |
 | 中文分词 | CJK 逐字，精度换可预测性 |
+| 浏览器 SQL 的 CTE | DuckDB-Wasm 无 `StatementType`，`WITH` 一律拒绝（ADR-057） |
+| 浏览器 SQL 参数类型 | JSON 绑定，`Date`/二进制/超范围 `bigint` 明确拒绝 |
+| 浏览器 SQL 扩展分发 | 必须同源自托管；`extensions.duckdb.org` 无 CORS 头 |
 
 ## 7. 关键决策索引
 
-43 条 ADR 记录在 `docs/DECISION_LOG.md`。与外部读者最相关的是：
+57 条 ADR 记录在 `docs/DECISION_LOG.md`。与外部读者最相关的是：
 
 | ADR | 决策 |
 | --- | --- |
@@ -128,12 +137,13 @@ CI（`.github/workflows/ci.yml`）：
 | 037 | ANN 过滤只提供显式后过滤 |
 | 039 | `.wsql` 不压缩、整文件入内存 |
 | 040 | Apache-2.0，每个包内自带 LICENSE |
+| 057 | 浏览器 SQL 用 DuckDB-Wasm，扩展同源自托管、`WITH` 拒绝 |
 
 ## 8. 发布就绪度
 
 | 检查项 | 状态 |
 | --- | --- |
-| 测试 / 类型 / 构建 | ✅ 211 测试，typecheck 通过 |
+| 测试 / 类型 / 构建 | ✅ 271 测试，typecheck 通过 |
 | 打包内容 | ✅ 仅 `dist/` + README + LICENSE，无 src/test 泄漏 |
 | 依赖范围 | ✅ caret 且跟踪本地版本 |
 | 许可证 | ✅ Apache-2.0（根 + 每包） |
@@ -145,7 +155,8 @@ CI（`.github/workflows/ci.yml`）：
 
 ## 9. 建议的下一步（按价值排序）
 
-1. 配置 npm 令牌 → `npm publish --dry-run` 核对四个包 → 正式发布；
+1. 配置 npm 令牌 → `npm publish --dry-run` 核对五个包 → 正式发布；
 2. 在真实 embedding 数据上测 Recall@K，替换 §5.1 的合成数字；
 3. 第二台机器复现基准，形成区间而非单点；
-4. 视需要再做压缩算法协商或源数据的时间戳推断。
+4. Playground 接入浏览器 SQL 与混合过滤，并补一条 `probe:playground` 断言；
+5. 视需要再做压缩算法协商或源数据的时间戳推断。

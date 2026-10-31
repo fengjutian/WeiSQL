@@ -42,6 +42,7 @@
 | `sql error write` / `multi` / `unknown column` / `write cte` | 两端拒绝且错误码一致 |
 | `sql stream rows` / `sql stream parameter` | 原生流式路径（Node chunk / 浏览器 Arrow batch）的行与参数绑定一致 |
 | `sql stream error write` / `unknown column` | 流式 API 仍执行只读边界与参数校验，两端错误码一致 |
+| `sql stream pre-aborted` | 调用前已取消时两端都直接返回 `QUERY_CANCELLED`，不接触引擎 |
 
 提交的 fixture 不含派生索引，因此探针会**先构建再服务**：复制 fixture → 运行 `tools/build-text-index.mjs` → 运行 `weisql pack` 生成容器 → 把同一份目录与容器分别交给 Node 与 Chromium。两边读的是同一批字节，比较才有意义。
 
@@ -72,8 +73,9 @@ sql stream rows           3 row(s)                3 row(s)                PASS
 sql stream parameter      2 row(s)                2 row(s)                PASS
 sql stream error write    error:SQL_UNSUPPORTED   error:SQL_UNSUPPORTED   PASS
 sql stream error unknown column error:INVALID_ARGUMENT error:INVALID_ARGUMENT PASS
+sql stream pre-aborted   error:QUERY_CANCELLED   error:QUERY_CANCELLED   PASS
 
-RESULT: 8 vector + 5 text + 9 SQL + 4 streaming SQL queries, RAG evidence, 1 container and 6 manifest cases match
+RESULT: 8 vector + 5 text + 9 SQL + 5 streaming SQL queries, RAG evidence, 1 container and 6 manifest cases match
         (distance tolerance 0.000001, BM25 score tolerance 1e-9)
 ```
 

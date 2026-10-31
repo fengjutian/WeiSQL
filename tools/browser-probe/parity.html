@@ -99,8 +99,9 @@
         const sqlStream = [];
         for (const query of SQL_STREAM_QUERIES) {
           try {
+            const options = query.abort === true ? { signal: AbortSignal.abort() } : undefined;
             const rows = [];
-            for await (const row of await db.sqlStream(query.sql, query.params ?? [])) rows.push(row);
+            for await (const row of await db.sqlStream(query.sql, query.params ?? [], options)) rows.push(row);
             sqlStream.push({ name: query.name, ok: true, rows: summarizeSqlRows(rows) });
           } catch (error) {
             sqlStream.push({ name: query.name, ok: false, error: summarizeError(error) });

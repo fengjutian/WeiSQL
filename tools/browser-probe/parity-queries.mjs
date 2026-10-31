@@ -99,6 +99,7 @@ export const SQL_STREAM_QUERIES = [
   { name: "sql stream parameter", sql: "select id from documents where category = ? order by id", params: ["genetics"] },
   { name: "sql stream error write", sql: "delete from documents" },
   { name: "sql stream error unknown column", sql: "select missing from documents" },
+  { name: "sql stream pre-aborted", sql: "select id from documents order by id", abort: true },
 ];
 
 /** JSON-safe row values; both engines return bigint for COUNT(*). */

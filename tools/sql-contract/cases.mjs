@@ -104,6 +104,13 @@ export const CONTRACT_CASES = [
     expect: { error: "INVALID_ARGUMENT" },
   },
   {
+    name: "stream pre-aborted",
+    sql: "select id from documents order by id",
+    stream: true,
+    abort: true,
+    expect: { error: "QUERY_CANCELLED" },
+  },
+  {
     name: "Date parameter",
     sql: "select ? is not null as ok",
     params: [new Date(0)],

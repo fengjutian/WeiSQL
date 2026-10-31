@@ -77,7 +77,7 @@ CI（`.github/workflows/ci.yml`）：
 | 全文索引体积 | 74.2 MB（742 B/文档） | 100k 文档、5000 词项、50 tokens/文档 | 其中正文 33.1 MB |
 | 全文查询 p50 | 10.2–10.8 ms | 同上 | 固定开销 ≈8 ms + 每命中随机读 |
 | 全文索引构建 | 4.5 s | 同上 | 含读取 Parquet 文本列 |
-| 浏览器一致性 | 8 向量 + 5 文本 + 9 SQL + 4 流式 SQL + RAG + 容器 | Chromium 1248 vs Node 24 | 3 条记录、2 维，不能外推 |
+| 浏览器一致性 | 8 向量 + 5 文本 + 9 SQL + 5 流式 SQL + RAG + 容器 | Chromium 1248 vs Node 24 | 3 条记录、2 维，不能外推 |
 | 浏览器 SQL `open()` | 1.37–1.70 s | Chromium 1248，扩展同源且已缓存 | 3 行表；首次加载另有 34 MB WASM |
 | 浏览器 SQL 查询 | < 50 ms | 同上 | 3 行表，不含首次加载 |
 | 浏览器 SQL 取消 | 202 ms 查询在 50 ms abort 后 51 ms 返回 `QUERY_CANCELLED` | Chromium 1248 | 引擎未停；`cancelSent()` 返回 false |

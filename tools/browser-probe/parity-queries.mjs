@@ -93,6 +93,12 @@ export const SQL_QUERIES = [
   { name: "sql error write cte", sql: "with x as (select 1) delete from documents" },
 ];
 
+/** Streaming path: the same rows must come out of `db.sqlStream()`. */
+export const SQL_STREAM_QUERIES = [
+  { name: "sql stream rows", sql: "select id, title, category from documents order by id" },
+  { name: "sql stream parameter", sql: "select id from documents where category = ? order by id", params: ["genetics"] },
+];
+
 /** JSON-safe row values; both engines return bigint for COUNT(*). */
 export function summarizeSqlRows(rows) {
   return rows.map(row => Object.fromEntries(

@@ -18,6 +18,7 @@
 - 容器的摘要计数、向量结果与全文结果：必须相等；
 - SQL 行结果：逐行逐字段相等（`bigint` 归一为数字后再比较）；
 - SQL 错误码：写语句、多语句、未知列、写 CTE 的 `code` 必须相等；
+- 流式 SQL：`db.sqlStream()` 收集到的行必须与另一端逐行相等（走的是两套引擎的原生流）；
 - 非法 Manifest：必须被拒绝且错误码相同。
 
 ## 2. 查询集与测试包
@@ -39,6 +40,7 @@
 | `sql cte` | 只读 CTE 在两端都可用 |
 | `sql literals` | `INTEGER` / `DECIMAL` / `BOOLEAN` / `NULL` / `VARCHAR` 的映射 |
 | `sql error write` / `multi` / `unknown column` / `write cte` | 两端拒绝且错误码一致 |
+| `sql stream rows` / `sql stream parameter` | 原生流式路径（Node chunk / 浏览器 Arrow batch）的行与参数绑定一致 |
 
 提交的 fixture 不含派生索引，因此探针会**先构建再服务**：复制 fixture → 运行 `tools/build-text-index.mjs` → 运行 `weisql pack` 生成容器 → 把同一份目录与容器分别交给 Node 与 Chromium。两边读的是同一批字节，比较才有意义。
 
@@ -65,8 +67,10 @@ sql error write           error:SQL_UNSUPPORTED   error:SQL_UNSUPPORTED   PASS
 sql error multi           error:SQL_UNSUPPORTED   error:SQL_UNSUPPORTED   PASS
 sql error unknown column  error:INVALID_ARGUMENT  error:INVALID_ARGUMENT  PASS
 sql error write cte       error:SQL_UNSUPPORTED   error:SQL_UNSUPPORTED   PASS
+sql stream rows           3 row(s)                3 row(s)                PASS
+sql stream parameter      2 row(s)                2 row(s)                PASS
 
-RESULT: 8 vector + 5 text + 9 SQL queries, RAG evidence, 1 container and 6 manifest cases match
+RESULT: 8 vector + 5 text + 9 SQL + 2 streaming SQL queries, RAG evidence, 1 container and 6 manifest cases match
         (distance tolerance 0.000001, BM25 score tolerance 1e-9)
 ```
 

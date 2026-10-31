@@ -33,7 +33,7 @@ const config = {
       ({
         docs: {
           path: "content",
-          routeBasePath: "/",
+          routeBasePath: "/docs",
           sidebarPath: "./sidebars.js",
           editUrl: "https://github.com/fengjutian/WeiSQL/edit/main/website/",
           showLastUpdateTime: true,
@@ -55,7 +55,7 @@ const config = {
       ({
         hashed: false,
         language: ["zh"],
-        docsRouteBasePath: "/",
+        docsRouteBasePath: "/docs",
         indexBlog: false,
         indexPages: false,
         highlightSearchTermsOnTargetPage: true,

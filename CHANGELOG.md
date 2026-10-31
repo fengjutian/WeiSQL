@@ -157,8 +157,9 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - Playground now demonstrates full-text search and RAG evidence against a package
   it builds at start-up, and can switch between directory, `.wsql` and streaming
   `.wsql` loading; the probe asserts all three.
-- Parity probe extended to full-text, RAG evidence, SQL (rows and error codes) and
-  the `.wsql` container, against a package it builds at run time.
+- Parity probe extended to full-text, RAG evidence, SQL (rows and error codes),
+  streaming `sqlStream()` rows and the `.wsql` container, against a package it
+  builds at run time.
 - Benchmark harness with exact and ANN (`--ann`) modes.
 - Clustered vector distributions (`--clusters/--cluster-spread`) showing that ANN
   recall depends on data geometry, not only on `expansion_search`.

@@ -77,7 +77,7 @@ CI（`.github/workflows/ci.yml`）：
 | 全文索引体积 | 74.2 MB（742 B/文档） | 100k 文档、5000 词项、50 tokens/文档 | 其中正文 33.1 MB |
 | 全文查询 p50 | 10.2–10.8 ms | 同上 | 固定开销 ≈8 ms + 每命中随机读 |
 | 全文索引构建 | 4.5 s | 同上 | 含读取 Parquet 文本列 |
-| 浏览器一致性 | 8 向量 + 5 文本 + 9 SQL + RAG + 容器 | Chromium 1248 vs Node 24 | 3 条记录、2 维，不能外推 |
+| 浏览器一致性 | 8 向量 + 5 文本 + 9 SQL + 2 流式 SQL + RAG + 容器 | Chromium 1248 vs Node 24 | 3 条记录、2 维，不能外推 |
 | 浏览器 SQL `open()` | 1.37–1.70 s | Chromium 1248，扩展同源且已缓存 | 3 行表；首次加载另有 34 MB WASM |
 | 浏览器 SQL 查询 | < 50 ms | 同上 | 3 行表，不含首次加载 |
 | 浏览器 SQL 取消 | 202 ms 查询在 50 ms abort 后 51 ms 返回 `QUERY_CANCELLED` | Chromium 1248 | 引擎未停；`cancelSent()` 返回 false |
@@ -129,6 +129,13 @@ CI（`.github/workflows/ci.yml`）：
 | 浏览器 SQL 扩展分发 | 必须同源自托管；`extensions.duckdb.org` 无 CORS 头 |
 | 浏览器内的大表与冷启动 | 只测了 Node 里的同一 WASM 构建（§5），浏览器内存与 34 MB 首载时间未测 |
 | `db.sql()` 的交付方式 | 仍一次性返回数组；增量消费请用 `db.sqlStream()`（Node 与浏览器均为真流式） |
+
+
+### 6.3 已知问题（未定位）
+
+| 问题 | 证据与现状 |
+| --- | --- |
+| 偶发测试失败：`@weisql/duckdb-adapter` 的 `maxRows bounds the result instead of truncating` | 1 次全量运行中出现；随后 31 次单文件重复运行与多次全量运行均通过，未能复现。未修改断言，也不再把它当作通过；再次出现时抓完整堆栈与并发状态 |
 
 ## 7. 关键决策索引
 

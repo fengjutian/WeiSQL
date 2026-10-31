@@ -15,7 +15,7 @@ import { chromium } from "playwright-core";
 import { ContainerReader, NodeFileResourceReader, open, validateManifest } from "@weisql/sdk";
 import { createDuckDbAdapter } from "@weisql/duckdb-adapter";
 
-import { INVALID_MANIFESTS, QUERIES, RAG_QUERY, SQL_QUERIES, TEXT_INDEX, TEXT_QUERIES, summarizeError, summarizeHits, summarizeRag, summarizeSqlRows, summarizeTextHits } from "./parity-queries.mjs";
+import { INVALID_MANIFESTS, QUERIES, RAG_QUERY, SQL_QUERIES, SQL_STREAM_QUERIES, TEXT_INDEX, TEXT_QUERIES, summarizeError, summarizeHits, summarizeRag, summarizeSqlRows, summarizeTextHits } from "./parity-queries.mjs";
 import { ensureParquetExtension } from "../fetch-duckdb-wasm-extension.mjs";
 import { prepareProbePackage } from "./prepare-package.mjs";
 import { createProbeServer } from "./server.mjs";
@@ -85,6 +85,17 @@ async function runNode(packageDirectory, containerPath) {
       sql.push({ name: query.name, ok: false, error: summarizeError(error) });
     }
   }
+
+  const sqlStream = [];
+  for (const query of SQL_STREAM_QUERIES) {
+    try {
+      const rows = [];
+      for await (const row of await db.sqlStream(query.sql, query.params ?? [])) rows.push(row);
+      sqlStream.push({ name: query.name, ok: true, rows: summarizeSqlRows(rows) });
+    } catch (error) {
+      sqlStream.push({ name: query.name, ok: false, error: summarizeError(error) });
+    }
+  }
   await db.close();
 
   const invalid = INVALID_MANIFESTS.map(({ name, mutate }) => {
@@ -106,7 +117,7 @@ async function runNode(packageDirectory, containerPath) {
   const containerText = summarizeTextHits(await containerDb.text.search(TEXT_INDEX, "dna", { topK: 2 }));
   await containerDb.close();
 
-  return { environment: "node", queries, textQueries, rag, sql, invalid, container: { digests, vector: containerVector, text: containerText } };
+  return { environment: "node", queries, textQueries, rag, sql, sqlStream, invalid, container: { digests, vector: containerVector, text: containerText } };
 }
 
 async function runBrowser(port, executablePath) {
@@ -249,6 +260,27 @@ for (const [index, query] of SQL_QUERIES.entries()) {
   });
 }
 
+for (const [index, query] of SQL_STREAM_QUERIES.entries()) {
+  const left = nodeResult.sqlStream[index];
+  const right = browserResult.sqlStream[index];
+  check(`sql stream "${query.name}" status`, left.ok === right.ok, `node ok=${left.ok} browser ok=${right.ok}`);
+  if (left.ok && right.ok) {
+    check(
+      `sql stream "${query.name}" rows`,
+      JSON.stringify(left.rows) === JSON.stringify(right.rows),
+      `${JSON.stringify(left.rows)} vs ${JSON.stringify(right.rows)}`,
+    );
+  } else if (!left.ok && !right.ok) {
+    check(`sql stream "${query.name}" error code`, left.error.code === right.error.code, `${left.error.code} vs ${right.error.code}`);
+  }
+  sqlRows.push({
+    query: query.name,
+    node: left.ok ? `${left.rows.length} row(s)` : `error:${left.error.code}`,
+    browser: right.ok ? `${right.rows.length} row(s)` : `error:${right.error.code}`,
+    match: failures.filter(failure => failure.startsWith(`sql stream "${query.name}" `)).length === 0,
+  });
+}
+
 for (const [index, invalid] of INVALID_MANIFESTS.entries()) {
   const left = nodeResult.invalid[index];
   const right = browserResult.invalid[index];
@@ -282,7 +314,7 @@ if (sqlRows.length > 0) {
 }
 console.log("");
 if (failures.length === 0) {
-  console.log(`RESULT: ${QUERIES.length} vector + ${TEXT_QUERIES.length} text + ${SQL_QUERIES.length} SQL queries, RAG evidence, 1 container and ${INVALID_MANIFESTS.length} manifest cases match`);
+  console.log(`RESULT: ${QUERIES.length} vector + ${TEXT_QUERIES.length} text + ${SQL_QUERIES.length} SQL + ${SQL_STREAM_QUERIES.length} streaming SQL queries, RAG evidence, 1 container and ${INVALID_MANIFESTS.length} manifest cases match`);
   console.log(`        (distance tolerance ${DISTANCE_TOLERANCE}, BM25 score tolerance ${SCORE_TOLERANCE})`);
   process.exit(0);
 }

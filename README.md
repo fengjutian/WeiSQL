@@ -32,7 +32,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - USearch ANN Adapter（`@weisql/usearch-adapter`）：HNSW 索引（可持久化或现场构建）、三种度量映射、`diagnostics.exact: false` 如实标注、可选的后过滤模式（`diagnostics.postFiltered` 自曝不完整）
 - 真实浏览器验收探针（`npm run probe:browser`）：Chromium 中验证 HTTP Range、L3 校验、精确搜索与缓存命中
 - 浏览器 SQL 验收探针（`npm run probe:wasm`）：Chromium 中验证 DuckDB-Wasm 物化、参数绑定、只读拒绝与 `capabilities().sql`
-- 跨环境对照（`npm run probe:parity`）：同一进程驱动 Node 与 Chromium，逐字段比较向量检索、全文检索、RAG 证据、SQL（含只读 CTE）、`.wsql` 容器与错误码
+- 跨环境对照（`npm run probe:parity`）：同一进程驱动 Node 与 Chromium，逐字段比较向量检索、全文检索、RAG 证据、SQL（含只读 CTE 与流式 `sqlStream()`）、`.wsql` 容器与错误码
 - SQL Adapter 共享契约（`npm run test:contract`）：同一组 SQL 用例同时跑 Node DuckDB 与 DuckDB-Wasm，差异必须在用例表里显式声明
 - 可复现的基准装置（`npm run bench`）：合成数据包 + 完整性闸门 + p50/p95、I/O 字节与峰值内存；`--ann` 给出 Recall@K 对照，`--text` 测量 BM25 构建、体积与延迟，`--fusion` 测量 RRF `k` 的稳定性，结果见 [基准测量装置](docs/BENCHMARK_HARNESS.md)
 - DuckDB-Wasm 物化基准（`npm run bench:wasm`）：5 万–50 万行合成 Parquet 的 `open()`、过滤查询与 RSS 增量，结果见 [基准测量装置](docs/BENCHMARK_HARNESS.md)

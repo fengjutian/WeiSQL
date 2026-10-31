@@ -28,6 +28,7 @@
         QUERIES,
         RAG_QUERY,
         SQL_QUERIES,
+        SQL_STREAM_QUERIES,
         TEXT_INDEX,
         TEXT_QUERIES,
         summarizeError,
@@ -95,6 +96,17 @@
           }
         }
 
+        const sqlStream = [];
+        for (const query of SQL_STREAM_QUERIES) {
+          try {
+            const rows = [];
+            for await (const row of await db.sqlStream(query.sql, query.params ?? [])) rows.push(row);
+            sqlStream.push({ name: query.name, ok: true, rows: summarizeSqlRows(rows) });
+          } catch (error) {
+            sqlStream.push({ name: query.name, ok: false, error: summarizeError(error) });
+          }
+        }
+
         const invalid = INVALID_MANIFESTS.map(({ name, mutate }) => {
           const copy = structuredClone(manifest);
           mutate(copy);
@@ -122,6 +134,7 @@
           textQueries,
           rag,
           sql,
+          sqlStream,
           invalid,
           container: { digests, vector: containerVector, text: containerText },
         };

@@ -5,7 +5,7 @@
 
 ## 1. 一句话状态
 
-工程原型：Manifest V1 与数据包格式稳定，五个包共 **316 个自动化测试**，CI 覆盖构建/类型/测试/发布元数据，精确检索、ANN、全文、融合、RAG、单文件容器与浏览器 SQL 均有实现与实测数字；**尚未发布 npm 包**，也没有任何未经测量的性能承诺。
+工程原型：Manifest V1 与数据包格式稳定，五个包共 **318 个自动化测试**，CI 覆盖构建/类型/测试/发布元数据，精确检索、ANN、全文、融合、RAG、单文件容器与浏览器 SQL 均有实现与实测数字；**尚未发布 npm 包**，也没有任何未经测量的性能承诺。
 
 ## 2. 能力矩阵
 
@@ -49,11 +49,11 @@
 | 包 | 测试数 | 覆盖重点 |
 | --- | --- | --- |
 | `@weisql/sdk` | 207 | 校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约 |
-| `@weisql/duckdb-adapter` | 22 | 只读边界、参数绑定、两种表加载、两层字节预算、取消 |
-| `@weisql/duckdb-wasm-adapter` | 36 | 关键字白名单、CTE 分类与 fail-closed、参数类型收窄、值映射、两层预算、取消、错误契约、真实 WASM 引擎集成 |
+| `@weisql/duckdb-adapter` | 23 | 只读边界、参数绑定、两种表加载、两层字节预算、取消 |
+| `@weisql/duckdb-wasm-adapter` | 37 | 关键字白名单、CTE 分类与 fail-closed、参数类型收窄、值映射、两层预算、取消、错误契约、真实 WASM 引擎集成 |
 | `@weisql/usearch-adapter` | 13 | 度量映射、持久化索引、后过滤、生命周期 |
 | `@weisql/cli` | 38 | 校验退出码、`--json`、`pack`/`--compress`、`unpack`、容器校验、`--l4` |
-| **合计** | **316** | |
+| **合计** | **318** | |
 
 CI（`.github/workflows/ci.yml`）：
 
@@ -127,10 +127,11 @@ CI（`.github/workflows/ci.yml`）：
 | 浏览器 SQL 参数类型 | JSON 绑定，`Date`/二进制/超范围 `bigint` 明确拒绝 |
 | 浏览器 SQL 扩展分发 | 必须同源自托管；`extensions.duckdb.org` 无 CORS 头 |
 | 浏览器内的大表与冷启动 | 只测了 Node 里的同一 WASM 构建（§5），浏览器内存与 34 MB 首载时间未测 |
+| SQL 结果流式返回 | `maxRows` 已能硬失败并让引擎提前停止；结果仍是一次性数组，真正的流式 API 未实现 |
 
 ## 7. 关键决策索引
 
-66 条 ADR 记录在 `docs/DECISION_LOG.md`。与外部读者最相关的是：
+69 条 ADR 记录在 `docs/DECISION_LOG.md`。与外部读者最相关的是：
 
 | ADR | 决策 |
 | --- | --- |
@@ -149,12 +150,13 @@ CI（`.github/workflows/ci.yml`）：
 | 057 | Builder 在构建时签名，发布链路少一步补签 |
 | 065 / 066 | 浏览器 SQL 用 DuckDB-Wasm、扩展同源自托管；066 用 tokenizer 支持只读 CTE，取代 065 的 `WITH` 拒绝 |
 | 063 / 064 | COI 多线程因扩展内存不兼容而不采用；取消只承诺立即停止等待（`engineMayStillRun`） |
+| 067 / 068 | 物化预算分单表/整包两层；`maxRows` 超限硬失败并让引擎提前停止 |
 
 ## 8. 发布就绪度
 
 | 检查项 | 状态 |
 | --- | --- |
-| 测试 / 类型 / 构建 | ✅ 315 测试，typecheck 通过 |
+| 测试 / 类型 / 构建 | ✅ 318 测试，typecheck 通过 |
 | 打包内容 | ✅ 仅 `dist/` + README + LICENSE，无 src/test 泄漏 |
 | 依赖范围 | ✅ caret 且跟踪本地版本 |
 | 许可证 | ✅ Apache-2.0（根 + 每包） |

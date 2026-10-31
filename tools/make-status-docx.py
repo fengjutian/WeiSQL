@@ -181,13 +181,13 @@ def build(target: Path):
     style_run(run, size=22, bold=True, color=ACCENT)
 
     subtitle = document.add_paragraph()
-    run = subtitle.add_run("2026-10-31 · 仓库 HEAD 0dfb70f · 315 个自动化测试 · 尚未发布 npm")
+    run = subtitle.add_run("2026-10-31 · 仓库 HEAD 9e61268 · 318 个自动化测试 · 尚未发布 npm")
     style_run(run, size=10, color=MUTED)
 
     document.add_heading("1. 一句话状态", level=1)
     paragraph = document.add_paragraph()
     run = paragraph.add_run(
-        "工程原型。Manifest V1 与数据包格式稳定，五个包共 316 个自动化测试，CI 覆盖构建、类型、测试与发布元数据；"
+        "工程原型。Manifest V1 与数据包格式稳定，五个包共 318 个自动化测试，CI 覆盖构建、类型、测试与发布元数据；"
         "精确检索、ANN、全文、融合、RAG、单文件容器与浏览器 SQL 均有实现与实测数字。尚未发布 npm 包，也没有任何未经测量的性能承诺。"
     )
     style_run(run, size=10.5)
@@ -196,7 +196,7 @@ def build(target: Path):
         document,
         ["维度", "状态"],
         [
-            ["测试", "316 个全绿（SDK 207 / DuckDB 22 / WASM 36 / USearch 13 / CLI 38）"],
+            ["测试", "318 个全绿（SDK 207 / DuckDB 23 / WASM 37 / USearch 13 / CLI 38）"],
             ["CI", "GitHub Actions：Ubuntu + Windows 行为闸门，另有派生索引、容器与 bench:wasm 冒烟作业"],
             ["许可证", "Apache-2.0（根目录与每个包内各一份）"],
             ["发布", "未发布 npm 包（缺组织与访问令牌）"],
@@ -257,11 +257,11 @@ def build(target: Path):
         ["包", "测试数", "覆盖重点"],
         [
             ["@weisql/sdk", "207", "校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约"],
-            ["@weisql/duckdb-adapter", "22", "只读边界、参数绑定、两种表加载、两层字节预算、取消"],
-            ["@weisql/duckdb-wasm-adapter", "36", "关键字白名单、CTE 分类、值映射、两层预算、取消、错误契约、真实 WASM 集成"],
+            ["@weisql/duckdb-adapter", "23", "只读边界、参数绑定、两种表加载、两层字节预算、取消"],
+            ["@weisql/duckdb-wasm-adapter", "37", "关键字白名单、CTE 分类、值映射、两层预算、取消、错误契约、真实 WASM 集成"],
             ["@weisql/usearch-adapter", "13", "度量映射、持久化索引、后过滤、生命周期"],
             ["@weisql/cli", "38", "校验退出码、--json、pack、unpack、容器校验、--l4"],
-            ["合计", "316", ""],
+            ["合计", "318", ""],
         ],
         widths=[4.6, 1.8, 9.4],
     )
@@ -343,7 +343,7 @@ def build(target: Path):
             ["时间戳与嵌套列的源数据推断", "转换工具只覆盖标量类型"],
             ["中文分词", "CJK 逐字，精度换可预测性"],
             ["浏览器 SQL 参数类型", "JSON 绑定；Date、二进制与超范围 bigint 明确拒绝"],
-            ["浏览器 SQL 大结果", "一次性返回全部行，没有行数上限或流式返回"],
+            ["SQL 结果规模", "maxRows 会在超限时硬失败；结果仍是一次性数组，流式返回未实现"],
             ["浏览器大表与冷启动", "只测了 Node 内的同一 WASM 构建（500k 行），浏览器内存与 34 MB 首载未测"],
             ["COI / 多线程", "已试不可用：parquet 扩展与共享内存 ABI 不兼容（ADR-063）"],
         ],
@@ -352,7 +352,7 @@ def build(target: Path):
 
     document.add_heading("7. 关键决策", level=1)
     paragraph = document.add_paragraph()
-    run = paragraph.add_run("完整 66 条记录见仓库 docs/DECISION_LOG.md；下表列出与外部读者最相关的决策。")
+    run = paragraph.add_run("完整 69 条记录见仓库 docs/DECISION_LOG.md；下表列出与外部读者最相关的决策。")
     style_run(run, size=10, color=MUTED)
     add_table(
         document,
@@ -383,7 +383,7 @@ def build(target: Path):
         document,
         ["检查项", "状态"],
         [
-            ["测试 / 类型 / 构建", "✓ 316 测试，typecheck 通过"],
+            ["测试 / 类型 / 构建", "✓ 318 测试，typecheck 通过"],
             ["打包内容", "✓ 仅 dist/ + README + LICENSE，无 src/test 泄漏"],
             ["依赖范围", "✓ caret 且跟踪本地版本"],
             ["许可证", "✓ Apache-2.0（根 + 每包）"],

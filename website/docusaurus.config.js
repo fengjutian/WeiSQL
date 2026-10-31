@@ -100,6 +100,11 @@ const config = {
             position: "left",
           },
           {
+            to: "/docs/examples",
+            label: "示例",
+            position: "left",
+          },
+          {
             to: "/docs/architecture",
             label: "架构",
             position: "left",

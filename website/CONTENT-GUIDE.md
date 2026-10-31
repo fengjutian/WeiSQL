@@ -49,8 +49,11 @@ hero:
   title: 精确向量，先过滤再比较
   lead: 一句话说明本页解决什么问题。
   chips: [Float32, Top-K, filter]
+examples: [node, browser]
 hide_title: true
 ```
+
+`examples` 会渲染成页头下方的「可复制示例」链接条，可选值为 `node`、`browser`、`build`。
 
 `src/theme/DocItem/Content` 会读取 `hero` 并渲染 `PageHero`；没有 `hero` 的页面保持默认标题。
 

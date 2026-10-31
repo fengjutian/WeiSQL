@@ -121,6 +121,7 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
   private persistRequested = false;
   private opfsExisted = false;
   private opfsReused = false;
+  private opfsFileName: string | undefined;
   private capabilitiesValue: SqlAdapterCapabilities = Object.freeze({
     engine: "duckdb-wasm",
     parameterBinding: true,
@@ -177,6 +178,7 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
       if (this.options.persistToOpfs && this.options.database === undefined) {
         try {
           const fileName = await opfsDatabaseFileName(context.manifest);
+          this.opfsFileName = fileName;
           this.opfsExisted = await opfsFileExists(fileName);
           databasePath = `opfs://${fileName}`;
           this.persistRequested = true;
@@ -185,6 +187,7 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
           // working in memory instead of failing the whole package.
           this.persistRequested = false;
           this.opfsExisted = false;
+          this.opfsFileName = undefined;
           databasePath = undefined;
         }
       }
@@ -208,7 +211,10 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
         for (const [index, table] of context.manifest.tables.entries()) {
           await this.materialize(context, index, table.name, table.file.path, table.file.bytes);
         }
-        if (this.persistRequested) await this.flushToOpfs();
+        if (this.persistRequested) {
+          await this.flushToOpfs();
+          await this.pruneOpfs();
+        }
       }
       if (this.options.verifyTableSchema) {
         for (const table of context.manifest.tables) await verifyTableSchema(this.connection, table);
@@ -462,6 +468,15 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
     }
   }
 
+  private async pruneOpfs(): Promise<void> {
+    if (this.opfsFileName === undefined) return;
+    try {
+      await pruneOpfsDatabases(this.opfsFileName);
+    } catch {
+      // Eviction is housekeeping; a failure must not break the open path.
+    }
+  }
+
   private async instantiate(databasePath?: string): Promise<void> {
     if (this.options.database !== undefined) {
       this.database = this.options.database;
@@ -605,6 +620,7 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
     this.ownsDatabase = false;
     this.persistRequested = false;
     this.opfsExisted = false;
+    this.opfsFileName = undefined;
     if (failures.length > 0 && this.stateValue !== "FAILED") {
       throw new WeiSQLError("INTERNAL_ERROR", "DuckDB-Wasm resources could not be released cleanly", {
         engine: "duckdb-wasm",

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { opfsDatabaseFileName } from "../dist/opfs.js";
+import { opfsDatabaseFileName, selectOpfsEvictions } from "../dist/opfs.js";
 
 const table = (name, bytes, sha256) => ({
   name,
@@ -16,6 +16,34 @@ const manifest = (tables, formatVersion = "1.0.0") => ({
   datasetId: "test",
   tables,
   vectorCollections: [],
+});
+
+test("OPFS eviction keeps the current database and the newest others", () => {
+  const base = (suffix) => `weisql-${suffix.padStart(32, "0")}.db`;
+  const entries = [
+    { name: base("1"), lastModified: 1 },
+    { name: `${base("1")}.wal`, lastModified: 1 },
+    { name: base("2"), lastModified: 2 },
+    { name: `${base("2")}.wal`, lastModified: 2 },
+    { name: base("3"), lastModified: 3 },
+    { name: base("4"), lastModified: 4 },
+    { name: base("5"), lastModified: 5 },
+    { name: "unrelated.txt", lastModified: 9 },
+  ];
+  // Keep the current file plus the three newest others: 2 and its WAL go.
+  assert.deepEqual(
+    selectOpfsEvictions(entries, base("1"), 4).sort(),
+    [`${base("2")}.wal`, base("2")].sort(),
+  );
+  // Keeping the newest evicts the oldest and its WAL.
+  assert.deepEqual(
+    selectOpfsEvictions(entries, base("5"), 4).sort(),
+    [`${base("1")}.wal`, base("1")].sort(),
+  );
+  // A budget of one leaves only the current database.
+  assert.equal(selectOpfsEvictions(entries, base("3"), 1).length, 6);
+  // Files that are not our databases are never touched.
+  assert.ok(!selectOpfsEvictions(entries, base("1"), 4).includes("unrelated.txt"));
 });
 
 test("OPFS database name is stable, order-independent and content-sensitive", async () => {

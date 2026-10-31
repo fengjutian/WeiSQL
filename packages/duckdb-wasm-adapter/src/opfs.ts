@@ -88,7 +88,7 @@ export function selectOpfsEvictions(
   return entries
     .filter(entry => {
       const match = DATABASE_FILE.exec(entry.name);
-      return match === null || !survivors.has(match[1]!);
+      return match !== null && !survivors.has(match[1]!);
     })
     .map(entry => entry.name);
 }

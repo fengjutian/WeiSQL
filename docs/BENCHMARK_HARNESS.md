@@ -278,6 +278,29 @@ npm run bench:wasm-cold
 “34 MB 首载”大致对应多少字节与多少时间，不能当作线上首屏预算。真正上线前仍需
 CDN + 冷缓存 + 移动网络验收。
 
+## 3.6 浏览器物化内存曲线（`bench:wasm-stream` 的 materialize 段）
+
+同一命令的第三段只测 `open()`：生成 20 万 / 50 万 / 100 万行 Parquet，经 HTTP Range + L3
+校验后物化，随后读 `performance.memory` 的 JS 堆增量与 DuckDB `duckdb_memory()` 的引擎内存，
+不再用 `db.sql()` 拉全表（那会测到数组而不是物化）。
+
+| 行数 | Parquet | `open()` | JS 堆增量 | 引擎内存 | 每百万行引擎内存 |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 200,000 | 7.5 MB | 2,151 ms | +10.7 MB | 12.2 MB | — |
+| 500,000 | 18.8 MB | 2,489 ms | +21.8 MB | 30.7 MB | — |
+| 1,000,000 | 37.6 MB | 2,824 ms | +40.7 MB | 60.1 MB | ~60 MB |
+
+读法：
+
+- **近似线性**：引擎内存 12.2 → 30.7 → 60.1 MB，约每百万行 60 MB（每行 ~60 B）；JS 堆增量
+  也随行数线性增长，约为 Parquet 的 1.08 倍；
+- 之前文档里的“物化约 4× Parquet”来自 Node 的 RSS 测量（包含 WASM 堆与运行时开销），
+  浏览器里的 **DuckDB 引擎内存**只有约 1.6 倍 Parquet，不能用旧倍数做预算；
+- `open()` 时间从 2.1 s 到 2.8 s，固定成本（WASM 实例化 + 扩展 + L4）约占一半；
+- **没有测 200 万行**：75 MB 的单文件超过 `verifyChecksums` 的每资源 64 MiB 校验预算，
+  会以 `RESOURCE_INTEGRITY_FAILED` 拒绝。要测更大表，需要先暴露该预算或关闭 L3；
+- 单次运行、本地服务器、无 CDN；`performance.memory` 粒度有限，数字只用于判断量级。
+
 ## 4. 记录结果（2026-10-30，单机）
 
 环境：Intel Core Ultra 7 155H · 22 核 · 32 GiB · Windows 10.0.26200 x64 · Node v24.14.1

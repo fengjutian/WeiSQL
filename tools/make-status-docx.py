@@ -303,6 +303,7 @@ def build(target: Path):
             ["DuckDB-Wasm 物化 500k 行", "298 ms，RSS ~+76 MB", "18.8 MB Parquet，Node 内同一 WASM", "约 4× Parquet；浏览器未测"],
             ["浏览器流式读取", "100k/1M/5M：126/871/4,542 ms，首行 5–16 ms", "Chromium 1248，sqlStream(range())", "单次运行、合成数据"],
             ["浏览器 Parquet 流式", "20 万/50 万行：流式 430/2,165 ms；db.sql 堆 +40.6/+95.4 MB", "7.5/18.8 MB Parquet，Range + L3 + 物化", "open() 1,963/2,430 ms"],
+            ["浏览器物化内存", "20 万/50 万/100 万行：堆 +10.7/+21.8/+40.7 MB；引擎 12.2/30.7/60.1 MB", "真实 Parquet，Range + L3 + L4", "约 60 MB/百万行；open() 2.1–2.8 s"],
             ["浏览器冷启动", "open() 1,817 ms；传输 36.3 MB", "Chromium 1248，关闭 HTTP 缓存", "本地服务器，无 CDN"],
             ["浏览器 SQL 取消", "202 ms 查询 → 51 ms 返回", "abort 于 50 ms", "引擎未停（engineMayStillRun）"],
         ],

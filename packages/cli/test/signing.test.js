@@ -115,3 +115,25 @@ test("countersigning keeps both signatures and validates with either pin", async
   const unpinned = await validatePackage({ directory: pkg, signature: true, trustedKeyIds: [`sha256:${"0".repeat(64)}`] });
   assert.equal(unpinned.signature?.reason, "untrusted-key");
 });
+
+test("validate --require enforces a two-signer endorsement policy", async (t) => {
+  const { directory, pkg } = await workspace(t);
+  const first = path.join(directory, "first");
+  const second = path.join(directory, "second");
+  const { stdout: firstKey } = await run(process.execPath, [BIN, "keygen", "--output", first, "--json"]);
+  const { stdout: secondKey } = await run(process.execPath, [BIN, "keygen", "--output", second, "--json"]);
+  const firstId = JSON.parse(firstKey).keyId;
+  const secondId = JSON.parse(secondKey).keyId;
+  await run(process.execPath, [BIN, "sign", pkg, "--key", `${first}.key.pem`]);
+  await run(process.execPath, [BIN, "sign", pkg, "--key", `${second}.key.pem`, "--add"]);
+
+  const both = await validatePackage({ directory: pkg, signature: true, trustedKeyIds: [firstId, secondId], minimumTrustedSignatures: 2 });
+  assert.equal(both.ok, true);
+
+  const onlyOne = await validatePackage({ directory: pkg, signature: true, trustedKeyIds: [firstId], minimumTrustedSignatures: 2 });
+  assert.equal(onlyOne.ok, false);
+  assert.equal(onlyOne.signature?.reason, "insufficient-trusted-signatures");
+
+  const { stdout } = await run(process.execPath, [BIN, "validate", pkg, "--signature", "--trusted", firstId, "--trusted", secondId, "--require", "2", "--json"]);
+  assert.equal(JSON.parse(stdout).ok, true);
+});

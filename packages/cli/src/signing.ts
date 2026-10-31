@@ -84,6 +84,8 @@ export async function signPackage(options: SignPackageOptions): Promise<SignPack
 export interface VerifySignatureOptions {
   target: string;
   trustedKeyIds?: readonly string[];
+  /** How many pinned keys must have signed (endorsement policy). */
+  minimumTrustedSignatures?: number;
 }
 
 export interface VerifySignatureResult extends VerifyManifestSignatureResult {
@@ -113,6 +115,7 @@ export async function verifyPackageSignature(options: VerifySignatureOptions): P
 
   const result = await verifyManifestSignature(manifest, {
     ...(options.trustedKeyIds === undefined ? {} : { trustedKeyIds: options.trustedKeyIds }),
+    ...(options.minimumTrustedSignatures === undefined ? {} : { minimumTrustedSignatures: options.minimumTrustedSignatures }),
   });
   return { ...result, target, kind, datasetId: manifest.datasetId };
 }

@@ -37,7 +37,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   verifies its bytes and, in `all` mode, that it is a sorted row permutation.
 - Manifest signing supports multiple signatures (`signatures`), co-signing via
   `countersignManifest()` / `weisql sign --add`, and key rotation without breaking
-  consumers pinned to the old key.
+  consumers pinned to the old key. Verifiers can require n pinned signers
+  (`minimumTrustedSignatures` / `--require`).
 - Manifest signing: Ed25519 over canonical JSON, `signManifest()` /
   `verifyManifestSignature()` with optional pinned key ids; `buildPackage()`
   signs during the build when a key pair is supplied.
@@ -87,6 +88,9 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   stays a `bigint`.
 - Self-hosted parquet extension (`extensionRepository`); `extensions.duckdb.org`
   sends no CORS headers, so cross-origin loading fails by design.
+- Default table budget is 64 MiB in the browser (the Node adapter keeps 256 MiB):
+  materialization costs roughly four times the Parquet size, so 256 MiB would
+  allow ~1 GiB of browser memory. `maxTableBytes` stays overridable.
 - `capabilities()` reports `engine: "duckdb-wasm"` and `cancellation: "best-effort"`.
   Aborting a running query rejects the caller immediately with
   `QUERY_CANCELLED` and `details.engineMayStillRun: true`; `cancelSent()` cannot
@@ -111,6 +115,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 
 - GitHub Actions CI: build, typecheck, tests and release checks on Ubuntu and
   Windows, plus fixture reproducibility, derived indexes and container packing.
+  The `derived` job also runs `bench:wasm --smoke` to catch broken
+  adapter/extension wiring.
 - `@weisql/sdk` exports `./errors` so browser adapters can import `WeiSQLError`
   without pulling the Node-only resource readers into a bundle.
 - `npm run probe:wasm` runs the DuckDB-Wasm probe in Chromium; `npm run

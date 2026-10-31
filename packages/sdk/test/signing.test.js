@@ -126,3 +126,23 @@ test("one tampered co-signature invalidates the Manifest", async () => {
   assert.deepEqual(verified.signatures.map(item => item.valid), [true, false]);
   assert.equal(verified.reason, "bad-signature");
 });
+
+test("an endorsement policy requires a minimum number of pinned signers", async () => {
+  const first = await generateSigningKeyPair();
+  const second = await generateSigningKeyPair();
+  const signed = await signManifest(await manifest(), { privateKeyPem: first.privateKeyPem, publicKeyPem: first.publicKeyPem });
+  const rotated = await countersignManifest(signed, { privateKeyPem: second.privateKeyPem, publicKeyPem: second.publicKeyPem });
+
+  const bothPinned = await verifyManifestSignature(rotated, { trustedKeyIds: [first.keyId, second.keyId], minimumTrustedSignatures: 2 });
+  assert.equal(bothPinned.valid, true);
+  assert.deepEqual(bothPinned.trustedKeyIds, [first.keyId, second.keyId]);
+
+  const onePinned = await verifyManifestSignature(rotated, { trustedKeyIds: [first.keyId], minimumTrustedSignatures: 2 });
+  assert.equal(onePinned.valid, false);
+  assert.equal(onePinned.reason, "insufficient-trusted-signatures");
+  assert.deepEqual(onePinned.trustedKeyIds, [first.keyId]);
+
+  // A policy without pins cannot be evaluated.
+  await assert.rejects(verifyManifestSignature(rotated, { minimumTrustedSignatures: 2 }), { code: "INVALID_ARGUMENT" });
+  await assert.rejects(verifyManifestSignature(rotated, { trustedKeyIds: [first.keyId], minimumTrustedSignatures: 0 }), { code: "INVALID_ARGUMENT" });
+});

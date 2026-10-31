@@ -518,26 +518,26 @@
 - 决策四：签名后仍走 `validateManifest`（含签名结构校验），避免写出解析器无法接受的 Manifest。
 - 后果：发布链路简化为 `buildPackage({ signing })` → `weisql validate --signature`。密钥管理（轮换、多签）仍不在范围内。
 
-## ADR-058：浏览器 SQL 走 DuckDB-Wasm，扩展自托管而不是跨域下载
+## ADR-061：浏览器 SQL 走 DuckDB-Wasm，扩展自托管而不是跨域下载
 
 - 状态：Accepted and implemented
 - 背景：ADR-020 把 DuckDB-Wasm 记为「parquet 扩展需从 extensions.duckdb.org 下载，当前不可达」。复测发现主机本身可达，**真正的阻塞是 CORS**：Node 能下载是因为 Node 不执行 CORS，页面里的 `XMLHttpRequest` 一定失败；同时 DuckDB-Wasm 的 JS API 不暴露 prepared statement 的 `StatementType`，Node 适配器的引擎级只读分类不可复用。
 - 决策一：新增独立包 `@weisql/duckdb-wasm-adapter`，不把 WASM 塞进 SDK。SDK 仍然零引擎依赖，浏览器与 Node 各带各的引擎，能力差异可以分别声明。
 - 决策二：表数据只从 `ResourceReader` 读取，再 `registerFileBuffer` + `CREATE TABLE ... AS SELECT`。DuckDB 不直接访问数据包 URL，Range、缓存、L3 校验不会因为走 SQL 被绕过。
 - 决策三：parquet 扩展由部署方自托管（`npm run vendor:wasm-extension` 按 WASM 核心版本下载），适配器用 `extensionRepository` 指向同源目录；不设置时 `open()` 明确失败为 `SQL_UNSUPPORTED`（`phase: "extension"`），不静默降级。
-- 决策四：只读用**首关键字白名单**，并**显式拒绝 `WITH`**。没有 `StatementType` 时，放行 `WITH` 等于把 `WITH ... DELETE` 交给引擎；宁可少支持一个语法，也不宣称一个挡不住的边界。白名单另加单语句扫描（识别字符串、标识符、注释、dollar-quoted）。（`WITH` 的这一条已被 ADR-059 取代。）
+- 决策四：只读用**首关键字白名单**，并**显式拒绝 `WITH`**。没有 `StatementType` 时，放行 `WITH` 等于把 `WITH ... DELETE` 交给引擎；宁可少支持一个语法，也不宣称一个挡不住的边界。白名单另加单语句扫描（识别字符串、标识符、注释、dollar-quoted）。（`WITH` 的这一条已被 ADR-062 取代。）
 - 决策五：参数绑定保留，但如实收窄类型：DuckDB-Wasm 用 JSON 传参，`Date`、二进制与超范围 `bigint` 直接 `INVALID_ARGUMENT`，不做静默转换；取消声明为 `best-effort`。
 - 决策六：L4（`DESCRIBE` 与 Manifest 比对）默认开启，规则与 Node 适配器一致，但代码不跨包复用——浏览器包不能依赖 `@duckdb/node-api`，复制比引入 Node 依赖更安全。
 - 后果：浏览器 SQL 可用（Chromium 探针：`open()` 1.37–1.70 s，查询 < 50 ms，写操作 `SQL_UNSUPPORTED`）；扩展必须同源托管、首次加载 34 MB WASM。README 与状态报告已按此更新，不再保留「浏览器 SQL 未实现」的说法。
 
-## ADR-059：用 DuckDB 自己的 tokenizer 支持只读 CTE，写 CTE 仍然拒绝
+## ADR-062：用 DuckDB 自己的 tokenizer 支持只读 CTE，写 CTE 仍然拒绝
 
-- 状态：Accepted and implemented（取代 ADR-058 决策四中「显式拒绝 `WITH`」的部分）
-- 背景：ADR-058 为了不误放写语句，直接拒绝 `WITH`。这挡住了 `WITH ... DELETE`，也挡住了合法的只读 CTE，是能力上的净损失。
+- 状态：Accepted and implemented（取代 ADR-061 决策四中「显式拒绝 `WITH`」的部分）
+- 背景：ADR-061 为了不误放写语句，直接拒绝 `WITH`。这挡住了 `WITH ... DELETE`，也挡住了合法的只读 CTE，是能力上的净损失。
 - 决策一：`AsyncDuckDB.tokenize()` 返回 `{ offsets, types }`，是引擎自己的词法结果；据此跳过 `[RECURSIVE] name [(cols)] [MATERIALIZED] AS (...) {, ...}`，再判定 CTE 之后的真实动词。正则或自写解析器都不如引擎词法可靠。
 - 决策二：只读动词集合不变（`SELECT`/`VALUES`/`TABLE` 等），`WITH ... DELETE/INSERT/UPDATE` 仍然 `SQL_UNSUPPORTED`；白名单仍是主边界，CTE 只是把「首关键字」换成「CTE 之后的关键字」。
 - 决策三：结构无法识别时 **fail closed**：括号不闭合、缺 `AS`、CTE 后直接跟 `(` 都拒绝，不猜测。
-- 决策四：tokenizer 不可用（注入的 database 没实现 `tokenize`，或词法报错）时退回 ADR-058 的严格白名单，`supportedFeatures` 不含 `cte`。能力声明必须反映实际可用的边界。
+- 决策四：tokenizer 不可用（注入的 database 没实现 `tokenize`，或词法报错）时退回 ADR-061 的严格白名单，`supportedFeatures` 不含 `cte`。能力声明必须反映实际可用的边界。
 - 后果：浏览器端 `WITH ... SELECT` 与递归 CTE 可用并有测试；`probe:wasm` 同时断言只读 CTE 返回结果、写 CTE 被拒绝。代价是分类逻辑依赖 tokenizer 的存在。
 
 ## ADR-058：ID 反向索引整份载入内存，而不是逐条二分
@@ -572,6 +572,35 @@
 - 决策三：CJK 没有空格，中文长句只会走句末或硬切；不为分词引入词典，那是另一个产品假设。
 - 决策四：预算语义不变（总量上限、按融合顺序分配），只是切点更合理，因此对调用方是行为改进而非接口变化。
 - 后果：RAG 证据在 `truncated: true` 时附带 `boundary`，调用方可区分「句子完整截断」与「硬切」。
+
+## ADR-063：不采用 DuckDB-Wasm COI/pthread 构建——它能多线程，但装不了 parquet 扩展
+
+- 状态：Rejected after experiment（记录负面结果，代码不采用）
+- 背景：单线程 DuckDB-Wasm 既不能抢占查询，也没有并行扫描。官方提供 COI 构建（`duckdb-coi.wasm` + pthread worker），前提是页面跨域隔离（COOP/COEP）从而拿到 `SharedArrayBuffer`。
+- 实验：探针服务器加上 `Cross-Origin-Opener-Policy: same-origin` 与 `Cross-Origin-Embedder-Policy: require-corp` 后，`crossOriginIsolated === true`、`SharedArrayBuffer` 可用；COI 实例化成功，`select current_setting('threads')` 返回 4，纯计算查询正常。
+- 阻塞：加载 `parquet` 扩展时失败：`LinkError: WebAssembly.Instance(): Import #4843 "env" "memory": mismatch in shared state of memory, declared = 0, imported = 1`。扩展的 WASM 声明非共享内存，而 COI 运行时是共享内存；`wasm_threads` 变体同样如此（版本 v1.4.3）。
+- 决策：不启用 COI 路径，不暴露 `threads` 选项，探针服务器也不发 COOP/COEP。适配器继续用 `duckdb-eh.wasm`，取消保持 `best-effort`。
+- 后果：多线程暂不可用，parquet 表仍是单线程物化与扫描。若未来 DuckDB-Wasm 的扩展 ABI 支持共享内存，需要重新评估；在此之前任何「浏览器多线程加速」的说法都不成立。
+
+## ADR-064：查询取消只承诺「立即停止等待」，不承诺引擎停下
+
+- 状态：Accepted and implemented
+- 背景：ADR-061 把取消声明为 `best-effort`，但实现是 abort 后继续 `await` 查询并调用 `cancelSent()`。实测（Chromium，单线程 WASM）`cancelSent()` 返回 `false`：取消消息排在正在执行的查询后面，直到查询结束才被 worker 处理。
+- 决策一：abort 时用 Promise 竞速让调用方**立即**收到 `QUERY_CANCELLED`，错误里带 `details.engineMayStillRun: true`；不等待引擎。
+- 决策二：仍 fire-and-forget 调用 `cancelSent()`（对排队中的任务或未来线程化构建可能有意义），但不把它当作已取消的证据。
+- 决策三：取消路径上不 `await` prepared statement 的 `close()`：worker 还在忙，等待关闭会把 50 ms 的取消变成 200 ms 的长等待。
+- 决策四：能力保持 `best-effort`，不升 `native`。ADR-063 说明多线程不可用，因此当前版本没有真正的抢占路径。
+- 后果：实测 202 ms 的查询在第 50 ms abort 后 51 ms 返回 `QUERY_CANCELLED`，引擎仍跑完。调用方得到的是「不再等」，不是「已停止」；这一点写在适配器文档、README 与探针输出里。
+
+## ADR-061：背书策略是验签方的 M-of-N，不是门限签名
+
+- 状态：Accepted and implemented
+- 背景：多签名落地后，自然的问题是「能不能要求至少 2 个签名」。需要区分两件被混为一谈的事。
+- 决策一：实现的是**验签方策略**：调用方固定一组 `trustedKeyIds`，并可用 `minimumTrustedSignatures` 要求其中至少 n 个确实签过名（CLI `--require n`）。这是真实的多方批准：每个签名者持有完整私钥，缺席就无法凑数。
+- 决策二：**不声称实现门限签名**。真正的门限 Ed25519 需要秘密共享与分布式签名协议，WebCrypto 没有对应原语；在 JS 里拼一个「M-of-N」只会得到「收集 M 个普通签名」，与策略检查等价，却更容易被误解为单个签名无法伪造。
+- 决策三：策略未固定密钥时报 `INVALID_ARGUMENT`——没有信任集合时，「至少 2 个签名」无法定义谁算数。
+- 决策四：结果中返回 `trustedKeyIds`（实际签名的固定密钥），区分「有效签名」与「来自受信方的有效签名」。
+- 后果：多签从「一起签」扩展到「按方数验收」。证书链（根密钥授权中间密钥）仍未实现：它需要有效期、吊销与信任锚的部署决策，属于另一个 ADR。
 
 ## 明确禁止的未经验证声明
 

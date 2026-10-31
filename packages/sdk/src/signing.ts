@@ -148,6 +148,12 @@ export async function countersignManifest(manifest: WeiSQLManifest, options: Sig
 export interface VerifyManifestSignatureOptions {
   /** Pin expected publisher fingerprints. A self-signed package is otherwise accepted. */
   trustedKeyIds?: readonly string[];
+  /**
+   * Endorsement policy: how many distinct pinned keys must have signed. Defaults
+   * to 1. This is verifier-side policy, not threshold cryptography: each signer
+   * still holds their own complete key.
+   */
+  minimumTrustedSignatures?: number;
 }
 
 export interface SignatureVerification {
@@ -161,16 +167,26 @@ export interface VerifyManifestSignatureResult {
   /** First signature's fingerprint; kept for callers that only handle one signature. */
   keyId?: string;
   keyIds: string[];
-  reason?: "missing-signature" | "unsupported-algorithm" | "key-id-mismatch" | "untrusted-key" | "invalid-key" | "bad-signature" | "no-trusted-key";
+  reason?: "missing-signature" | "unsupported-algorithm" | "key-id-mismatch" | "untrusted-key" | "invalid-key" | "bad-signature" | "insufficient-trusted-signatures";
   signatures: SignatureVerification[];
+  /** Pinned keys that actually signed this Manifest. */
+  trustedKeyIds: string[];
 }
 
 export async function verifyManifestSignature(
   manifest: WeiSQLManifest,
   options: VerifyManifestSignatureOptions = {},
 ): Promise<VerifyManifestSignatureResult> {
+  const minimum = options.minimumTrustedSignatures ?? 1;
+  if (!Number.isSafeInteger(minimum) || minimum < 1) {
+    throw new WeiSQLError("INVALID_ARGUMENT", "minimumTrustedSignatures must be a positive integer", { minimumTrustedSignatures: options.minimumTrustedSignatures });
+  }
+  if (minimum > 1 && options.trustedKeyIds === undefined) {
+    throw new WeiSQLError("INVALID_ARGUMENT", "A multi-signature requirement needs trustedKeyIds to count against", { minimumTrustedSignatures: minimum });
+  }
+
   const signatures = manifestSignatures(manifest);
-  if (signatures.length === 0) return { valid: false, keyIds: [], signatures: [], reason: "missing-signature" };
+  if (signatures.length === 0) return { valid: false, keyIds: [], signatures: [], trustedKeyIds: [], reason: "missing-signature" };
 
   const payload = manifestSigningPayload(manifest);
   const results: SignatureVerification[] = [];
@@ -178,6 +194,10 @@ export async function verifyManifestSignature(
     results.push(await verifyOne(signature, payload));
   }
   const keyIds = signatures.map(signature => signature.keyId);
+  const trusted = options.trustedKeyIds === undefined
+    ? []
+    : results.filter(item => item.valid && options.trustedKeyIds!.includes(item.keyId)).map(item => item.keyId);
+
   const failed = results.find(item => !item.valid);
   if (failed !== undefined) {
     return {
@@ -185,13 +205,21 @@ export async function verifyManifestSignature(
       keyId: keyIds[0]!,
       keyIds,
       signatures: results,
+      trustedKeyIds: trusted,
       ...(failed.reason === undefined ? {} : { reason: failed.reason }),
     };
   }
-  if (options.trustedKeyIds !== undefined && !keyIds.some(keyId => options.trustedKeyIds!.includes(keyId))) {
-    return { valid: false, keyId: keyIds[0]!, keyIds, signatures: results, reason: "untrusted-key" };
+  if (options.trustedKeyIds !== undefined && trusted.length < minimum) {
+    return {
+      valid: false,
+      keyId: keyIds[0]!,
+      keyIds,
+      signatures: results,
+      trustedKeyIds: trusted,
+      reason: trusted.length === 0 ? "untrusted-key" : "insufficient-trusted-signatures",
+    };
   }
-  return { valid: true, keyId: keyIds[0]!, keyIds, signatures: results };
+  return { valid: true, keyId: keyIds[0]!, keyIds, signatures: results, trustedKeyIds: trusted };
 }
 
 async function verifyOne(signature: ManifestSignature, payload: Uint8Array): Promise<SignatureVerification> {

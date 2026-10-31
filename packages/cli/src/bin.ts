@@ -26,6 +26,7 @@ Options:
   --l4                         Also verify Parquet content (needs @weisql/duckdb-adapter)
   --signature                  Require a valid Manifest signature
   --trusted <keyId>            Pin a publisher fingerprint (repeatable)
+  --require <n>                Require n pinned keys to have signed (endorsement policy)
   --key <pem>                  Private key for sign
   --public <pem>               Public key for sign (derived when omitted)
   --add                        Add a co-signature instead of replacing (key rotation)
@@ -54,12 +55,13 @@ interface ParsedArguments {
   keyPath: string | undefined;
   publicKeyPath: string | undefined;
   trustedKeyIds: string[];
+  minimumTrustedSignatures: number | undefined;
   json: boolean;
   help: boolean;
 }
 
 function parseArguments(argv: readonly string[]): ParsedArguments | string {
-  const parsed: ParsedArguments = { command: undefined, target: undefined, mode: "all", output: undefined, l4: false, signature: false, compress: false, onlyDeclared: false, addSignature: false, keyPath: undefined, publicKeyPath: undefined, trustedKeyIds: [], json: false, help: false };
+  const parsed: ParsedArguments = { command: undefined, target: undefined, mode: "all", output: undefined, l4: false, signature: false, compress: false, onlyDeclared: false, addSignature: false, keyPath: undefined, publicKeyPath: undefined, trustedKeyIds: [], minimumTrustedSignatures: undefined, json: false, help: false };
   for (let index = 0; index < argv.length; index++) {
     const argument = argv[index]!;
     if (argument === "--help" || argument === "-h") {
@@ -95,6 +97,13 @@ function parseArguments(argv: readonly string[]): ParsedArguments | string {
       if (value === undefined || value === "") return "--trusted requires a key id";
       if (argument === "--trusted") index++;
       parsed.trustedKeyIds.push(value);
+      continue;
+    }
+    if (argument === "--require" || argument.startsWith("--require=")) {
+      const value = argument === "--require" ? argv[index + 1] : argument.slice("--require=".length);
+      if (value === undefined || !/^\d+$/.test(value) || Number(value) < 1) return "--require needs a positive integer";
+      if (argument === "--require") index++;
+      parsed.minimumTrustedSignatures = Number(value);
       continue;
     }
     if (argument === "--key" || argument.startsWith("--key=")) {
@@ -242,6 +251,7 @@ async function main(argv: readonly string[]): Promise<number> {
       const verified = await verifyPackageSignature({
         target,
         ...(parsed.trustedKeyIds.length === 0 ? {} : { trustedKeyIds: parsed.trustedKeyIds }),
+        ...(parsed.minimumTrustedSignatures === undefined ? {} : { minimumTrustedSignatures: parsed.minimumTrustedSignatures }),
       });
       if (parsed.json) console.log(JSON.stringify(verified, null, 2));
       else {
@@ -333,8 +343,8 @@ async function main(argv: readonly string[]): Promise<number> {
   const info = await stat(target).catch(() => undefined);
   const isContainer = info?.isFile() === true;
   const result: ValidationResult & { container?: { files: number; mismatches: number } } = isContainer
-    ? await validateContainer({ file: target, mode: parsed.mode, l4: parsed.l4, signature: parsed.signature, ...(parsed.trustedKeyIds.length === 0 ? {} : { trustedKeyIds: parsed.trustedKeyIds }) })
-    : await validatePackage({ directory: target, mode: parsed.mode, l4: parsed.l4, signature: parsed.signature, ...(parsed.trustedKeyIds.length === 0 ? {} : { trustedKeyIds: parsed.trustedKeyIds }) });
+    ? await validateContainer({ file: target, mode: parsed.mode, l4: parsed.l4, signature: parsed.signature, ...(parsed.trustedKeyIds.length === 0 ? {} : { trustedKeyIds: parsed.trustedKeyIds }), ...(parsed.minimumTrustedSignatures === undefined ? {} : { minimumTrustedSignatures: parsed.minimumTrustedSignatures }) })
+    : await validatePackage({ directory: target, mode: parsed.mode, l4: parsed.l4, signature: parsed.signature, ...(parsed.trustedKeyIds.length === 0 ? {} : { trustedKeyIds: parsed.trustedKeyIds }), ...(parsed.minimumTrustedSignatures === undefined ? {} : { minimumTrustedSignatures: parsed.minimumTrustedSignatures }) });
 
   if (parsed.json) {
     console.log(JSON.stringify({

@@ -28,6 +28,8 @@ export interface ValidatePackageOptions {
   signature?: boolean;
   /** Pin expected publisher fingerprints; only meaningful with `signature`. */
   trustedKeyIds?: readonly string[];
+  /** How many pinned keys must have signed; only meaningful with `signature`. */
+  minimumTrustedSignatures?: number;
   signal?: AbortSignal;
 }
 
@@ -140,13 +142,14 @@ async function runL4(manifest: WeiSQLManifest, reader: ResourceReader, signal: A
 
 async function checkSignature(
   manifest: WeiSQLManifest,
-  options: { trustedKeyIds?: readonly string[] },
+  options: { trustedKeyIds?: readonly string[]; minimumTrustedSignatures?: number },
   result: ValidationResult,
   issues: ValidationIssue[],
 ): Promise<void> {
   try {
     result.signature = await verifyManifestSignature(manifest, {
       ...(options.trustedKeyIds === undefined ? {} : { trustedKeyIds: options.trustedKeyIds }),
+      ...(options.minimumTrustedSignatures === undefined ? {} : { minimumTrustedSignatures: options.minimumTrustedSignatures }),
     });
     if (!result.signature.valid) {
       issues.push({

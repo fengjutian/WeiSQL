@@ -5,7 +5,7 @@
 
 ## 1. 一句话状态
 
-工程原型：Manifest V1 与数据包格式稳定，五个包共 **300 个自动化测试**，CI 覆盖构建/类型/测试/发布元数据，精确检索、ANN、全文、融合、RAG、单文件容器与浏览器 SQL 均有实现与实测数字；**尚未发布 npm 包**，也没有任何未经测量的性能承诺。
+工程原型：Manifest V1 与数据包格式稳定，五个包共 **307 个自动化测试**，CI 覆盖构建/类型/测试/发布元数据，精确检索、ANN、全文、融合、RAG、单文件容器与浏览器 SQL 均有实现与实测数字；**尚未发布 npm 包**，也没有任何未经测量的性能承诺。
 
 ## 2. 能力矩阵
 
@@ -48,19 +48,19 @@
 
 | 包 | 测试数 | 覆盖重点 |
 | --- | --- | --- |
-| `@weisql/sdk` | 203 | 校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约 |
+| `@weisql/sdk` | 204 | 校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约 |
 | `@weisql/duckdb-adapter` | 20 | 只读边界、参数绑定、两种表加载、取消 |
-| `@weisql/duckdb-wasm-adapter` | 29 | 关键字白名单、CTE 分类与 fail-closed、参数类型收窄、值映射、真实 WASM 引擎集成（打开/绑定/L4/生命周期/取消） |
+| `@weisql/duckdb-wasm-adapter` | 34 | 关键字白名单、CTE 分类与 fail-closed、参数类型收窄、值映射、真实 WASM 引擎集成（打开/绑定/L4/生命周期/取消） |
 | `@weisql/usearch-adapter` | 13 | 度量映射、持久化索引、后过滤、生命周期 |
-| `@weisql/cli` | 35 | 校验退出码、`--json`、`pack`/`--compress`、`unpack`、容器校验、`--l4` |
-| **合计** | **300** | |
+| `@weisql/cli` | 36 | 校验退出码、`--json`、`pack`/`--compress`、`unpack`、容器校验、`--l4` |
+| **合计** | **307** | |
 
 CI（`.github/workflows/ci.yml`）：
 
 - `verify`：Ubuntu + Windows 矩阵，`npm ci` → build → typecheck → test → release:check → 示例包校验；
 - `derived`：fixture 可复现性（重生成后 `git status` 必须为空）→ 构建文本/ANN 索引并校验 → 打包容器并校验。
 
-`probe:*` 与 `bench` **不在 CI 内**（需要 Chromium / Python / 稳定机器），因此浏览器与性能结论必须在本地复现并注明环境。
+`probe:*` 与完整的 `bench` / `bench:wasm` **不在 CI 内**（需要 Chromium / Python / 稳定机器）；`bench:wasm --smoke` 会在 `derived` 任务里物化 1k 行，作为扩展与适配器接线的冒烟检查。浏览器与性能结论仍需本地复现并注明环境。
 
 ## 5. 全部实测数字
 
@@ -83,6 +83,7 @@ CI（`.github/workflows/ci.yml`）：
 | DuckDB-Wasm 物化 200k 行 | 192 ms，RSS ~+43 MB | 同上，7.5 MB Parquet | 浏览器未测 |
 | DuckDB-Wasm 物化 500k 行 | 298 ms，RSS ~+76 MB | 同上，18.8 MB Parquet | 约 4×Parquet；浏览器未测 |
 | DuckDB-Wasm 过滤查询 | 5.9–12.9 ms | 同上，等值过滤 | 冷/热缓存未区分 |
+| DuckDB-Wasm 默认表预算 | 64 MiB（约 256 MB RAM） | 实测物化约 4× Parquet | Node 适配器为 256 MiB |
 | parquet 扩展体积 | 498,915 B（`wasm_eh`，v1.4.3） | 自托管 | 版本必须与 WASM 核心一致 |
 
 ### 5.1 ANN 召回与分布（100k × 128，Top-10，`expansionSearch=512`）
@@ -120,7 +121,7 @@ CI（`.github/workflows/ci.yml`）：
 | JSON 等值过滤 | 需要规范化形式，当前明确拒绝 |
 | 时间戳与嵌套列的源数据推断 | 转换工具只覆盖标量类型 |
 | 中文分词 | CJK 逐字，精度换可预测性 |
-| 非只读 CTE 的解析 | CTE 后不是只读动词一律拒绝；无法识别的形态 fail-closed（ADR-059） |
+| 非只读 CTE 的解析 | CTE 后不是只读动词一律拒绝；无法识别的形态 fail-closed（ADR-062） |
 | 浏览器 SQL 参数类型 | JSON 绑定，`Date`/二进制/超范围 `bigint` 明确拒绝 |
 | 浏览器 SQL 扩展分发 | 必须同源自托管；`extensions.duckdb.org` 无 CORS 头 |
 | 浏览器内的大表与冷启动 | 只测了 Node 里的同一 WASM 构建（§5），浏览器内存与 34 MB 首载时间未测 |
@@ -144,13 +145,14 @@ CI（`.github/workflows/ci.yml`）：
 | 039 | `.wsql` 不压缩、整文件入内存 |
 | 040 | Apache-2.0，每个包内自带 LICENSE |
 | 057 | Builder 在构建时签名，发布链路少一步补签 |
-| 058 / 059 | 浏览器 SQL 用 DuckDB-Wasm、扩展同源自托管；059 用 tokenizer 支持只读 CTE，取代 058 的 `WITH` 拒绝 |
+| 061 / 062 | 浏览器 SQL 用 DuckDB-Wasm、扩展同源自托管；062 用 tokenizer 支持只读 CTE，取代 061 的 `WITH` 拒绝 |
+| 063 / 064 | COI 多线程因扩展内存不兼容而不采用；取消只承诺立即停止等待（`engineMayStillRun`） |
 
 ## 8. 发布就绪度
 
 | 检查项 | 状态 |
 | --- | --- |
-| 测试 / 类型 / 构建 | ✅ 296 测试，typecheck 通过 |
+| 测试 / 类型 / 构建 | ✅ 307 测试，typecheck 通过 |
 | 打包内容 | ✅ 仅 `dist/` + README + LICENSE，无 src/test 泄漏 |
 | 依赖范围 | ✅ caret 且跟踪本地版本 |
 | 许可证 | ✅ Apache-2.0（根 + 每包） |

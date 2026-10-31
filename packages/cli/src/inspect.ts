@@ -81,7 +81,7 @@ export async function inspectPackage(target: string): Promise<InspectResult> {
   const undeclared = [...presentFiles].filter(file => file !== "manifest.json" && !declaredPaths.has(file)).sort();
 
   const signature = manifestSignatures(manifest).length === 0
-    ? { present: false, valid: false as const, keyIds: [] as string[], signatures: [], reason: "missing-signature" as const }
+    ? { present: false, valid: false as const, keyIds: [] as string[], signatures: [], trustedKeyIds: [] as string[], reason: "missing-signature" as const }
     : { present: true, ...(await verifyManifestSignature(manifest)) };
 
   return {

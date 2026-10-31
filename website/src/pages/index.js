@@ -137,6 +137,10 @@ function HeroCode() {
         <span className={styles.dot} />
         <span className={styles.dot} />
         <span className={styles.codeName}>app.ts</span>
+        <span className={styles.codeStatus}>
+          <span className={styles.statusDot} />
+          READY
+        </span>
       </div>
       <CodeBlock language="ts" className={styles.codeBlock}>
         {heroCode}
@@ -199,7 +203,7 @@ export default function Home() {
                 </div>
                 <div>
                   <dt>0</dt>
-                  <dd>SDK 运行时依赖</dd>
+                  <dd>运行时依赖</dd>
                 </div>
                 <div>
                   <dt>1.0.0</dt>
@@ -210,12 +214,10 @@ export default function Home() {
             <div className={styles.heroVisual}>
               <div className={styles.glow} />
               <HeroCode />
-              <div className={styles.floatingCard}>
-                <span className={styles.floatingLabel}>Range 读取</span>
-                <strong>206 Partial Content</strong>
-                <span className={styles.floatingMeta}>
-                  只取需要的向量块
-                </span>
+              <div className={styles.rangeBadge}>
+                <span>HTTP</span>
+                <strong>206</strong>
+                <em>Partial Content</em>
               </div>
             </div>
           </div>

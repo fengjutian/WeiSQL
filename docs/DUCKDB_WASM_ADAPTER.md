@@ -213,7 +213,10 @@ fixture 3 行、扩展已缓存。
 - **COI / 多线程**：试过，不可用。页面跨域隔离后 `duckdb-coi.wasm` 能跑（`threads=4`），但加载
   `parquet` 扩展直接 `LinkError`：扩展声明非共享内存，COI 运行时是共享内存；`wasm_threads`
   变体同样如此（v1.4.3）。见 ADR-063。
-- OPFS 持久化与 `pthread` 路径。
+- OPFS 持久化：**已复测可用**（1.32.0 与 1.33.1-dev65.0 均可），但前提是写入后调用
+  `flushFiles()` 再 `terminate()`，否则文件是空壳、重开会报 invalid database file。
+  适配器**尚未实现**缓存（缓存键、失效、多标签页锁、配额回退、L4 复核都还没做），
+  因此当前每次 `open()` 仍然重新物化。见 ADR-070。
 - `date`/`timestamp`/二进制参数、结构化错误位置。
 - 非 `SELECT` 的只读 CTE 形态（如 CTE 后直接跟括号子查询）按 fail-closed 拒绝，未逐一支持。
 - CDN 上的扩展 CORS 配置（本实现要求同源自托管）。

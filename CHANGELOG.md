@@ -139,6 +139,7 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   published package.
 
 - `npm run release:e2e` packs the SDK and DuckDB adapter, installs the tarballs in a temp project and runs SQL, vector search and a stream against the fixture (catches broken `exports` or missing runtime deps).
+- OPFS database persistence re-verified on DuckDB-Wasm 1.32.0: it works when `flushFiles()` runs before terminating; the adapter cache is still unimplemented (ADR-070).
 - GitHub Actions CI: build, typecheck, tests and release checks on Ubuntu and
   Windows, plus fixture reproducibility, derived indexes and container packing.
   The `derived` job also runs `bench:wasm --smoke` to catch broken

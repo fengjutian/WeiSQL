@@ -57,7 +57,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 ## 尚未实现 / 未验证
 
 - 浏览器 SQL 的 `Date`/二进制参数（当前明确拒绝）；见 [DuckDB-Wasm Adapter](docs/DUCKDB_WASM_ADAPTER.md)
-- 浏览器端 OPFS 持久化；多线程/COI 已试且不可用（见 ADR-063）；36.3 MB 首载已实测（`bench:wasm-cold`），CDN 下的冷启动仍未测
+- 浏览器端 OPFS 缓存尚未实现（数据库文件已复测可用，前提是 `flushFiles()`；见 [DuckDB-Wasm Adapter](docs/DUCKDB_WASM_ADAPTER.md) 与 ADR-070）；多线程/COI 已试且不可用（见 ADR-063）；36.3 MB 首载已实测（`bench:wasm-cold`），CDN 下的冷启动仍未测
 - `db.sql()` 仍一次性返回全部行；需要增量消费时用 `db.sqlStream()`（流式 API 已提供）
 - ANN 在真实数据集上的 Recall@K 评估；ANN 后过滤的完整性保证
 - 时间戳的自动推断（需用 `--timestamp` 显式声明；嵌套 JSON 列已支持，见 [源数据转换](docs/SOURCE_CONVERSION.md)）
@@ -578,7 +578,7 @@ tools/                     源 Parquet、ANN/全文索引生成、基准与浏�
 6. ~~DuckDB-Wasm（浏览器 SQL 引擎）~~（已完成，`packages/duckdb-wasm-adapter`：扩展自托管 + tokenizer 判定的只读边界，含只读 CTE）
 7. 真实 embedding 数据集的 Recall@K、多机基准复现与静态 CDN/CORS 验收
 8. ~~Playground 接入浏览器 SQL 与类别过滤~~（已完成，`probe:playground` 断言）
-9. 浏览器 OPFS 持久化、CDN 冷缓存下的首载验收（本地冷启动已测，见 `bench:wasm-cold`）
+9. 浏览器 OPFS 缓存（数据库文件已验证可用，缓存语义待设计）、CDN 冷缓存下的首载验收（本地冷启动已测，见 `bench:wasm-cold`）
 
 第 7 步是当前瓶颈：Node 端的性能结论不能外推到 WASM；性能与召回数字也不能从单机合成数据外推。
 

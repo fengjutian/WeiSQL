@@ -403,6 +403,7 @@ tools/                     源 Parquet、ANN/全文索引生成、基准与浏�
 
 ### 现状与契约
 
+- [项目状态报告](docs/PROJECT_STATUS.md)：能力矩阵、全部实测数字及其边界、未实现项
 - [总体技术规范](docs/TECHNICAL_SPEC_V1.md)
 - [工程路线图](docs/ENGINEERING_ROADMAP.md)
 - [Manifest V1](docs/MANIFEST_SPEC_V1.md)

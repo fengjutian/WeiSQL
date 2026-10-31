@@ -114,10 +114,10 @@ CI（`.github/workflows/ci.yml`）：
 
 | 项 | 阻塞原因 |
 | --- | --- |
-| npm 发布 | 缺少组织与访问令牌；LICENSE 已确定为 Apache-2.0 |
+| npm 发布 | CLI 已登录（`npm whoami` 成功），`npm run release:publish` 的 dry-run 通过；尚未执行正式发布；LICENSE 为 Apache-2.0 |
 | 真实数据集 Recall@K | 需要真实 embedding 语料 |
 | 多机 / 冷缓存基准 | 需要第二台机器与清缓存手段 |
-| 真实 CDN / CORS 验收 | 需要实际部署环境 |
+| 真实 CDN / CORS 验收 | 需要实际部署环境；`npm run probe:cdn` 已就绪，尚无 URL |
 
 ### 6.2 设计未定或明确不做
 
@@ -177,14 +177,14 @@ CI（`.github/workflows/ci.yml`）：
 | 依赖范围 | ✅ caret 且跟踪本地版本 |
 | 许可证 | ✅ Apache-2.0（根 + 每包） |
 | CI | ✅ 双平台行为闸门 |
-| npm 组织与令牌 | ⬜ |
+| npm 组织与令牌 | ✅ dry-run 通过；正式 `--apply` 待确认 |
 | 多机基准 | ⬜ |
 
 **结论：技术上可发布，行政上未就绪。**
 
 ## 9. 建议的下一步（按价值排序）
 
-1. 配置 npm 令牌 → `npm publish --dry-run` 核对五个包 → 正式发布；
+1. 确认发布范围与版本 → `npm run release:publish -- --apply` 正式发布五个包（dry-run 已通过）；
 2. 在真实 embedding 数据上测 Recall@K，替换 §5.1 的合成数字；
 3. 第二台机器复现基准，形成区间而非单点；
 4. Playground 接入浏览器 SQL 与混合过滤，并补一条 `probe:playground` 断言；

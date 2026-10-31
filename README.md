@@ -78,9 +78,9 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - `db.sql()` 仍一次性返回全部行；需要增量消费时用 `db.sqlStream()`（流式 API 已提供）
 - ANN 在真实数据集上的 Recall@K 结果；ANN 后过滤仍只保证“显式后过滤”，不保证过滤后的严格 Top-K。报告入口已就绪（`bench:recall`），缺真实 embedding 语料
 - 时间戳的自动推断（需用 `--timestamp` 显式声明；嵌套 JSON 列已支持，见 [源数据转换](docs/SOURCE_CONVERSION.md)）
-- WASM adapter 的真实 Chromium 实测（两个 `.wasm` 已随包分发，但浏览器端尚未跑通）
+- WASM adapter 的 Chromium 实测结果（探针 `probe:wasm-vector` 已就绪并接入 CI；首次运行前不宣称通过）
 - 真实 CDN（CORS、Range、缓存）与多机/冷缓存验收；`probe:cdn` 工具已就绪，尚无真实部署结果
-- npm 发布（元数据与发布脚本已就绪，缺 npm 组织与访问令牌）
+- npm 正式发布（CLI 已登录，`npm run release:publish` 的 dry-run 通过；尚未执行不可撤销的 `--apply`）
 
 ## 快速开始
 
@@ -113,6 +113,7 @@ npm run fixture
 
 ```bash
 npm run probe:browser
+npm run probe:wasm-vector  # 随包分发的 exact/HNSW .wasm 与 TS 精确适配器三方对照
 npm run probe:wasm         # 浏览器 SQL（DuckDB-Wasm），首次会下载 parquet 扩展
 npm run probe:playground   # 打开 Playground 并断言交互结果
 npm run probe:parity       # Node 与 Chromium 结果对照（见 docs/ENVIRONMENT_PARITY.md）

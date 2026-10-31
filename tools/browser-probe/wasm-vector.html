@@ -1,0 +1,105 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>WeiSQL WASM vector probe</title>
+  </head>
+  <body>
+    <pre id="log"></pre>
+    <script type="module">
+      import {
+        createExactVectorAdapter,
+        createHnswWasmVectorAdapter,
+        createWasmVectorAdapter,
+        wasmArtifactUrl,
+      } from "/sdk/index.js";
+      import { HttpResourceReader } from "/sdk/http-resource-reader.js";
+
+      const log = (message) => {
+        document.getElementById("log").textContent += `${message}\n`;
+        console.log(message);
+      };
+
+      /**
+       * Verifies, in a real browser, that the WASM artifacts shipped inside the
+       * SDK package are reachable through `wasmArtifactUrl()` and produce the
+       * same answers as the TypeScript exact adapter on the example package.
+       */
+      async function main() {
+        const started = performance.now();
+        const base = new URL("/fixture/", location.href).href;
+        const manifest = JSON.parse(await (await fetch(new URL("manifest.json", base))).text());
+        const collection = manifest.vectorCollections[0];
+        const query = new Float32Array([1, 0]);
+        const topK = Math.min(3, collection.count);
+
+        const [exactBytes, hnswBytes] = await Promise.all([
+          fetch(wasmArtifactUrl("exact")).then(async (response) => {
+            if (!response.ok) throw new Error(`exact wasm ${response.status}`);
+            if (!(response.headers.get("content-type") ?? "").includes("application/wasm")) {
+              throw new Error(`exact wasm content-type: ${response.headers.get("content-type")}`);
+            }
+            return response.arrayBuffer();
+          }),
+          fetch(wasmArtifactUrl("hnsw")).then((response) => {
+            if (!response.ok) throw new Error(`hnsw wasm ${response.status}`);
+            return response.arrayBuffer();
+          }),
+        ]);
+
+        const reader = new HttpResourceReader({ baseUrl: base });
+        const reference = createExactVectorAdapter();
+        const exactWasm = await createWasmVectorAdapter({ module: exactBytes });
+        const hnsw = await createHnswWasmVectorAdapter({ module: hnswBytes });
+
+        await reference.open({ manifest, reader });
+        await exactWasm.open({ manifest, reader });
+        await hnsw.open({ manifest, reader });
+
+        const request = { vector: collection, query, topK };
+        const expected = await reference.search(request);
+        const exact = await exactWasm.search(request);
+        const approximate = await hnsw.search(request);
+
+        const signature = (hits) => hits.map((hit) => `${hit.row}:${hit.id}`).join(",");
+        const distances = (hits) => hits.map((hit) => Number(hit.distance.toFixed(9)));
+        const closeEnough = distances(expected).every((value, index) => Math.abs(value - distances(exact)[index]) < 1e-9);
+
+        const result = {
+          ok:
+            signature(expected) === signature(exact) &&
+            closeEnough &&
+            signature(exact) === signature(approximate) &&
+            hnsw.capabilities.exactSearch === false &&
+            exactWasm.capabilities.exactSearch === true &&
+            approximate[0]?.diagnostics.backend === "rust-hnsw-wasm" &&
+            exact[0]?.diagnostics.backend === "rust-wasm-exact" &&
+            typeof process === "undefined" &&
+            typeof Buffer === "undefined",
+          expected: signature(expected),
+          exactWasm: signature(exact),
+          hnswWasm: signature(approximate),
+          distances: { expected: distances(expected), hnsw: distances(approximate) },
+          backends: { exact: exact[0]?.diagnostics.backend, hnsw: approximate[0]?.diagnostics.backend },
+          artifacts: { exactBytes: exactBytes.byteLength, hnswBytes: hnswBytes.byteLength },
+          elapsedMs: Math.round(performance.now() - started),
+        };
+        window.__PROBE_RESULT = result;
+        log(JSON.stringify(result));
+
+        await reference.close();
+        await exactWasm.close();
+        await hnsw.close();
+      }
+
+      main().catch((error) => {
+        window.__PROBE_RESULT = {
+          ok: false,
+          error: String(error && error.stack ? error.stack : error),
+          details: error && error.details ? error.details : null,
+        };
+        log(`FAILED: ${error}`);
+      });
+    </script>
+  </body>
+</html>

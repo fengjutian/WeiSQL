@@ -1,6 +1,6 @@
 # 发布流程
 
-- 状态：**尚未发布到任何 registry**；本文定义首次发布前必须满足的条件
+- 状态：**尚未发布到任何 registry**；`npm whoami` 已通过，`npm run release:publish` 的 dry-run 通过，正式 `--apply` 待维护者确认
 - 适用包：`@weisql/sdk`、`@weisql/duckdb-adapter`、`@weisql/duckdb-wasm-adapter`、`@weisql/usearch-adapter`、`@weisql/cli`
 - 自动检查：`npm run release:check`
 

@@ -221,6 +221,9 @@ jobs:
       - name: SDK browser probe (Range, L3, exact search, cache)
         run: npm run probe:browser
 
+      - name: Bundled WASM vector probe (exact + HNSW)
+        run: npm run probe:wasm-vector
+
       - name: DuckDB-Wasm browser SQL probe
         run: npm run probe:wasm
 

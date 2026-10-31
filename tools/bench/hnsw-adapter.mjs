@@ -91,7 +91,7 @@ function buildReader(resources) {
   };
 }
 
-function descriptor(metric, resources) {
+function descriptor(metric, resources, index) {
   return {
     name: "documents",
     tableName: "documents",
@@ -101,6 +101,7 @@ function descriptor(metric, resources) {
     metric,
     encoding: "f32-le-row-major",
     data: { path: "vectors.f32", bytes: resources.get("vectors.f32").byteLength, sha256: "0".repeat(64) },
+    ...(index === undefined ? {} : { index }),
     idMap: {
       data: { path: "ids.jsonl", bytes: resources.get("ids.jsonl").byteLength, sha256: "0".repeat(64), format: "jsonl" },
       offsets: { path: "ids.offsets", bytes: resources.get("ids.offsets").byteLength, sha256: "0".repeat(64), format: "uint64-le" },
@@ -221,6 +222,56 @@ try {
 if (corruptCode !== "RESOURCE_INTEGRITY_FAILED") throw new Error(`truncated index should be rejected, got ${corruptCode}`);
 console.log("ok prebuilt: truncated bytes rejected");
 await corruptAdapter.close();
+
+// Manifest-declared index: loaded without ever touching the vector file.
+resources.set("index.bin", prebuiltL2);
+const manifestIndex = {
+  engine: "weisql-hnsw",
+  version: "1",
+  file: { path: "index.bin", bytes: prebuiltL2.byteLength, sha256: "0".repeat(64) },
+};
+const strictReader = {
+  ...reader,
+  async readRange(path, range, options) {
+    if (path === "vectors.f32") throw new Error("vector data must not be read when the Manifest declares an index");
+    return reader.readRange(path, range, options);
+  },
+};
+const manifestAdapter = await createHnswWasmVectorAdapter({ module: wasmBytes, blockSize: 64 });
+if (manifestAdapter.capabilities.persistedIndex !== true) throw new Error("adapter must report persistedIndex: true");
+await manifestAdapter.open({ manifest: {}, reader: strictReader });
+const manifestVector = descriptor("l2", resources, manifestIndex);
+const manifestHits = await manifestAdapter.search({ vector: manifestVector, query: prebuiltQuery, topK: TOP_K });
+const manifestExpected = await exact.search({ vector: manifestVector, query: prebuiltQuery, topK: TOP_K });
+const manifestExpectedIds = new Set(manifestExpected.map(hit => hit.row));
+let manifestMatched = 0;
+for (const hit of manifestHits) {
+  if (manifestExpectedIds.has(hit.row)) manifestMatched += 1;
+  const reference = vectorDistance(prebuiltQuery, rowOf(flat, hit.row), "l2");
+  if (Math.abs(hit.distance - reference) > TOLERANCE) throw new Error(`manifest distance ${hit.distance} != ${reference}`);
+}
+const manifestRecall = manifestMatched / manifestExpected.length;
+if (manifestRecall < MIN_RECALL) throw new Error(`manifest recall ${manifestRecall.toFixed(3)} < ${MIN_RECALL}`);
+console.log(`ok manifest: ${prebuiltL2.byteLength} bytes loaded without reading vectors`);
+await manifestAdapter.close();
+
+for (const [label, index, expected] of [
+  ["engine", { ...manifestIndex, engine: "usearch" }, "INDEX_NOT_FOUND"],
+  ["version", { ...manifestIndex, version: "2.0" }, "RESOURCE_INTEGRITY_FAILED"],
+  ["length", { ...manifestIndex, file: { ...manifestIndex.file, bytes: manifestIndex.file.bytes + 1 } }, "RESOURCE_INTEGRITY_FAILED"],
+]) {
+  const adapter = await createHnswWasmVectorAdapter({ module: wasmBytes });
+  await adapter.open({ manifest: {}, reader: strictReader });
+  let code;
+  try {
+    await adapter.search({ vector: descriptor("l2", resources, index), query: prebuiltQuery, topK: TOP_K });
+  } catch (error) {
+    code = error instanceof WeiSQLError ? error.code : String(error);
+  }
+  if (code !== expected) throw new Error(`manifest ${label}: expected ${expected}, got ${code}`);
+  console.log(`ok manifest: ${label} rejected`);
+  await adapter.close();
+}
 
 await exact.close();
 await hnsw.close();

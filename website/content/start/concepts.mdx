@@ -25,14 +25,20 @@ import {
 
 <CardGrid columns={3}>
   <DocCard title="数据包" index="01">
-    一组不可变的静态字节。它是发布单元，也是缓存与完整性校验的单位。
-  </DocCard>
+
+一组不可变的静态字节。它是发布单元，也是缓存与完整性校验的单位。
+
+</DocCard>
   <DocCard title="Manifest" index="02">
-    数据包的目录与说明书：有哪些表、哪些向量集合、每个文件多大、摘要是什么。
-  </DocCard>
+
+数据包的目录与说明书：有哪些表、哪些向量集合、每个文件多大、摘要是什么。
+
+</DocCard>
   <DocCard title="Runtime" index="03">
-    `open()` 返回的只读对象。它把“字节 + 说明”变成一个可查询的视图。
-  </DocCard>
+
+`open()` 返回的只读对象。它把“字节 + 说明”变成一个可查询的视图。
+
+</DocCard>
 </CardGrid>
 
 ## 分层
@@ -128,17 +134,25 @@ Manifest 描述的是**数据布局**，不是引擎配置：
 
 <CardGrid columns={2}>
   <DocCard title="L1 结构" tag="open()" index="01">
-    JSON 类型、必填字段、未知字段、版本。典型错误：`MANIFEST_INVALID`、`FORMAT_VERSION_UNSUPPORTED`。
-  </DocCard>
+
+JSON 类型、必填字段、未知字段、版本。典型错误：`MANIFEST_INVALID`、`FORMAT_VERSION_UNSUPPORTED`。
+
+</DocCard>
   <DocCard title="L2 语义" tag="open()" index="02">
-    名称、跨字段引用、路径、计数与字节公式。典型错误：`MANIFEST_INVALID`、`PATH_INVALID`。
-  </DocCard>
+
+名称、跨字段引用、路径、计数与字节公式。典型错误：`MANIFEST_INVALID`、`PATH_INVALID`。
+
+</DocCard>
   <DocCard title="L3 内容" tag="verifyChecksums" index="03">
-    实际长度、SHA-256、JSONL 与偏移对应。典型错误：`RESOURCE_INTEGRITY_FAILED`。
-  </DocCard>
+
+实际长度、SHA-256、JSONL 与偏移对应。典型错误：`RESOURCE_INTEGRITY_FAILED`。
+
+</DocCard>
   <DocCard title="L4 引擎" tag="--l4" index="04">
-    Parquet 可读性、列名与类型是否与声明一致；SQL Adapter 打开时或 CLI `--l4`。
-  </DocCard>
+
+Parquet 可读性、列名与类型是否与声明一致；SQL Adapter 打开时或 CLI `--l4`。
+
+</DocCard>
 </CardGrid>
 
 <Callout title="两个容易误解的点">
@@ -152,17 +166,25 @@ Manifest 描述的是**数据布局**，不是引擎配置：
 
 <CardGrid columns={2}>
   <DocCard title="ResourceReader" tag="bytes" index="01" to="/docs/api/readers">
-    唯一接触字节的抽象：`read` / `readRange` / `stat` / `close`。区间是 `[start, end)`，短读必须失败。
-  </DocCard>
+
+唯一接触字节的抽象：`read` / `readRange` / `stat` / `close`。区间是 `[start, end)`，短读必须失败。
+
+</DocCard>
   <DocCard title="SqlAdapter" tag="engine" index="02" to="/docs/api/adapters">
-    SQL 引擎边界；不注入时 `db.sql()` 返回 `SQL_UNSUPPORTED`。
-  </DocCard>
+
+SQL 引擎边界；不注入时 `db.sql()` 返回 `SQL_UNSUPPORTED`。
+
+</DocCard>
   <DocCard title="VectorAdapter" tag="engine" index="03" to="/docs/api/adapters">
-    向量引擎边界；不注入时使用 SDK 内置精确检索。ANN 必须声明 `exactSearch: false`。
-  </DocCard>
+
+向量引擎边界；不注入时使用 SDK 内置精确检索。ANN 必须声明 `exactSearch: false`。
+
+</DocCard>
   <DocCard title="缓存" tag="decorator" index="04" to="/docs/sdk/resource-readers">
-    `CachedResourceReader` 做有界 LRU、并发合并与发布版本隔离；`open({ cache })` 自动套用。
-  </DocCard>
+
+`CachedResourceReader` 做有界 LRU、并发合并与发布版本隔离；`open({ cache })` 自动套用。
+
+</DocCard>
 </CardGrid>
 
 三条边界值得记住：
@@ -225,15 +247,23 @@ Manifest 描述的是**数据布局**，不是引擎配置：
 
 <CardGrid columns={2}>
   <DocCard title="Manifest 参考" to="/docs/reference/manifest">
-    字段速查、最小示例与常见校验失败。
-  </DocCard>
-  <DocCard title="架构" to="/docs/start/architecture">
-    分层、查询链路、信任边界与部署形态。
-  </DocCard>
+
+字段速查、最小示例与常见校验失败。
+
+</DocCard>
+  <DocCard title="架构" to="/docs/architecture">
+
+分层、查询链路、信任边界与部署形态。
+
+</DocCard>
   <DocCard title="能力矩阵" to="/docs/reference/capabilities">
-    哪些能力已实现、已测试，哪些仍未验证。
-  </DocCard>
+
+哪些能力已实现、已测试，哪些仍未验证。
+
+</DocCard>
   <DocCard title="已知限制" to="/docs/reference/limitations">
-    当前不能依赖的部分与绕过方式。
-  </DocCard>
+
+当前不能依赖的部分与绕过方式。
+
+</DocCard>
 </CardGrid>

@@ -1,0 +1,146 @@
+---
+title: 架构总览
+description: WeiSQL 的分层、设计原则，以及架构专题的阅读路径。
+sidebar_position: 0
+hide_title: true
+---
+
+import {
+  PageHero,
+  LayerStack,
+  CardGrid,
+  DocCard,
+  Callout,
+  Module,
+} from "@site/src/components/docs/DocsUI";
+
+<PageHero
+  kicker="架构"
+  title="把数据库服务，换成一层只读 Runtime"
+  lead="数据包是可版本化的静态资产；Runtime 只负责校验、读取与编排。引擎通过 Adapter 注入，缓存与完整性校验决定信任边界。"
+  chips={["静态数据包", "HTTP Range", "Adapter 注入", "只读"]}
+/>
+
+## 一句话
+
+<Module>
+
+WeiSQL 的核心设计只有一句话：**把“数据库服务”换成“可版本化的静态数据包 + 一层只读 Runtime”**。理解这一点，后面的 Adapter、缓存、完整性校验都是它的推论。
+
+<Callout title="两个方向都是单向依赖">
+  上层只依赖接口，不依赖具体引擎；Adapter 通过 `open({ sqlAdapter, vectorAdapter })`
+  注入，能力通过 `capabilities()` 如实上报。SDK 本身没有 DuckDB、USearch 的运行时依赖。
+</Callout>
+
+</Module>
+
+## 1. 分层
+
+<Module>
+
+<LayerStack
+  layers={[
+    {
+      title: "应用层",
+      tag: "consumer",
+      desc: "浏览器应用、Node 服务、CLI 与 Playground 只调用公开 API，不直接接触字节或引擎。",
+      tags: ["Browser", "Node.js", "CLI", "Playground"],
+    },
+    {
+      title: "API 层",
+      tag: "contract",
+      desc: "open() 返回 WeiSQLDatabase，统一暴露查询入口、状态、能力与幂等关闭。",
+      tags: ["open()", "sql", "sqlStream", "vector", "text", "hybrid", "rag"],
+    },
+    {
+      title: "校验层",
+      tag: "L1–L4",
+      desc: "L1/L2 在读取前校验 Manifest；L3 校验尺寸与 SHA-256；L4 比对 Parquet 列定义。",
+      tags: ["Manifest", "SHA-256", "L4"],
+    },
+    {
+      title: "查询层",
+      tag: "core",
+      desc: "精确向量、BM25、RRF 融合、RAG 证据组装都在 SDK 内；SQL 只做委派。",
+      tags: ["exact scan", "BM25", "RRF", "RAG"],
+    },
+    {
+      title: "适配层",
+      tag: "pluggable",
+      desc: "SqlAdapter 与 VectorAdapter 是引擎边界；Node、浏览器与 ANN 可以选不同实现。",
+      tags: ["DuckDB", "DuckDB-Wasm", "USearch", "exact"],
+    },
+    {
+      title: "资源层",
+      tag: "bytes",
+      desc: "ResourceReader 是唯一接触字节的地方；缓存负责 LRU、并发合并与发布版本隔离。",
+      tags: ["HTTP", "Node fs", "Container", "LRU"],
+    },
+    {
+      title: "存储层",
+      tag: "static",
+      desc: "数据包目录放在 CDN / 磁盘，或打成单个 .wsql；三种形态对上层 API 完全一致。",
+      tags: ["CDN", "disk", ".wsql"],
+    },
+  ]}
+/>
+
+</Module>
+
+## 2. 设计原则
+
+<Module>
+
+<CardGrid columns={2}>
+  <DocCard title="显式失败" index="01">
+
+没有 Reader 返回 `INDEX_NOT_FOUND`，没有 SQL Adapter 返回 `SQL_UNSUPPORTED`，不返回空数组假装成功。
+
+</DocCard>
+  <DocCard title="引擎可替换" index="02">
+
+Adapter 注入，SDK 零引擎依赖；浏览器与 Node 可以选不同实现，能力差异用 `capabilities()` 暴露。
+
+</DocCard>
+  <DocCard title="精确优先" index="03">
+
+ANN 必须自报 `exact: false`；后过滤必须自报 `postFiltered: true`。
+
+</DocCard>
+  <DocCard title="测量先于承诺" index="04">
+
+基准装置是测量设备，不是性能承诺；召回数字必须连同数据分布一起报告。
+
+</DocCard>
+  <DocCard title="发布不可变" index="05">
+
+缓存按发布版本身份隔离；换版本即失效，避免新旧资源混用。
+
+</DocCard>
+  <DocCard title="只读是产品边界" index="06">
+
+没有写入、事务与锁；需要这些能力时应换方案，而不是等排期。
+
+</DocCard>
+</CardGrid>
+
+</Module>
+
+## 继续阅读
+
+<Module>
+
+<CardGrid columns={2}>
+  <DocCard title="查询链路" index="01" to="/docs/architecture/query">
+
+一次向量查询与一次 SQL 查询分别经过哪些层。
+
+</DocCard>
+  <DocCard title="信任与部署" index="02" to="/docs/architecture/trust">
+
+路径、传输、内容与 SQL 的边界，以及三种部署形态。
+
+</DocCard>
+</CardGrid>
+
+</Module>

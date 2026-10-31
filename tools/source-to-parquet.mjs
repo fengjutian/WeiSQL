@@ -27,6 +27,7 @@ const MANIFEST_TYPE = {
   DOUBLE: "float64",
   BOOLEAN: "boolean",
   JSON: "json",
+  TIMESTAMP: "timestamp",
 };
 
 /** Parses RFC 4180 CSV: quoted fields, doubled quotes, CRLF, optional BOM. */
@@ -124,10 +125,23 @@ function coerceCsvValue(value) {
   return value;
 }
 
-function inferColumn(name, values) {
+// Strict ISO 8601 with an explicit offset: timestamps are never guessed from
+// loose date-like strings, because that would change the Manifest type silently.
+const TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$/;
+
+function inferColumn(name, values, timestampColumns) {
   const present = values.filter(value => value !== null && value !== undefined);
   const nullable = present.length !== values.length;
-  if (present.length === 0) return { name, type: "STRING", nullable: true };
+  if (present.length === 0) {
+    return { name, type: timestampColumns?.has(name) === true ? "TIMESTAMP" : "STRING", nullable: true };
+  }
+  if (timestampColumns?.has(name) === true) {
+    const offending = present.find(value => typeof value !== "string" || !TIMESTAMP_PATTERN.test(value));
+    if (offending !== undefined) {
+      throw new Error(`column '${name}' was declared as timestamp but value ${JSON.stringify(offending)} is not ISO 8601 with an offset`);
+    }
+    return { name, type: "TIMESTAMP", nullable };
+  }
 
   if (present.every(value => typeof value === "boolean")) return { name, type: "BOOLEAN", nullable };
   if (present.every(value => typeof value === "number" && Number.isFinite(value))) {
@@ -149,13 +163,18 @@ export function convertRows(rows, options = {}) {
 
   const names = [...new Set(rows.flatMap(row => Object.keys(row)))];
   if (names.length === 0) throw new Error("input has no columns");
-  const columns = names.map(name => inferColumn(name, rows.map(row => (name in row ? row[name] : null))));
+  const timestampColumns = new Set(options.timestampColumns ?? []);
+  const columns = names.map(name => inferColumn(name, rows.map(row => (name in row ? row[name] : null)), timestampColumns));
 
   const buffer = parquetWriteBuffer({
     columnData: columns.map(column => {
       const values = rows.map(row => (row[column.name] === undefined ? null : row[column.name]));
-      // hyparquet-writer requires BigInt for INT64 and rejects plain numbers.
-      const data = column.type === "INT64" ? values.map(value => (typeof value === "number" ? BigInt(value) : value)) : values;
+      // hyparquet-writer requires BigInt for INT64 and Date for TIMESTAMP.
+      const data = column.type === "INT64"
+        ? values.map(value => (typeof value === "number" ? BigInt(value) : value))
+        : column.type === "TIMESTAMP"
+          ? values.map(value => (typeof value === "string" ? new Date(value) : value))
+          : values;
       return {
         name: column.name,
         type: column.type,
@@ -174,20 +193,26 @@ export function convertRows(rows, options = {}) {
   };
 }
 
-export function convertSource(text, format) {
+export function convertSource(text, format, options = {}) {
   const rows = format === "csv" ? (() => {
     const { rows: parsed } = parseCsv(text);
     return parsed.map(row => Object.fromEntries(Object.entries(row).map(([name, value]) => [name, coerceCsvValue(value)])));
   })() : parseJsonRows(text);
-  return convertRows(rows);
+  return convertRows(rows, options);
 }
 
 function parseArguments(argv) {
-  const options = { input: undefined, output: undefined, format: undefined };
+  const options = { input: undefined, output: undefined, format: undefined, timestampColumns: [] };
   for (let index = 0; index < argv.length; index++) {
     const argument = argv[index];
     const value = argv[index + 1];
     if (argument === "--output") { options.output = value; index++; continue; }
+    if (argument === "--timestamp") {
+      if (value === undefined) throw new Error("--timestamp needs a column name");
+      options.timestampColumns.push(...value.split(",").map(name => name.trim()).filter(Boolean));
+      index++;
+      continue;
+    }
     if (argument === "--format") {
       if (value !== "csv" && value !== "json") throw new Error("--format must be 'csv' or 'json'");
       options.format = value;
@@ -198,7 +223,7 @@ function parseArguments(argv) {
     if (options.input !== undefined) throw new Error(`unexpected argument ${argument}`);
     options.input = argument;
   }
-  if (options.input === undefined || options.output === undefined) throw new Error("usage: node tools/source-to-parquet.mjs <input.csv|input.json|input.jsonl> --output <file.parquet>");
+  if (options.input === undefined || options.output === undefined) throw new Error("usage: node tools/source-to-parquet.mjs <input.csv|input.json|input.jsonl> --output <file.parquet> [--timestamp column[,column]]");
   return options;
 }
 
@@ -208,7 +233,7 @@ async function main() {
   const format = options.format ?? (extension === ".csv" ? "csv" : "json");
   const { readFile } = await import("node:fs/promises");
   const text = await readFile(options.input, "utf8");
-  const converted = convertSource(text, format);
+  const converted = convertSource(text, format, { timestampColumns: options.timestampColumns });
 
   await writeFile(options.output, converted.parquet);
   console.log(JSON.stringify({

@@ -138,6 +138,7 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - Apache-2.0 license, with a copy in the repository root and inside every
   published package.
 
+- `npm run release:e2e` packs the SDK and DuckDB adapter, installs the tarballs in a temp project and runs SQL, vector search and a stream against the fixture (catches broken `exports` or missing runtime deps).
 - GitHub Actions CI: build, typecheck, tests and release checks on Ubuntu and
   Windows, plus fixture reproducibility, derived indexes and container packing.
   The `derived` job also runs `bench:wasm --smoke` to catch broken
@@ -194,3 +195,5 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - CSV/JSON to Parquet conversion (`tools/source-to-parquet.mjs`) with conservative
   type inference and Manifest-ready column output; nested JSON objects/arrays
   become `json` columns, while mixing them with scalars stays an error.
+  `--timestamp col[,col]` turns strict ISO 8601 strings into `timestamp` columns
+  (offsets normalized to UTC); date-only strings are rejected.

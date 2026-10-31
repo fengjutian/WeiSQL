@@ -16,9 +16,12 @@ Builder 的契约是「接收已存在的 Parquet」——它不猜测类型、�
 node tools/source-to-parquet.mjs rows.csv   --output source/documents.parquet
 node tools/source-to-parquet.mjs rows.jsonl --output source/documents.parquet
 node tools/source-to-parquet.mjs rows.json  --output source/documents.parquet   # 对象数组
+node tools/source-to-parquet.mjs rows.json  --output source/documents.parquet --timestamp created,updated
 ```
 
 需要显式指定格式时用 `--format csv|json`（默认按扩展名）。
+
+时间戳不做自动推断：要得到 `timestamp` 列，必须用 `--timestamp` 显式列出列名（可逗号分隔或重复传）。值必须是带偏移的严格 ISO 8601（`2024-01-01T12:00:00Z`、`2024-01-01T12:00:00.123+08:00`）；`2024-01-01` 这类日期字符串会被拒绝，避免时区语义被悄悄改变。
 
 输出示例：
 
@@ -48,6 +51,7 @@ node tools/source-to-parquet.mjs rows.json  --output source/documents.parquet   
 | `true` / `false` | `boolean` |
 | 字符串 | `string` |
 | JSON 对象 / 数组（可含 null 元素） | `json`（原样写入 Parquet JSON，Manifest 声明为 `json`） |
+| `--timestamp` 列中的严格 ISO 8601 字符串 | `timestamp`（带偏移，写入时归一为 UTC） |
 | 空值（`null`、CSV 空字段） | 该列 `nullable: true` |
 
 CSV 的所有值先当字符串看，只有**无损**转换才收下：
@@ -63,7 +67,7 @@ CSV 的所有值先当字符串看，只有**无损**转换才收下：
 
 | 项 | 原因 |
 | --- | --- |
-| 时间戳类型推断 | 时区与精度语义需要显式声明；当前一律按字符串处理 |
+| 时间戳的**自动**推断 | 时区与精度语义需要显式声明；必须用 `--timestamp` 指定列 |
 | 增量追加 | 每次转换生成完整文件，符合「不可变输入」模型 |
 | 分片 / 多文件表 | 一个 CSV/JSON 对应一张表的一个 Parquet 文件 |
 
@@ -76,4 +80,4 @@ npm run fixture            # 或直接调用 buildPackage()
 npx weisql validate ./fixture --l4
 ```
 
-`--l4` 会通过 DuckDB 读一遍 Parquet，确认列名/类型与 Manifest 一致——这是唯一能发现「Manifest 写错类型但哈希仍然对得上」的检查。转换工具产出的 `json` 列也有端到端用例：生成 Parquet + Manifest 后由 `validatePackage({ l4: true })` 检查通过。
+`--l4` 会通过 DuckDB 读一遍 Parquet，确认列名/类型与 Manifest 一致——这是唯一能发现「Manifest 写错类型但哈希仍然对得上」的检查。转换工具产出的 `json` 列与 `--timestamp` 列都有端到端用例：生成 Parquet + Manifest 后由 `validatePackage({ l4: true })` 检查通过。

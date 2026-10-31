@@ -95,18 +95,18 @@ const config = {
             label: "文档",
           },
           {
-            to: "/docs/api",
-            label: "API",
-            position: "left",
-          },
-          {
             to: "/docs/start/quickstart",
             label: "快速开始",
             position: "left",
           },
           {
-            to: "/docs/start/architecture",
+            to: "/docs/architecture",
             label: "架构",
+            position: "left",
+          },
+          {
+            to: "/docs/api",
+            label: "API",
             position: "left",
           },
           {

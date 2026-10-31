@@ -24,14 +24,20 @@ import {
 
 <CardGrid columns={3}>
   <DocCard title="没有服务端进程" index="01">
-    部署产物就是一组静态文件，可以用任何静态托管或 CDN 分发。
-  </DocCard>
+
+部署产物就是一组静态文件，可以用任何静态托管或 CDN 分发。
+
+</DocCard>
   <DocCard title="没有连接与会话" index="02">
-    `open()` 读的是字节，不是远程数据库；没有连接字符串与凭证。
-  </DocCard>
+
+`open()` 读的是字节，不是远程数据库；没有连接字符串与凭证。
+
+</DocCard>
   <DocCard title="没有写入路径" index="03">
-    Runtime 只读，底层引擎的写能力被显式关掉；更新等于发布新快照。
-  </DocCard>
+
+Runtime 只读，底层引擎的写能力被显式关掉；更新等于发布新快照。
+
+</DocCard>
 </CardGrid>
 
 ## 它解决什么问题
@@ -42,17 +48,25 @@ WeiSQL 的取舍是：把数据变成**可分块读取的静态资产**，让查
 
 <CardGrid columns={2}>
   <DocCard title="文档站" index="01">
-    同时提供关键词检索、语义检索与 RAG 证据片段，不依赖外部检索服务。
-  </DocCard>
+
+同时提供关键词检索、语义检索与 RAG 证据片段，不依赖外部检索服务。
+
+</DocCard>
   <DocCard title="产品目录 / 知识库" index="02">
-    需要离线或内网可用，数据更新有明确发布节奏。
-  </DocCard>
+
+需要离线或内网可用，数据更新有明确发布节奏。
+
+</DocCard>
   <DocCard title="数据快照分发" index="03">
-    Manifest 冻结、摘要可校验、可签名；每次发布是一份不可变快照。
-  </DocCard>
+
+Manifest 冻结、摘要可校验、可签名；每次发布是一份不可变快照。
+
+</DocCard>
   <DocCard title="跨环境一致" index="04">
-    同一份数据在 Node.js 脚本与浏览器页面里得到一致的排序结果。
-  </DocCard>
+
+同一份数据在 Node.js 脚本与浏览器页面里得到一致的排序结果。
+
+</DocCard>
 </CardGrid>
 
 ## 适合与不适合
@@ -106,23 +120,35 @@ WeiSQL 两者都不是。它的核心不是“把引擎搬进浏览器”，而�
 
 <CardGrid columns={3}>
   <DocCard title="精确向量检索" index="01" to="/docs/sdk/vector-search">
-    Cosine / L2 / IP，分块读取，Top-K 严格。
-  </DocCard>
+
+Cosine / L2 / IP，分块读取，Top-K 严格。
+
+</DocCard>
   <DocCard title="过滤先于 Top-K" index="02" to="/docs/sdk/vector-search">
-    `exact-filter-first` 先求允许行，再比较。
-  </DocCard>
+
+`exact-filter-first` 先求允许行，再比较。
+
+</DocCard>
   <DocCard title="全文与 RRF" index="03" to="/docs/sdk/text-and-hybrid">
-    BM25 关键词检索，按名次融合向量结果。
-  </DocCard>
+
+BM25 关键词检索，按名次融合向量结果。
+
+</DocCard>
   <DocCard title="RAG 证据组装" index="04" to="/docs/sdk/rag">
-    字符预算内返回来源与名次，不调用模型。
-  </DocCard>
+
+字符预算内返回来源与名次，不调用模型。
+
+</DocCard>
   <DocCard title="只读 SQL" index="05" to="/docs/sdk/sql">
-    DuckDB 与 DuckDB-Wasm 通过 Adapter 注入。
-  </DocCard>
+
+DuckDB 与 DuckDB-Wasm 通过 Adapter 注入。
+
+</DocCard>
   <DocCard title="单文件与签名" index="06" to="/docs/sdk/containers">
-    `.wsql` 单对象发布；Ed25519 证明发布者身份。
-  </DocCard>
+
+`.wsql` 单对象发布；Ed25519 证明发布者身份。
+
+</DocCard>
 </CardGrid>
 
 ## 30 秒工作原理
@@ -185,15 +211,23 @@ await db.close();
 
 <CardGrid columns={2}>
   <DocCard title="先跑起来" to="/docs/start/quickstart">
-    5 分钟内验证数据包并跑通一次向量检索。
-  </DocCard>
+
+5 分钟内验证数据包并跑通一次向量检索。
+
+</DocCard>
   <DocCard title="端到端教程" to="/docs/start/tutorial">
-    从 CSV 到构建、校验、检索、全文索引与部署。
-  </DocCard>
+
+从 CSV 到构建、校验、检索、全文索引与部署。
+
+</DocCard>
   <DocCard title="核心概念" to="/docs/start/concepts">
-    数据包、Manifest、L1–L4 与 Runtime 的分工。
-  </DocCard>
+
+数据包、Manifest、L1–L4 与 Runtime 的分工。
+
+</DocCard>
   <DocCard title="已知限制" to="/docs/reference/limitations">
-    哪些能力还不能依赖，为什么，怎么绕开。
-  </DocCard>
+
+哪些能力还不能依赖，为什么，怎么绕开。
+
+</DocCard>
 </CardGrid>

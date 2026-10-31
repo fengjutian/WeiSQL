@@ -1,0 +1,99 @@
+---
+title: 查询链路
+description: 一次向量查询与一次 SQL 查询在 Runtime、Adapter 与 Reader 之间经过哪些步骤。
+sidebar_position: 1
+hide_title: true
+---
+
+import {
+  PageHero,
+  FlowSteps,
+  Callout,
+  Module,
+} from "@site/src/components/docs/DocsUI";
+
+<PageHero
+  kicker="架构 · 查询"
+  title="一次查询，经过哪几层"
+  lead="向量查询由 Runtime 编排过滤、ID 映射与距离扫描；SQL 查询交给 Adapter，只读边界与取消由引擎实现。"
+  chips={["exact-filter-first", "Top-K", "SqlAdapter", "cancel"]}
+/>
+
+## 1. 一次向量查询
+
+<Module>
+
+以默认的 `exact-filter-first` 策略为例，一次 `vector.search()` 会经过六步：
+
+<FlowSteps
+  steps={[
+    {
+      title: "校验参数",
+      desc: "维度、topK、filter 列是否在 Manifest 中声明；非法输入在读取前失败。",
+      code: "VECTOR_DIMENSION_MISMATCH",
+    },
+    {
+      title: "求出允许行",
+      desc: "有 filter 时编译为参数绑定 SQL，由 SqlAdapter 返回完整业务 ID 集合。",
+      code: "exact-filter-first",
+    },
+    {
+      title: "ID → 行号",
+      desc: "优先使用持久化 id→row 索引；没有索引时扫描 ID Map。",
+      code: "idIndex → row",
+    },
+    {
+      title: "读取向量块",
+      desc: "连续行合并成 Range 读取，按 Float32 LE 解码；窄过滤只读允许行。",
+      code: "ByteRange",
+    },
+    {
+      title: "距离与 Top-K",
+      desc: "逐条计算距离（Cosine / L2 / IP），用固定容量最大堆维护候选。",
+      code: "O(N log K)",
+    },
+    {
+      title: "解析业务 ID",
+      desc: "只对最终 Top-K 读取 ID Map，返回 hits 与 diagnostics。",
+      code: "exact: true",
+    },
+  ]}
+/>
+
+<Callout title="过滤发生在 Top-K 之前">
+  所以结果仍是过滤子集上的严格最近 K，`exact: true` 才站得住。分块读取降低峰值内存，
+  但不减少总 I/O 与计算量；精确检索依旧是 O(N) 扫描，这是 V1 的明确取舍。
+</Callout>
+
+`vector-first` 则先取有界候选窗口，再用 SQL 过滤；只有窗口覆盖整个集合时才可能
+`exact: true`（靠穷尽，而非构造）。它省掉的是全量 ID Map 扫描，不是向量扫描。
+
+</Module>
+
+## 2. SQL 查询链路
+
+<Module>
+
+<FlowSteps
+  steps={[
+    {
+      title: "分类",
+      desc: "Adapter.prepare() 检查语句类型；Node 只放行 SELECT / EXPLAIN，浏览器用关键字白名单加 tokenizer。",
+      code: "StatementType",
+    },
+    {
+      title: "绑定与执行",
+      desc: "参数通过预处理语句绑定，拒绝字符串插值；多语句与写操作在边界被拒绝。",
+      code: "parameters",
+    },
+    {
+      title: "映射与取消",
+      desc: "结果转换为普通对象；Node 用 connection.interrupt()，浏览器是 best-effort。",
+      code: "QUERY_CANCELLED",
+    },
+  ]}
+/>
+
+Adapter 打开时会从 `ResourceReader` 读表字节、按 Manifest 比对列定义（L4），再把表加载到引擎。Node 默认 `memory` 模式，物化后关闭外部文件访问；`lazy` 保留外部访问，只适合由应用作者编写 SQL 的场景。
+
+</Module>

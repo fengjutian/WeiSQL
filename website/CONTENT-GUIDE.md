@@ -54,6 +54,16 @@ hide_title: true
 
 `src/theme/DocItem/Content` 会读取 `hero` 并渲染 `PageHero`；没有 `hero` 的页面保持默认标题。
 
+## 侧边栏分区
+
+`sidebars.js` 有三个 sidebar：
+
+- `docs`：开始、SDK、适配器、工具链、参考、工程；
+- `architecture`：架构总览、查询链路、信任与部署；
+- `api`：API 总览与六个 API 参考页。
+
+新增架构页要加入 `architecture`，新增 API 页要加入 `api`，不要混进 `docs`。Docusaurus 会按当前文档所属 sidebar 渲染左侧导航，这样进入专题页时只看得到该专题的内容。
+
 示例：
 
 ```mdx

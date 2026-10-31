@@ -27,6 +27,7 @@
     "bench:self-test": "node tools/bench/quantization.mjs --self-test && node tools/bench/recall.mjs --self-test",
     "release:check": "node tools/release-check.mjs",
     "release:pack": "node tools/check-tarballs.mjs",
+    "release:e2e": "node tools/pack-e2e.mjs",
     "release:pack:self-test": "node tools/check-tarballs.mjs --self-test",
     "release:publish": "node tools/publish.mjs",
     "docs:install": "npm --prefix website install",

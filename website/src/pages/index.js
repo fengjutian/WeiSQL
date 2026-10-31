@@ -177,7 +177,7 @@ export default function Home() {
                   5 分钟快速开始
                   <span aria-hidden="true">→</span>
                 </Link>
-                <Link className={styles.ghost} to="/docs/start/architecture">
+                <Link className={styles.ghost} to="/docs/architecture">
                   看架构
                 </Link>
                 <Link className={styles.textLink} to="/docs/start/tutorial">

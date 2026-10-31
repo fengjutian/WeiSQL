@@ -81,10 +81,13 @@ npm run bench -- --ann      # 刷新基准与召回口径
 ```bash
 npm run release:pack          # tarball content check for every workspace, no publishing
 npm run release:pack:self-test  # proves the checks reject source/test/license problems
+npm run release:e2e           # pack, install the tarballs in a temp project, run SQL/vector/stream
 npm run release:publish       # preflight + per-package `npm publish --dry-run`
 ```
 
 确认产物只包含 `dist/`、`README.md`、`package.json`，不包含源码、`node_modules` 或测试。
+
+`release:e2e` 补的是静态列表看不到的问题：包装后的 `exports` 是否可解析、运行期依赖是否声明完整。它需要一个临时目录并从 registry 安装 `@duckdb/node-api`，所以不在默认测试里跑。
 
 ## 4. 发布
 

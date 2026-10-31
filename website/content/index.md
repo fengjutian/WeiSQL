@@ -24,7 +24,7 @@ WeiSQL AI 是一个**只读数据运行时**。它把 Parquet 表、Float32 向�
 | 先搞清楚它适不适合我的场景 | [什么是 WeiSQL AI](/docs/start/what-is-weisql) |
 | 5 分钟内跑起来 | [快速开始](/docs/start/quickstart) |
 | 理解数据包、Manifest、L1–L4 | [核心概念](/docs/start/concepts) |
-| 看整体分层与请求链路 | [架构](/docs/start/architecture) |
+| 看整体分层与请求链路 | [架构](/docs/architecture) |
 | 查公开 API 的签名与选项 | [API 参考](/docs/api) |
 | 查技术选型与版本 | [技术栈](/docs/start/tech-stack) |
 | 在 Node.js 里查向量 / SQL | [打开与生命周期](/docs/sdk/open-and-lifecycle)、[SQL 查询](/docs/sdk/sql) |
@@ -56,7 +56,8 @@ WeiSQL AI 是一个**只读数据运行时**。它把 Parquet 表、Float32 向�
 
 ## 文档地图
 
-- **开始**：定位、快速开始、端到端教程、核心概念、架构、技术栈
+- **开始**：定位、快速开始、端到端教程、核心概念、技术栈
+- **架构专题**：总览、查询链路、信任与部署
 - **SDK 使用**：生命周期、资源读取、向量、全文与混合、RAG、SQL、容器、完整性与签名、错误
 - **API 参考**：Runtime、Readers、检索、SQL、Builder 与签名、Adapter 工厂
 - **适配器**：DuckDB（Node）、DuckDB-Wasm（浏览器）、USearch（ANN）

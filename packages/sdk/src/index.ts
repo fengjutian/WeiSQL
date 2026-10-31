@@ -43,6 +43,6 @@ export { TextIndexReader } from "./text-index-reader.js";
 export type { TextHit, TextSearchOptions } from "./text-index-reader.js";
 export { reciprocalRankFusion } from "./fusion.js";
 export type { FusedHit, FusionOptions, Ranking } from "./fusion.js";
-export { CONTAINER_FORMAT_VERSION, CONTAINER_MAGIC, ContainerReader, assertSafeContainerPath, createContainer, parseContainer } from "./wsql-container.js";
-export type { ContainerEntry, ContainerFile, ContainerHeader, CreateContainerOptions, ParsedContainer } from "./wsql-container.js";
+export { CONTAINER_FORMAT_VERSION, CONTAINER_MAGIC, ContainerReader, StreamingContainerReader, assertSafeContainerPath, createBytesContainerSource, createContainer, createHttpContainerSource, parseContainer } from "./wsql-container.js";
+export type { ContainerByteSource, ContainerEntry, ContainerFile, ContainerHeader, CreateContainerOptions, HttpContainerSourceOptions, ParsedContainer } from "./wsql-container.js";
 export type * from "./types.js";

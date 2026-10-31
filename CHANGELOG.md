@@ -30,8 +30,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   Reciprocal Rank Fusion, reporting per-source ranks and raw values.
 - RAG retrieval: `db.rag.search()` assembling budgeted evidence with provenance;
   the SDK never calls a model.
-- `.wsql` single-file container: `createContainer()`, `parseContainer()` and
-  `ContainerReader` (a standard `ResourceReader`).
+- `.wsql` single-file container: `createContainer()`, `parseContainer()`,
+  `ContainerReader` and `StreamingContainerReader` with an HTTP Range source.
 
 ### `@weisql/cli` 0.1.0
 
@@ -55,6 +55,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - Persisted index loading (`index.params`) and in-memory build fallback.
 - Optional post-filtering mode (`filtering: "post-filter"`) that honours row
   filters by widening the candidate window and marks results incomplete.
+- Persisted index loading rejects a different USearch major version instead of
+  risking a silently misread index.
 
 ### Tooling (not published)
 
@@ -67,8 +69,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   Windows, plus fixture reproducibility, derived indexes and container packing.
 - Browser probe, playground example, cross-environment parity check.
 - Playground now demonstrates full-text search and RAG evidence against a package
-  it builds at start-up, and can switch between directory and `.wsql` loading;
-  the probe asserts all three.
+  it builds at start-up, and can switch between directory, `.wsql` and streaming
+  `.wsql` loading; the probe asserts all three.
 - Parity probe extended to full-text, RAG evidence and the `.wsql` container,
   against a package it builds at run time.
 - Benchmark harness with exact and ANN (`--ann`) modes.

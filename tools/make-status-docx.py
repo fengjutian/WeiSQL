@@ -181,13 +181,13 @@ def build(target: Path):
     style_run(run, size=22, bold=True, color=ACCENT)
 
     subtitle = document.add_paragraph()
-    run = subtitle.add_run("2026-10-31 · 仓库 HEAD f554b01 · 220 个自动化测试 · 尚未发布 npm")
+    run = subtitle.add_run("2026-10-31 · 仓库 HEAD 5e42b75 · 225 个自动化测试 · 尚未发布 npm")
     style_run(run, size=10, color=MUTED)
 
     document.add_heading("1. 一句话状态", level=1)
     paragraph = document.add_paragraph()
     run = paragraph.add_run(
-        "工程原型。Manifest V1 与数据包格式稳定，四个包共 220 个自动化测试，CI 覆盖构建、类型、测试与发布元数据；"
+        "工程原型。Manifest V1 与数据包格式稳定，四个包共 225 个自动化测试，CI 覆盖构建、类型、测试与发布元数据；"
         "精确检索、ANN、全文、融合、RAG 与单文件容器均有实现与实测数字。尚未发布 npm 包，也没有任何未经测量的性能承诺。"
     )
     style_run(run, size=10.5)
@@ -196,7 +196,7 @@ def build(target: Path):
         document,
         ["维度", "状态"],
         [
-            ["测试", "220 个全绿（SDK 169 / DuckDB 19 / USearch 12 / CLI 20）"],
+            ["测试", "225 个全绿（SDK 173 / DuckDB 19 / USearch 13 / CLI 20）"],
             ["CI", "GitHub Actions：Ubuntu + Windows 行为闸门，另有派生索引与容器作业"],
             ["许可证", "Apache-2.0（根目录与每个包内各一份）"],
             ["发布", "未发布 npm 包（缺组织与访问令牌）"],
@@ -224,7 +224,7 @@ def build(target: Path):
             ["全文检索 BM25", "✓", "✓", "✓", "p50 ≈10.5 ms @100k 文档"],
             ["RRF 融合", "✓", "✓", "✓", "—"],
             ["RAG 证据组装", "✓", "✓", "✓", "端到端"],
-            [".wsql 单文件容器（pack/validate/unpack）", "✓", "✓", "✓", "3.6 KB 包往返"],
+            [".wsql 单文件容器（pack/validate/unpack/流式）", "✓", "✓", "✓", "3.6 KB 包往返"],
             ["浏览器路径（Chromium）", "✓", "探针", "✓", "与 Node 逐字段一致"],
             ["发布前检查 + Apache-2.0", "✓", "—", "✓", "✓"],
         ],
@@ -252,11 +252,11 @@ def build(target: Path):
         document,
         ["包", "测试数", "覆盖重点"],
         [
-            ["@weisql/sdk", "169", "校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约"],
+            ["@weisql/sdk", "173", "校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约"],
             ["@weisql/duckdb-adapter", "19", "只读边界、参数绑定、两种表加载、取消"],
-            ["@weisql/usearch-adapter", "12", "度量映射、持久化索引、后过滤、生命周期"],
+            ["@weisql/usearch-adapter", "13", "度量映射、持久化索引、后过滤、生命周期"],
             ["@weisql/cli", "20", "校验退出码、--json、pack、unpack、容器校验、--l4"],
-            ["合计", "220", ""],
+            ["合计", "225", ""],
         ],
         widths=[4.6, 1.8, 9.4],
     )
@@ -328,9 +328,9 @@ def build(target: Path):
         ["项", "状态"],
         [
             ["ANN 过滤的完整性保证", "只有显式后过滤，可能少于 topK，已在诊断中标注"],
-            ["索引与 Adapter 版本兼容", "只校验 engine 与向量数量"],
+            ["同主版本内的索引格式变化", "只按主版本判定，无法探测其内部变化"],
             ["RRF 的 k 调优", "使用文献默认 60，未做实验"],
-            [".wsql 压缩 / 流式", "V1 不压缩、整文件入内存"],
+            [".wsql 压缩", "V1 不压缩；流式读取已实现"],
             ["Builder CSV/JSON 输入", "需要 Parquet 写入依赖，未引入"],
             ["中文分词", "CJK 逐字，精度换可预测性"],
         ],
@@ -366,7 +366,7 @@ def build(target: Path):
         document,
         ["检查项", "状态"],
         [
-            ["测试 / 类型 / 构建", "✓ 220 测试，typecheck 通过"],
+            ["测试 / 类型 / 构建", "✓ 225 测试，typecheck 通过"],
             ["打包内容", "✓ 仅 dist/ + README + LICENSE，无 src/test 泄漏"],
             ["依赖范围", "✓ caret 且跟踪本地版本"],
             ["许可证", "✓ Apache-2.0（根 + 每包）"],
@@ -384,7 +384,7 @@ def build(target: Path):
             "配置 npm 令牌 → npm publish --dry-run 核对四个包 → 正式发布。",
             "在真实 embedding 数据上测 Recall@K，替换第 5.1 节的合成数字。",
             "第二台机器复现基准，形成区间而非单点。",
-            "视需要再做 .wsql 压缩/流式。",
+            "视需要再做 .wsql 压缩。",
         ],
         start=1,
     ):

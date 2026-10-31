@@ -1,4 +1,6 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -146,6 +148,16 @@ export function createUSearchAdapter(options: USearchAdapterOptions = {}): Vecto
       throw new WeiSQLError("INDEX_NOT_FOUND", "Manifest index engine is not supported by this adapter", {
         expected: capabilities.engine,
         actual: descriptor.engine,
+      });
+    }
+    // USearch does not promise a stable binary format across major versions, and a
+    // silently misread index is worse than a refusal. Same major: proceed.
+    const installed = installedVersion();
+    if (majorOf(descriptor.version) !== majorOf(installed)) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Persisted index was built with an incompatible USearch major version", {
+        declared: descriptor.version,
+        installed,
+        hint: "rebuild the index with tools/build-ann-index.mjs",
       });
     }
     const params = descriptor.params ?? {};
@@ -298,4 +310,36 @@ function numberParam(params: Readonly<Record<string, number>>, key: string, fall
     throw new WeiSQLError("INVALID_ARGUMENT", `index.params.${key} must be a positive safe integer`, { [key]: value });
   }
   return value;
+}
+
+const require = createRequire(import.meta.url);
+let cachedVersion: string | undefined;
+
+/**
+ * Installed USearch version, discovered by walking up from the resolved entry.
+ * `usearch/package.json` is not listed in its `exports`, so `require.resolve` on
+ * the manifest itself would throw ERR_PACKAGE_PATH_NOT_EXPORTED.
+ */
+function installedVersion(): string {
+  if (cachedVersion !== undefined) return cachedVersion;
+  let directory = path.dirname(require.resolve("usearch"));
+  for (let depth = 0; depth < 6; depth++) {
+    try {
+      const manifest = JSON.parse(readFileSync(path.join(directory, "package.json"), "utf8")) as { name?: unknown; version?: unknown };
+      if (manifest.name === "usearch" && typeof manifest.version === "string") {
+        cachedVersion = manifest.version;
+        return cachedVersion;
+      }
+    } catch {
+      // keep walking
+    }
+    directory = path.dirname(directory);
+  }
+  cachedVersion = "unknown";
+  return cachedVersion;
+}
+
+function majorOf(version: string): string {
+  const match = /^(\d+)\./.exec(version);
+  return match === null ? version : match[1]!;
 }

@@ -130,6 +130,26 @@ if (!containerState.textIds.includes("doc-001")) {
   await fail(`container mode text search failed: ${JSON.stringify(containerState.textIds)}`);
 }
 
+// Streaming container: only the header and the files a query needs are fetched.
+try {
+  await page.click("#mode-streaming");
+  await page.waitForFunction(
+    () => window.__PLAYGROUND_STATE?.mode === "streaming" && (window.__PLAYGROUND_STATE?.ids ?? []).length > 0,
+    undefined,
+    { timeout: 30_000 },
+  );
+} catch (error) {
+  await fail(`streaming mode switch failed: ${String(error).slice(0, 300)}`);
+}
+
+const streamingState = await page.evaluate(() => window.__PLAYGROUND_STATE);
+if (streamingState.ids.join(",") !== "doc-001,doc-002,doc-003") {
+  await fail(`streaming mode results were ${JSON.stringify(streamingState.ids)}`);
+}
+if (!streamingState.textIds.includes("doc-001")) {
+  await fail(`streaming mode text search failed: ${JSON.stringify(streamingState.textIds)}`);
+}
+
 console.log(JSON.stringify({
   browser: executablePath,
   initial,
@@ -143,6 +163,7 @@ console.log(JSON.stringify({
   ragTexts: textState.ragTexts,
   ragRows,
   container: { mode: containerState.mode, ids: containerState.ids, loadedBytes: containerState.loadedBytes, textIds: containerState.textIds },
+  streaming: { mode: streamingState.mode, ids: streamingState.ids, textIds: streamingState.textIds },
 }, null, 2));
 
 await browser.close();

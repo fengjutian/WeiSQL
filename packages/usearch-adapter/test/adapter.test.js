@@ -257,6 +257,36 @@ test("rejects an index built by a different engine or for a different count", as
   );
 });
 
+test("rejects a persisted index built with an incompatible USearch major version", async () => {
+  const { bytes, descriptor } = await persistedIndexFixture();
+  const base = await fixture();
+  const reader = {
+    async read(pathname) { return pathname === descriptor.file.path ? bytes : base.reader.read(pathname); },
+    async readRange(pathname, range) { return pathname === descriptor.file.path ? bytes.slice(range.start, range.end) : base.reader.readRange(pathname, range); },
+    async stat(pathname) { return pathname === descriptor.file.path ? { size: bytes.byteLength } : base.reader.stat(pathname); },
+    async close() {},
+  };
+
+  const incompatible = await fixture();
+  incompatible.manifest.vectorCollections[0].index = { ...descriptor, version: "1.9.0" };
+  const wrongMajor = createUSearchAdapter();
+  await wrongMajor.open({ manifest: incompatible.manifest, reader });
+  await assert.rejects(
+    wrongMajor.search({ vector: incompatible.manifest.vectorCollections[0], query: new Float32Array([1, 0]), topK: 1 }),
+    { code: "RESOURCE_INTEGRITY_FAILED" },
+  );
+
+  // A different minor/patch within the same major is accepted: the Manifest records
+  // the exact build version, but only the major is a compatibility boundary.
+  const sameMajor = await fixture();
+  sameMajor.manifest.vectorCollections[0].index = { ...descriptor, version: "2.99.0" };
+  const adapter = createUSearchAdapter();
+  await adapter.open({ manifest: sameMajor.manifest, reader });
+  const hits = await adapter.search({ vector: sameMajor.manifest.vectorCollections[0], query: new Float32Array([1, 0]), topK: 1 });
+  assert.equal(hits[0].id, "doc-001");
+  await adapter.close();
+});
+
 test("rejects a persisted index whose bytes do not match the Manifest", async () => {
   const { descriptor } = await persistedIndexFixture();
   const { manifest } = await fixture();

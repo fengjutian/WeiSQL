@@ -116,29 +116,25 @@ export interface ParsedContainer {
 }
 
 /** Parses and bounds-checks the container header without touching file contents. */
-export function parseContainer(bytes: Uint8Array): ParsedContainer {
-  if (bytes.byteLength < HEADER_START) {
-    throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container is shorter than its fixed header", { length: bytes.byteLength });
-  }
-  // Compare the magic byte-wise: decoding hostile bytes as UTF-8 would throw a
-  // TypeError, and this parser must only ever surface WeiSQLError.
-  const magic = encoder().encode(CONTAINER_MAGIC);
-  let matches = true;
-  for (let index = 0; index < MAGIC_BYTES; index++) {
-    if (bytes[index] !== magic[index]) { matches = false; break; }
+const MAGIC_BYTES_ARRAY = encoder().encode(CONTAINER_MAGIC);
+
+/** Byte-wise magic check: decoding hostile bytes as UTF-8 would throw TypeError. */
+function assertMagic(bytes: Uint8Array): void {
+  let matches = bytes.byteLength >= MAGIC_BYTES;
+  for (let index = 0; matches && index < MAGIC_BYTES; index++) {
+    if (bytes[index] !== MAGIC_BYTES_ARRAY[index]) matches = false;
   }
   if (!matches) {
-    const actual = [...bytes.subarray(0, MAGIC_BYTES)].map(byte => byte.toString(16).padStart(2, "0")).join(" ");
+    const actual = [...bytes.subarray(0, Math.min(MAGIC_BYTES, bytes.byteLength))].map(byte => byte.toString(16).padStart(2, "0")).join(" ");
     throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container magic does not match", { expected: CONTAINER_MAGIC, actual });
   }
-  const headerBytes = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(MAGIC_BYTES, true);
-  if (headerBytes === 0 || headerBytes > bytes.byteLength - HEADER_START) {
-    throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container header length is out of bounds", { headerBytes, length: bytes.byteLength });
-  }
-  const dataStart = HEADER_START + headerBytes;
+}
+
+/** Parses and validates the JSON header against the size of the data section. */
+function parseHeader(headerJson: Uint8Array, dataBytes: number): ContainerHeader {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(decoder().decode(bytes.subarray(HEADER_START, dataStart)));
+    parsed = JSON.parse(decoder().decode(headerJson));
   } catch (cause) {
     throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container header is not valid JSON", { cause: String(cause) });
   }
@@ -150,7 +146,6 @@ export function parseContainer(bytes: Uint8Array): ParsedContainer {
   if (!Array.isArray(header.files) || header.files.length === 0) {
     throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container header must list at least one file");
   }
-  const dataBytes = bytes.byteLength - dataStart;
   const files: ContainerEntry[] = [];
   const seen = new Set<string>();
   let expectedOffset = 0;
@@ -170,7 +165,198 @@ export function parseContainer(bytes: Uint8Array): ParsedContainer {
     files.push({ path: record.path, offset: record.offset as number, bytes: record.bytes as number, sha256: record.sha256 });
   }
   if (expectedOffset !== dataBytes) throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container has trailing bytes not covered by its header", { dataBytes, covered: expectedOffset });
-  return { header: { formatVersion: CONTAINER_FORMAT_VERSION, files }, headerBytes, dataStart };
+  return { formatVersion: CONTAINER_FORMAT_VERSION, files };
+}
+
+export function parseContainer(bytes: Uint8Array): ParsedContainer {
+  if (bytes.byteLength < HEADER_START) {
+    throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container is shorter than its fixed header", { length: bytes.byteLength });
+  }
+  assertMagic(bytes);
+  const headerBytes = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(MAGIC_BYTES, true);
+  if (headerBytes === 0 || headerBytes > bytes.byteLength - HEADER_START) {
+    throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container header length is out of bounds", { headerBytes, length: bytes.byteLength });
+  }
+  const dataStart = HEADER_START + headerBytes;
+  const header = parseHeader(bytes.subarray(HEADER_START, dataStart), bytes.byteLength - dataStart);
+  return { header, headerBytes, dataStart };
+}
+
+/** Random-access byte source; the container never needs the whole file in memory. */
+export interface ContainerByteSource {
+  size(): Promise<number>;
+  readRange(range: ByteRange, options?: ResourceReadOptions): Promise<Uint8Array>;
+}
+
+/** In-memory source, useful for tests and for `ContainerReader`-style workflows. */
+export function createBytesContainerSource(bytes: Uint8Array): ContainerByteSource {
+  return {
+    async size() {
+      return bytes.byteLength;
+    },
+    async readRange(range, options) {
+      validateByteRange(range);
+      if (options?.signal?.aborted) throw new WeiSQLError("QUERY_CANCELLED", "Container read was cancelled");
+      if (range.end > bytes.byteLength) {
+        throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Range extends past the end of the container", { range, size: bytes.byteLength });
+      }
+      return bytes.slice(range.start, range.end);
+    },
+  };
+}
+
+export interface HttpContainerSourceOptions {
+  url: string;
+  fetch?: typeof globalThis.fetch;
+  signal?: AbortSignal;
+}
+
+/**
+ * HTTP source for a `.wsql` served by a static host.
+ *
+ * Size discovery uses a one-byte Range request and `Content-Range`. If a host
+ * ignores Range and returns 200 with the whole body, the body is sliced instead
+ * of failing; that fallback costs a full download, which is what the caller was
+ * trying to avoid, but it keeps the reader usable.
+ */
+export function createHttpContainerSource(options: HttpContainerSourceOptions): ContainerByteSource {
+  const fetcher = (options.fetch ?? globalThis.fetch).bind(globalThis);
+  let knownSize: number | undefined;
+
+  async function size(): Promise<number> {
+    if (knownSize !== undefined) return knownSize;
+    const response = await fetcher(options.url, {
+      method: "GET",
+      headers: { Range: "bytes=0-0" },
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+    });
+    if (!response.ok) throw new WeiSQLError("RESOURCE_NOT_FOUND", "Container is not reachable", { status: response.status });
+    const contentRange = response.headers.get("content-range");
+    const match = typeof contentRange === "string" ? /^bytes\s+0-0\/(\d+)$/i.exec(contentRange.trim()) : null;
+    if (match !== null) {
+      knownSize = Number(match[1]);
+      return knownSize;
+    }
+    // Range was ignored: the body is the whole container.
+    const body = new Uint8Array(await response.arrayBuffer());
+    knownSize = body.byteLength;
+    return knownSize;
+  }
+
+  return {
+    size,
+    async readRange(range, readOptions) {
+      validateByteRange(range);
+      if (readOptions?.signal?.aborted) throw new WeiSQLError("QUERY_CANCELLED", "Container read was cancelled");
+      if (range.end <= range.start) return new Uint8Array(0);
+      const response = await fetcher(options.url, {
+        method: "GET",
+        headers: { Range: `bytes=${range.start}-${range.end - 1}` },
+        ...(readOptions?.signal === undefined ? {} : { signal: readOptions.signal }),
+      });
+      if (!response.ok) throw new WeiSQLError("RESOURCE_NOT_FOUND", "Container range request failed", { status: response.status, range });
+      const body = new Uint8Array(await response.arrayBuffer());
+      if (response.status === 206) {
+        if (body.byteLength !== range.end - range.start) {
+          throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Server returned a partial range of the wrong length", {
+            requested: range.end - range.start,
+            received: body.byteLength,
+          });
+        }
+        return body;
+      }
+      if (body.byteLength < range.end) {
+        throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Server body is shorter than the requested range", { range, size: body.byteLength });
+      }
+      return body.slice(range.start, range.end);
+    },
+  };
+}
+
+/**
+ * `ResourceReader` over a container accessed through Range requests.
+ *
+ * Only the fixed header and the JSON header are read at open time; each file is
+ * fetched when it is asked for. This is the streaming counterpart to
+ * `ContainerReader`, which requires the whole container as one buffer.
+ */
+export class StreamingContainerReader implements ResourceReader {
+  private readonly index = new Map<string, ContainerEntry>();
+  private closed = false;
+
+  private constructor(
+    private readonly source: ContainerByteSource,
+    readonly header: ContainerHeader,
+    private readonly dataStart: number,
+  ) {
+    for (const entry of header.files) this.index.set(entry.path, entry);
+  }
+
+  static async open(source: ContainerByteSource, options?: ResourceReadOptions): Promise<StreamingContainerReader> {
+    const size = await source.size();
+    if (!Number.isSafeInteger(size) || size < HEADER_START) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container is shorter than its fixed header", { length: size });
+    }
+    const prefix = await source.readRange({ start: 0, end: HEADER_START }, options);
+    if (prefix.byteLength !== HEADER_START) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container header prefix has the wrong length", { expected: HEADER_START, actual: prefix.byteLength });
+    }
+    assertMagic(prefix);
+    const headerBytes = new DataView(prefix.buffer, prefix.byteOffset, prefix.byteLength).getUint32(MAGIC_BYTES, true);
+    if (headerBytes === 0 || headerBytes > size - HEADER_START) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container header length is out of bounds", { headerBytes, length: size });
+    }
+    const dataStart = HEADER_START + headerBytes;
+    const headerJson = await source.readRange({ start: HEADER_START, end: dataStart }, options);
+    if (headerJson.byteLength !== headerBytes) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container header has the wrong length", { expected: headerBytes, actual: headerJson.byteLength });
+    }
+    return new StreamingContainerReader(source, parseHeader(headerJson, size - dataStart), dataStart);
+  }
+
+  async read(path: string, options?: ResourceReadOptions): Promise<Uint8Array> {
+    return this.readRange(path, { start: 0, end: this.entry(path).bytes }, options);
+  }
+
+  async readRange(path: string, range: ByteRange, options?: ResourceReadOptions): Promise<Uint8Array> {
+    const entry = this.entry(path);
+    validateByteRange(range);
+    if (range.end > entry.bytes) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Range extends past the file inside the container", { path, range, size: entry.bytes });
+    }
+    const start = this.dataStart + entry.offset + range.start;
+    const bytes = await this.source.readRange({ start, end: start + (range.end - range.start) }, options);
+    if (bytes.byteLength !== range.end - range.start) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Container read returned the wrong length", { path, expected: range.end - range.start, actual: bytes.byteLength });
+    }
+    return bytes;
+  }
+
+  async stat(path: string): Promise<ResourceMetadata> {
+    return { size: this.entry(path).bytes, supportsRange: true };
+  }
+
+  async verify(paths?: readonly string[]): Promise<readonly { path: string; expected: string; actual: string }[]> {
+    const mismatches: { path: string; expected: string; actual: string }[] = [];
+    for (const path of paths ?? this.header.files.map(entry => entry.path)) {
+      const entry = this.entry(path);
+      const bytes = await this.read(path);
+      const actual = await sha256Hex(bytes);
+      if (actual !== entry.sha256) mismatches.push({ path, expected: entry.sha256, actual });
+    }
+    return mismatches;
+  }
+
+  async close(): Promise<void> {
+    this.closed = true;
+  }
+
+  private entry(path: string): ContainerEntry {
+    if (this.closed) throw new WeiSQLError("DATABASE_CLOSED", "Container reader has been closed");
+    const entry = this.index.get(path);
+    if (entry === undefined) throw new WeiSQLError("INDEX_NOT_FOUND", `Container has no file '${path}'`);
+    return entry;
+  }
 }
 
 /**

@@ -418,6 +418,24 @@
 - 决策四：容器同样支持 `--l4`；适配器通过 `ContainerReader` 读取资源，`lazy` 表加载把 Parquet 落到临时目录，内存不随表大小增长。
 - 后果：`validate` 成为完整的发布闸门（L1–L4）。`release:check` 增加 peer 范围校验；CI 的派生作业对示例包跑一次 `--l4`。`manifest.json` 本身不在 L3 哈希范围内，因此「Manifest 声明与 Parquet 不符」只有 L4 能发现——测试里专门锁了这个场景。
 
+## ADR-048：ANN 索引只按 USearch 主版本判定兼容
+
+- 状态：Accepted and implemented
+- 背景：Manifest 早已记录 `index.version`，但加载时从未使用。升级 USearch 后旧索引可能被读成错误数据，或直接崩溃——两种结果都比明确拒绝更糟。
+- 决策一：加载持久化索引时比较声明版本与**实际安装**版本的主版本号；不一致抛 `RESOURCE_INTEGRITY_FAILED`，并提示用 `tools/build-ann-index.mjs` 重建。
+- 决策二：同一主版本内的 minor/patch 差异放行。USearch 不承诺跨 minor 的二进制兼容，但把每次 patch 升级都变成强制重建代价过高；主版本是唯一可靠的边界。
+- 决策三：安装版本通过「从入口文件向上找 `package.json`」获得，因为 `usearch/package.json` 不在其 `exports` 中。这是构建工具里已经踩过一次的坑，适配器复用同一策略并缓存结果。
+- 后果：测试覆盖拒绝（1.x vs 2.x）与接受（2.99.0 vs 2.26.5）两侧。仍然无法验证「同主版本但格式实际变了」的情况——这需要上游给出保证，只能靠重建策略兜底。
+
+## ADR-049：容器支持流式读取，但不改变 V1 格式
+
+- 状态：Accepted and implemented
+- 决策一：新增 `StreamingContainerReader` 与 `ContainerByteSource` 抽象，格式完全不变。打开时只读固定头与 JSON 头，之后按文件发 Range 请求。
+- 决策二：保留 `ContainerReader`（整包在内存）。它更简单，适合已下载的字节；两种读取器共用同一套头部解析（`parseHeader`）与路径校验，避免两份语义。
+- 决策三：HTTP 源在托管方忽略 `Range` 时退化为整包切片，而不是报错。可用性优先，但文档明确写出这等于放弃按需读取。
+- 决策四：`Content-Range` 缺失按「无该头」处理而不是假定标准会保证它——测试里捕获到 `headers.get` 可能返回 `undefined` 而非 `null`，导致 `TypeError`。
+- 后果：大容器不必整包下载；Playground 增加第三种加载模式，探针断言其结果与目录模式一致。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

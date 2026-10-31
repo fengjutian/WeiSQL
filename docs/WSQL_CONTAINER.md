@@ -38,7 +38,7 @@ file bytes...           按头部顺序紧邻排列
 | **不压缩** | 与 ID Map 用 JSONL 同源：可核对、可局部定位、可直接复用现有校验。压缩属于新格式版本，需要单独 ADR |
 | **不加密** | 加密会改变「静态、只读、可公开校验」的模型；访问控制应由托管层负责 |
 | **头部明文 JSON** | 便于人工检查与工具排查；体积相对数据区可忽略 |
-| **V1 整文件读入内存** | 浏览器端没有随机访问文件句柄；大包应继续用目录 + Range，容器适合中小包 |
+| **两种读取方式** | `ContainerReader` 需要整个文件在内存（适合已下载的字节）；`StreamingContainerReader` 只读头部，之后按文件发 Range 请求（适合大容器与浏览器） |
 
 ## 4. 用法
 
@@ -66,6 +66,20 @@ const db = await open({ manifest, resourceReader: reader, verifyChecksums: "all"
 
 `ContainerReader` 实现标准 `ResourceReader`，所以 SQL / 向量 / 全文 / RAG 全部照常工作；它不依赖 `fetch`，也不依赖文件系统。
 
+大容器不必整包下载——流式读取只需要一个 Range 源：
+
+```ts
+import { StreamingContainerReader, createHttpContainerSource, open } from "@weisql/sdk";
+
+const reader = await StreamingContainerReader.open(
+  createHttpContainerSource({ url: "https://cdn.example.com/dataset.wsql" }),
+);
+const manifest = JSON.parse(new TextDecoder().decode(await reader.read("manifest.json")));
+const db = await open({ manifest, resourceReader: reader, verifyChecksums: "all" });
+```
+
+打开时只读 12 字节固定头 + JSON 头部；每次查询只请求需要的文件区间。若托管方忽略 `Range` 并返回 200 整包，源会退化为整包切片——仍可用，但失去按需读取的意义。
+
 ## 5. 校验与失败语义
 
 | 情况 | 结果 |
@@ -81,6 +95,5 @@ const db = await open({ manifest, resourceReader: reader, verifyChecksums: "all"
 ## 6. 尚未完成
 
 1. 压缩（gzip/brotli）与对应版本协商。
-2. 流式读取（当前整文件驻留内存）。
-3. 容器内的 Range 请求映射到 HTTP Range（需要托管层配合）。
-4. 与 `.wsql` 扩展名绑定的 MIME 类型注册。
+2. 容器内的 Range 请求映射到 HTTP Range 的服务器端支持（当前由源直接发 Range，无需服务器配合）。
+3. 与 `.wsql` 扩展名绑定的 MIME 类型注册。

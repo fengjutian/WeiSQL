@@ -1,5 +1,5 @@
 import { CachedResourceReader } from "/sdk/cached-resource-reader.js";
-import { ContainerReader } from "/sdk/wsql-container.js";
+import { ContainerReader, StreamingContainerReader, createHttpContainerSource } from "/sdk/wsql-container.js";
 import { open } from "/sdk/database.js";
 import { HttpResourceReader } from "/sdk/http-resource-reader.js";
 
@@ -206,18 +206,32 @@ async function readContainer() {
   return { db, reader, cache: undefined, manifest, mode: "container", loadedBytes: bytes.byteLength };
 }
 
+/** Reads the container through Range requests; only what a query needs is fetched. */
+async function readStreamingContainer() {
+  const source = createHttpContainerSource({ url: new URL("/container.wsql", location.href).href });
+  const reader = await StreamingContainerReader.open(source);
+  const manifest = JSON.parse(new TextDecoder().decode(await reader.read("manifest.json")));
+  const db = await open({ manifest, resourceReader: reader, verifyChecksums: "all" });
+  return { db, reader, cache: undefined, manifest, mode: "streaming", loadedBytes: undefined };
+}
+
 async function activate(mode) {
   setText("error", "");
   setText("status", "加载中…");
-  for (const id of ["mode-directory", "mode-container"]) $(id).disabled = true;
+  for (const id of ["mode-directory", "mode-container", "mode-streaming"]) $(id).disabled = true;
   try {
     if (state.db !== undefined) await state.db.close();
-    const loaded = mode === "container" ? await readContainer() : await readDirectory();
+    const loaded = mode === "container"
+      ? await readContainer()
+      : mode === "streaming"
+        ? await readStreamingContainer()
+        : await readDirectory();
     Object.assign(state, loaded);
     state.collection = loaded.manifest.vectorCollections[0];
     state.textIndex = loaded.manifest.textIndexes?.[0];
     $("mode-directory").setAttribute("aria-pressed", String(mode === "directory"));
     $("mode-container").setAttribute("aria-pressed", String(mode === "container"));
+    $("mode-streaming").setAttribute("aria-pressed", String(mode === "streaming"));
 
     renderDefinitionList($("package-info"), [
       ["dataset", loaded.manifest.datasetId],
@@ -249,13 +263,14 @@ async function activate(mode) {
     setText("error", String(error && error.message ? error.message : error));
     window.__PLAYGROUND_STATE = { ok: false, error: String(error) };
   } finally {
-    for (const id of ["mode-directory", "mode-container"]) $(id).disabled = false;
+    for (const id of ["mode-directory", "mode-container", "mode-streaming"]) $(id).disabled = false;
   }
 }
 
 async function main() {
   $("mode-directory").addEventListener("click", () => void activate("directory"));
   $("mode-container").addEventListener("click", () => void activate("container"));
+  $("mode-streaming").addEventListener("click", () => void activate("streaming"));
   $("search").addEventListener("click", () => void search());
   $("text-search").addEventListener("click", () => void textSearch());
   $("rag").addEventListener("click", () => void assembleEvidence());

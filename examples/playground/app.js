@@ -215,6 +215,8 @@ async function runSql() {
     if (state.sqlDb === undefined) setText("sql-status", "加载 DuckDB-Wasm…");
     const sqlDb = await ensureSqlDb();
     const streaming = $("sql-stream").checked;
+    const maxRowsValue = Number($("sql-max-rows").value);
+    const options = Number.isSafeInteger(maxRowsValue) && maxRowsValue > 0 ? { maxRows: maxRowsValue } : undefined;
     const started = performance.now();
     const head = $("sql-head");
     const body = $("sql-results");
@@ -253,7 +255,7 @@ async function runSql() {
     if (streaming) {
       // Incremental delivery: render each row as it arrives instead of waiting
       // for the whole result set.
-      for await (const row of await sqlDb.sqlStream($("sql-query").value)) {
+      for await (const row of await sqlDb.sqlStream($("sql-query").value, [], options)) {
         rows.push(row);
         if (!rendered) {
           renderHeader();
@@ -263,7 +265,7 @@ async function runSql() {
       }
       if (!rendered) showEmpty();
     } else {
-      rows.push(...await sqlDb.sql($("sql-query").value));
+      rows.push(...await sqlDb.sql($("sql-query").value, [], options));
       if (rows.length === 0) showEmpty();
       else {
         renderHeader();

@@ -190,6 +190,23 @@ if (!sqlStatus.includes("流式")) {
   await fail(`streaming SQL status did not mention 流式: ${sqlStatus}`);
 }
 
+// Row budget: two rows requested against a three-row result must fail loudly
+// instead of truncating.
+try {
+  await page.fill("#sql-max-rows", "2");
+  await page.click("#sql-run");
+  await page.waitForFunction(
+    () => (document.querySelector("#error")?.textContent ?? "").includes("maxRows"),
+    undefined,
+    { timeout: 60_000 },
+  );
+  const errorText = await page.locator("#error").innerText();
+  if (!errorText.includes("maxRows")) await fail(`row budget error was: ${errorText}`);
+  await page.fill("#sql-max-rows", "");
+} catch (error) {
+  await fail(`row budget check failed: ${String(error).slice(0, 300)}\n${await page.locator("#error").innerText()}`);
+}
+
 // Filtered vector search: the same Runtime now has a SQL engine, so the
 // exact-filter-first strategy must run in the browser.
 try {

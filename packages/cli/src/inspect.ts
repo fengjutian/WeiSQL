@@ -1,7 +1,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
-import { ContainerReader, declaredResources, validateManifest, verifyManifestSignature } from "@weisql/sdk";
+import { ContainerReader, declaredResources, manifestSignatures, validateManifest, verifyManifestSignature } from "@weisql/sdk";
 import type { WeiSQLManifest, VerifyManifestSignatureResult } from "@weisql/sdk";
 
 export interface InspectTable {
@@ -80,8 +80,8 @@ export async function inspectPackage(target: string): Promise<InspectResult> {
   const declaredPaths = new Set(declared.map(resource => resource.path));
   const undeclared = [...presentFiles].filter(file => file !== "manifest.json" && !declaredPaths.has(file)).sort();
 
-  const signature = manifest.signature === undefined
-    ? { present: false, valid: false as const, reason: "missing-signature" as const }
+  const signature = manifestSignatures(manifest).length === 0
+    ? { present: false, valid: false as const, keyIds: [] as string[], signatures: [], reason: "missing-signature" as const }
     : { present: true, ...(await verifyManifestSignature(manifest)) };
 
   return {

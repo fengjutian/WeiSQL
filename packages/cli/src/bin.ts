@@ -28,6 +28,7 @@ Options:
   --trusted <keyId>            Pin a publisher fingerprint (repeatable)
   --key <pem>                  Private key for sign
   --public <pem>               Public key for sign (derived when omitted)
+  --add                        Add a co-signature instead of replacing (key rotation)
   --compress                   Gzip entries when packing (container format 1.1.0)
   --only-declared              Pack only the Manifest and declared resources
   --output <file|directory>    Output path for pack / unpack
@@ -49,6 +50,7 @@ interface ParsedArguments {
   signature: boolean;
   compress: boolean;
   onlyDeclared: boolean;
+  addSignature: boolean;
   keyPath: string | undefined;
   publicKeyPath: string | undefined;
   trustedKeyIds: string[];
@@ -57,7 +59,7 @@ interface ParsedArguments {
 }
 
 function parseArguments(argv: readonly string[]): ParsedArguments | string {
-  const parsed: ParsedArguments = { command: undefined, target: undefined, mode: "all", output: undefined, l4: false, signature: false, compress: false, onlyDeclared: false, keyPath: undefined, publicKeyPath: undefined, trustedKeyIds: [], json: false, help: false };
+  const parsed: ParsedArguments = { command: undefined, target: undefined, mode: "all", output: undefined, l4: false, signature: false, compress: false, onlyDeclared: false, addSignature: false, keyPath: undefined, publicKeyPath: undefined, trustedKeyIds: [], json: false, help: false };
   for (let index = 0; index < argv.length; index++) {
     const argument = argv[index]!;
     if (argument === "--help" || argument === "-h") {
@@ -82,6 +84,10 @@ function parseArguments(argv: readonly string[]): ParsedArguments | string {
     }
     if (argument === "--only-declared") {
       parsed.onlyDeclared = true;
+      continue;
+    }
+    if (argument === "--add") {
+      parsed.addSignature = true;
       continue;
     }
     if (argument === "--trusted" || argument.startsWith("--trusted=")) {
@@ -152,7 +158,7 @@ function summarize(result: ValidationResult): string[] {
     lines.push(`l4:        ${result.l4.ok ? `${result.l4.tables} table(s) matched the Manifest` : "failed"}`);
   }
   if (result.signature !== undefined) {
-    lines.push(`signature: ${result.signature.valid ? `valid (${result.signature.keyId})` : `invalid (${result.signature.reason ?? "unknown"})`}`);
+    lines.push(`signature: ${result.signature.valid ? `valid (${result.signature.keyIds.join(", ")})` : `invalid (${result.signature.reason ?? "unknown"})`}`);
   }
   return lines;
 }
@@ -241,7 +247,7 @@ async function main(argv: readonly string[]): Promise<number> {
       else {
         console.log(`target:    ${verified.target} (${verified.kind})`);
         console.log(`dataset:   ${verified.datasetId}`);
-        console.log(`key id:    ${verified.keyId ?? "-"}`);
+        console.log(`key ids:   ${verified.keyIds.join(", ")}`);
         console.log(verified.valid ? "OK" : `FAILED (${verified.reason})`);
       }
       return verified.valid ? 0 : 1;
@@ -261,12 +267,13 @@ async function main(argv: readonly string[]): Promise<number> {
         target,
         privateKeyPath: parsed.keyPath,
         ...(parsed.publicKeyPath === undefined ? {} : { publicKeyPath: parsed.publicKeyPath }),
+        add: parsed.addSignature,
       });
       if (parsed.json) console.log(JSON.stringify(signed, null, 2));
       else {
         console.log(`target:    ${signed.target} (${signed.kind})`);
         console.log(`dataset:   ${signed.datasetId}`);
-        console.log(`key id:    ${signed.keyId}`);
+        console.log(`key ids:   ${signed.keyIds.join(", ")}`);
         console.log("OK");
       }
       return 0;

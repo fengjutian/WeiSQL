@@ -13,7 +13,7 @@ const metrics = new Set(["cosine", "l2", "ip"]);
 export function validateManifest(input: unknown): WeiSQLManifest {
   const issues: Issue[] = [];
   if (!record(input)) fail([{ path: "$", message: "manifest must be an object" }]);
-  allowed(input, ["format", "formatVersion", "datasetId", "tables", "vectorCollections", "textIndexes", "signature", "metadata"], "$", issues);
+  allowed(input, ["format", "formatVersion", "datasetId", "tables", "vectorCollections", "textIndexes", "signature", "signatures", "metadata"], "$", issues);
   if (input.format !== "weisql") issue(issues, "$.format", "must equal 'weisql'");
   if (input.formatVersion !== "1.0.0") {
     if (typeof input.formatVersion === "string") throw new WeiSQLError("FORMAT_VERSION_UNSUPPORTED", `Unsupported manifest format version '${input.formatVersion}'`, { supported: "1.0.0" });
@@ -42,6 +42,10 @@ export function validateManifest(input: unknown): WeiSQLManifest {
     }
   }
   signatureValue(input.signature, "$.signature", issues);
+  signaturesValue(input.signatures, "$.signatures", issues);
+  if (input.signature !== undefined && input.signatures !== undefined) {
+    issue(issues, "$.signatures", "cannot be combined with $.signature; use one form");
+  }
   metadata(input.metadata, issues);
 
   unique(tables.map(item => item.name), "$.tables", "table name", issues);
@@ -137,6 +141,21 @@ function signatureValue(value: unknown, path: string, issues: Issue[]): void {
   else if (base64Length(value.publicKey) !== 44) issue(issues, `${path}.publicKey`, "must be a 44-byte Ed25519 SPKI key");
   if (typeof value.value !== "string" || !/^[A-Za-z0-9+/]+={0,2}$/.test(value.value)) issue(issues, `${path}.value`, "must be a base64 string");
   else if (base64Length(value.value) !== 64) issue(issues, `${path}.value`, "must be a 64-byte Ed25519 signature");
+}
+
+function signaturesValue(value: unknown, path: string, issues: Issue[]): void {
+  if (value === undefined) return;
+  if (!Array.isArray(value)) { issue(issues, path, "must be an array"); return; }
+  if (value.length === 0) issue(issues, path, "must contain at least one signature");
+  if (value.length > 8) issue(issues, path, "must contain at most 8 signatures");
+  const keyIds = new Set<string>();
+  value.forEach((item, index) => {
+    signatureValue(item, `${path}[${index}]`, issues);
+    if (record(item) && typeof item.keyId === "string") {
+      if (keyIds.has(item.keyId)) issue(issues, `${path}[${index}].keyId`, "duplicates another signature key");
+      keyIds.add(item.keyId);
+    }
+  });
 }
 
 function base64Length(value: string): number {

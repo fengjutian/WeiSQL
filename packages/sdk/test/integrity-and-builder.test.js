@@ -299,7 +299,9 @@ test("Builder signs the Manifest when keys are supplied", async (t) => {
   assert.equal(report.signature?.keyId, keys.keyId);
   const manifest = JSON.parse(await readFile(path.join(target, "manifest.json"), "utf8"));
   assert.equal(manifest.signature.keyId, keys.keyId);
-  assert.deepEqual(await verifyManifestSignature(manifest, { trustedKeyIds: [keys.keyId] }), { valid: true, keyId: keys.keyId });
+  const verified = await verifyManifestSignature(manifest, { trustedKeyIds: [keys.keyId] });
+  assert.equal(verified.valid, true);
+  assert.equal(verified.keyId, keys.keyId);
 
   // Tampering with the signed fields invalidates the signature.
   const tampered = structuredClone(manifest);

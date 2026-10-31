@@ -49,6 +49,9 @@ test("tampering invalidates the signature and validate reports it", async (t) =>
   await run(process.execPath, [BIN, "keygen", "--output", prefix]);
   await run(process.execPath, [BIN, "sign", pkg, "--key", `${prefix}.key.pem`]);
 
+  const wrongTrust = await validatePackage({ directory: pkg, signature: true, trustedKeyIds: [`sha256:${"0".repeat(64)}`] });
+  assert.equal(wrongTrust.signature?.reason, "untrusted-key");
+
   const manifestPath = path.join(pkg, "manifest.json");
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
   manifest.datasetId = "tampered";
@@ -59,8 +62,6 @@ test("tampering invalidates the signature and validate reports it", async (t) =>
   assert.equal(result.signature?.reason, "bad-signature");
   assert.ok(result.issues.some(issue => issue.stage === "signature"));
 
-  const wrongTrust = await validatePackage({ directory: pkg, signature: true, trustedKeyIds: [`sha256:${"0".repeat(64)}`] });
-  assert.equal(wrongTrust.signature?.reason, "untrusted-key");
 });
 
 test("signs and verifies a .wsql container", async (t) => {
@@ -89,4 +90,28 @@ test("validate --signature requires a signature", async () => {
   const unsigned = await validatePackage({ directory: FIXTURE });
   assert.equal(unsigned.ok, true);
   assert.equal(unsigned.signature, undefined);
+});
+
+test("countersigning keeps both signatures and validates with either pin", async (t) => {
+  const { directory, pkg } = await workspace(t);
+  const first = path.join(directory, "first");
+  const second = path.join(directory, "second");
+  const { stdout: firstKey } = await run(process.execPath, [BIN, "keygen", "--output", first, "--json"]);
+  const { stdout: secondKey } = await run(process.execPath, [BIN, "keygen", "--output", second, "--json"]);
+  const firstId = JSON.parse(firstKey).keyId;
+  const secondId = JSON.parse(secondKey).keyId;
+
+  await run(process.execPath, [BIN, "sign", pkg, "--key", `${first}.key.pem`]);
+  const { stdout: coSigned } = await run(process.execPath, [BIN, "sign", pkg, "--key", `${second}.key.pem`, "--add", "--json"]);
+  assert.deepEqual(JSON.parse(coSigned).keyIds, [firstId, secondId]);
+
+  const { stdout: verified } = await run(process.execPath, [BIN, "verify-signature", pkg, "--json"]);
+  const report = JSON.parse(verified);
+  assert.equal(report.valid, true);
+  assert.deepEqual(report.keyIds, [firstId, secondId]);
+
+  const pinned = await validatePackage({ directory: pkg, signature: true, trustedKeyIds: [secondId] });
+  assert.equal(pinned.ok, true);
+  const unpinned = await validatePackage({ directory: pkg, signature: true, trustedKeyIds: [`sha256:${"0".repeat(64)}`] });
+  assert.equal(unpinned.signature?.reason, "untrusted-key");
 });

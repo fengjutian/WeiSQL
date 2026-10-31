@@ -37,7 +37,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - `.wsql` 单文件容器：`weisql pack` 打包（`--compress` 走 gzip 的 1.1.0 格式、`--only-declared` 只打声明资源并报告被跳过的文件）、`weisql validate <file>.wsql` 校验、`weisql unpack` 解包（先验摘要再写盘、拒绝路径穿越），SDK 提供 `ContainerReader` 与流式 `StreamingContainerReader` 直接作为 `resourceReader`，详见 [容器格式](docs/WSQL_CONTAINER.md)
 - `weisql inspect`：不打开 Runtime 就列出表、向量、全文索引、签名状态与**未被 Manifest 声明的文件**
 - 发布前静态检查（`npm run release:check`）：版本形状、workspace 依赖范围、`files` 清单、dist 产物与 README 齐备性
-- Manifest 签名：Ed25519（WebCrypto），`weisql keygen/sign/verify-signature`，`validate --signature --trusted <keyId>` 可固定发布者
+- Manifest 签名：Ed25519（WebCrypto），`weisql keygen/sign/verify-signature`，`validate --signature --trusted <keyId>` 可固定发布者；`sign --add` 追加协同签名，用于密钥轮换
 - 全文检索：Manifest `textIndexes`、倒排索引读取器（二分定位 + BM25）、生成工具，以及公开 `db.text.search()`；Unicode 分词（CJK 按字），详见 [全文检索设计](docs/FULL_TEXT_SEARCH.md)
 - RRF 融合检索：`db.hybrid.search()` 按排名融合向量与全文结果，返回两路名次与原始分数
 - RAG 证据组装：`db.rag.search()` 在字符预算内返回带来源与名次的证据片段（不调用模型、不拼 prompt）

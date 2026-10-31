@@ -39,9 +39,15 @@ export function canonicalJson(value: unknown): string {
   return encode(value);
 }
 
-/** Bytes that are actually signed: domain separator plus the Manifest without its signature. */
+/** The signatures that apply to a Manifest, in declaration order. */
+export function manifestSignatures(manifest: WeiSQLManifest): ManifestSignature[] {
+  if (manifest.signatures !== undefined && manifest.signatures.length > 0) return [...manifest.signatures];
+  return manifest.signature === undefined ? [] : [manifest.signature];
+}
+
+/** Bytes that are actually signed: domain separator plus the Manifest without its signatures. */
 export function manifestSigningPayload(manifest: WeiSQLManifest): Uint8Array {
-  const { signature: _signature, ...rest } = manifest;
+  const { signature: _signature, signatures: _signatures, ...rest } = manifest;
   return encoder.encode(DOMAIN + canonicalJson(rest));
 }
 
@@ -94,7 +100,9 @@ export interface SignManifestOptions {
   publicKeyPem: string;
 }
 
-export async function signManifest(manifest: WeiSQLManifest, options: SignManifestOptions): Promise<WeiSQLManifest> {
+export const MAX_SIGNATURES = 8;
+
+async function createSignature(manifest: WeiSQLManifest, options: SignManifestOptions): Promise<ManifestSignature> {
   const privateKey = await crypto.subtle.importKey(
     "pkcs8",
     arrayBufferOf(pemToDer(options.privateKeyPem, "PRIVATE KEY")),
@@ -103,17 +111,38 @@ export async function signManifest(manifest: WeiSQLManifest, options: SignManife
     ["sign"],
   );
   const spki = pemToDer(options.publicKeyPem, "PUBLIC KEY");
-  const signature = new Uint8Array(await crypto.subtle.sign({ name: "Ed25519" }, privateKey, arrayBufferOf(manifestSigningPayload(manifest))));
-  const signed: WeiSQLManifest = {
-    ...manifest,
-    signature: {
-      algorithm: "ed25519",
-      keyId: await keyIdOf(spki),
-      publicKey: bytesToBase64(spki),
-      value: bytesToBase64(signature),
-    },
+  const value = new Uint8Array(await crypto.subtle.sign({ name: "Ed25519" }, privateKey, arrayBufferOf(manifestSigningPayload(manifest))));
+  return {
+    algorithm: "ed25519",
+    keyId: await keyIdOf(spki),
+    publicKey: bytesToBase64(spki),
+    value: bytesToBase64(value),
   };
-  return signed;
+}
+
+/** Replaces any existing signature with a single one from `options`. */
+export async function signManifest(manifest: WeiSQLManifest, options: SignManifestOptions): Promise<WeiSQLManifest> {
+  const signature = await createSignature(manifest, options);
+  const { signature: _old, signatures: _oldList, ...rest } = manifest;
+  return { ...rest, signature };
+}
+
+/**
+ * Adds a co-signature, keeping the existing ones. This is how a key rotation is
+ * performed: the new key co-signs while the old key's signature is still valid,
+ * and the old signature is dropped once every consumer has pinned the new key.
+ */
+export async function countersignManifest(manifest: WeiSQLManifest, options: SignManifestOptions): Promise<WeiSQLManifest> {
+  const existing = manifestSignatures(manifest);
+  const signature = await createSignature(manifest, options);
+  if (existing.some(item => item.keyId === signature.keyId)) {
+    throw new WeiSQLError("INVALID_ARGUMENT", "This key has already signed the Manifest", { keyId: signature.keyId });
+  }
+  if (existing.length >= MAX_SIGNATURES) {
+    throw new WeiSQLError("INVALID_ARGUMENT", "A Manifest accepts at most eight signatures", { count: existing.length });
+  }
+  const { signature: _single, signatures: _list, ...rest } = manifest;
+  return { ...rest, signatures: [...existing, signature] };
 }
 
 export interface VerifyManifestSignatureOptions {
@@ -121,40 +150,73 @@ export interface VerifyManifestSignatureOptions {
   trustedKeyIds?: readonly string[];
 }
 
+export interface SignatureVerification {
+  keyId: string;
+  valid: boolean;
+  reason?: "unsupported-algorithm" | "key-id-mismatch" | "invalid-key" | "bad-signature";
+}
+
 export interface VerifyManifestSignatureResult {
   valid: boolean;
+  /** First signature's fingerprint; kept for callers that only handle one signature. */
   keyId?: string;
-  reason?: "missing-signature" | "unsupported-algorithm" | "key-id-mismatch" | "untrusted-key" | "invalid-key" | "bad-signature";
+  keyIds: string[];
+  reason?: "missing-signature" | "unsupported-algorithm" | "key-id-mismatch" | "untrusted-key" | "invalid-key" | "bad-signature" | "no-trusted-key";
+  signatures: SignatureVerification[];
 }
 
 export async function verifyManifestSignature(
   manifest: WeiSQLManifest,
   options: VerifyManifestSignatureOptions = {},
 ): Promise<VerifyManifestSignatureResult> {
-  const signature = manifest.signature as ManifestSignature | undefined;
-  if (signature === undefined) return { valid: false, reason: "missing-signature" };
-  if (signature.algorithm !== "ed25519") return { valid: false, reason: "unsupported-algorithm" };
+  const signatures = manifestSignatures(manifest);
+  if (signatures.length === 0) return { valid: false, keyIds: [], signatures: [], reason: "missing-signature" };
 
+  const payload = manifestSigningPayload(manifest);
+  const results: SignatureVerification[] = [];
+  for (const signature of signatures) {
+    results.push(await verifyOne(signature, payload));
+  }
+  const keyIds = signatures.map(signature => signature.keyId);
+  const failed = results.find(item => !item.valid);
+  if (failed !== undefined) {
+    return {
+      valid: false,
+      keyId: keyIds[0]!,
+      keyIds,
+      signatures: results,
+      ...(failed.reason === undefined ? {} : { reason: failed.reason }),
+    };
+  }
+  if (options.trustedKeyIds !== undefined && !keyIds.some(keyId => options.trustedKeyIds!.includes(keyId))) {
+    return { valid: false, keyId: keyIds[0]!, keyIds, signatures: results, reason: "untrusted-key" };
+  }
+  return { valid: true, keyId: keyIds[0]!, keyIds, signatures: results };
+}
+
+async function verifyOne(signature: ManifestSignature, payload: Uint8Array): Promise<SignatureVerification> {
+  if (signature.algorithm !== "ed25519") return { keyId: signature.keyId, valid: false, reason: "unsupported-algorithm" };
   let spki: Uint8Array;
   try {
     spki = base64ToBytes(signature.publicKey);
   } catch {
-    return { valid: false, reason: "invalid-key" };
+    return { keyId: signature.keyId, valid: false, reason: "invalid-key" };
   }
   const actualKeyId = await keyIdOf(spki);
-  if (actualKeyId !== signature.keyId) return { valid: false, keyId: actualKeyId, reason: "key-id-mismatch" };
-  if (options.trustedKeyIds !== undefined && !options.trustedKeyIds.includes(signature.keyId)) {
-    return { valid: false, keyId: signature.keyId, reason: "untrusted-key" };
-  }
+  if (actualKeyId !== signature.keyId) return { keyId: signature.keyId, valid: false, reason: "key-id-mismatch" };
 
   let key: CryptoKey;
   try {
     key = await crypto.subtle.importKey("spki", arrayBufferOf(spki), { name: "Ed25519" }, false, ["verify"]);
   } catch {
-    return { valid: false, keyId: signature.keyId, reason: "invalid-key" };
+    return { keyId: signature.keyId, valid: false, reason: "invalid-key" };
   }
-  const ok = await crypto.subtle.verify({ name: "Ed25519" }, key, arrayBufferOf(base64ToBytes(signature.value)), arrayBufferOf(manifestSigningPayload(manifest)));
-  return ok ? { valid: true, keyId: signature.keyId } : { valid: false, keyId: signature.keyId, reason: "bad-signature" };
+  try {
+    const ok = await crypto.subtle.verify({ name: "Ed25519" }, key, arrayBufferOf(base64ToBytes(signature.value)), arrayBufferOf(payload));
+    return ok ? { keyId: signature.keyId, valid: true } : { keyId: signature.keyId, valid: false, reason: "bad-signature" };
+  } catch {
+    return { keyId: signature.keyId, valid: false, reason: "invalid-key" };
+  }
 }
 
 function pemToDer(pem: string, label: string): Uint8Array {

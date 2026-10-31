@@ -78,6 +78,7 @@ export interface WeiSQLManifest {
   tables: TableDescriptor[]; vectorCollections: VectorCollectionDescriptor[];
   textIndexes?: TextIndexDescriptor[];
   signature?: ManifestSignature;
+  signatures?: readonly ManifestSignature[];
   metadata?: { title?: string; description?: string; createdAt?: string; builderVersion?: string };
 }
 export type SQLValue = string | number | bigint | boolean | null | Uint8Array | Date;

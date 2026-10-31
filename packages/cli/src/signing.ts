@@ -3,7 +3,7 @@ import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { ContainerReader, createContainer, generateSigningKeyPair, signManifest, validateManifest, verifyManifestSignature } from "@weisql/sdk";
+import { ContainerReader, countersignManifest, createContainer, generateSigningKeyPair, signManifest, validateManifest, verifyManifestSignature } from "@weisql/sdk";
 import type { VerifyManifestSignatureResult, WeiSQLManifest } from "@weisql/sdk";
 
 export interface SigningKeyFiles {
@@ -30,12 +30,15 @@ export interface SignPackageOptions {
   privateKeyPath: string;
   /** Optional; derived from the private key with node:crypto when omitted. */
   publicKeyPath?: string;
+  /** Add a co-signature instead of replacing existing ones (key rotation). */
+  add?: boolean;
 }
 
 export interface SignPackageResult {
   target: string;
   kind: "directory" | "container";
   keyId: string;
+  keyIds: readonly string[];
   datasetId: string;
 }
 
@@ -50,9 +53,9 @@ export async function signPackage(options: SignPackageOptions): Promise<SignPack
   if (!isContainer) {
     const manifestPath = path.join(target, "manifest.json");
     const manifest = validateManifest(JSON.parse(await readFile(manifestPath, "utf8")));
-    const signed = await signManifest(manifest, { privateKeyPem, publicKeyPem });
+    const signed = await applySignature(manifest, options.add === true, { privateKeyPem, publicKeyPem });
     await writeFile(manifestPath, `${JSON.stringify(signed, null, 2)}\n`, "utf8");
-    return { target, kind: "directory", keyId: signed.signature!.keyId, datasetId: manifest.datasetId };
+    return { target, kind: "directory", keyId: signed.signature?.keyId ?? manifestKeys(signed)[0]!, keyIds: manifestKeys(signed), datasetId: manifest.datasetId };
   }
 
   const reader = new ContainerReader(new Uint8Array(await readFile(target)));
@@ -60,7 +63,7 @@ export async function signPackage(options: SignPackageOptions): Promise<SignPack
     const manifestEntry = reader.header.files.find(entry => entry.path === "manifest.json");
     if (manifestEntry === undefined) throw new Error("container has no manifest.json");
     const manifest = validateManifest(JSON.parse(new TextDecoder().decode(await reader.read("manifest.json"))));
-    const signed = await signManifest(manifest, { privateKeyPem, publicKeyPem });
+    const signed = await applySignature(manifest, options.add === true, { privateKeyPem, publicKeyPem });
     const files = [];
     for (const entry of reader.header.files) {
       files.push({
@@ -72,7 +75,7 @@ export async function signPackage(options: SignPackageOptions): Promise<SignPack
     }
     const container = await createContainer(files, { compress: reader.header.compression === "gzip" });
     await writeFile(target, container);
-    return { target, kind: "container", keyId: signed.signature!.keyId, datasetId: manifest.datasetId };
+    return { target, kind: "container", keyId: signed.signature?.keyId ?? manifestKeys(signed)[0]!, keyIds: manifestKeys(signed), datasetId: manifest.datasetId };
   } finally {
     await reader.close();
   }
@@ -122,4 +125,17 @@ export async function withTemporaryDirectory<T>(run: (directory: string) => Prom
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+}
+
+async function applySignature(
+  manifest: WeiSQLManifest,
+  add: boolean,
+  keys: { privateKeyPem: string; publicKeyPem: string },
+): Promise<WeiSQLManifest> {
+  return add ? countersignManifest(manifest, keys) : signManifest(manifest, keys);
+}
+
+function manifestKeys(manifest: WeiSQLManifest): string[] {
+  if (manifest.signatures !== undefined && manifest.signatures.length > 0) return manifest.signatures.map(item => item.keyId);
+  return manifest.signature === undefined ? [] : [manifest.signature.keyId];
 }

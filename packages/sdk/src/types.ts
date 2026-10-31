@@ -181,8 +181,8 @@ export interface OpenOptions {
   fetch?: typeof globalThis.fetch; resourceReader?: ResourceReader; sqlAdapter?: SqlAdapter; vectorAdapter?: VectorAdapter; cache?: CacheOptions; signal?: AbortSignal;
   /**
    * Per-resource ceiling for L3 verification, in declared bytes; defaults to
-   * 64 MiB. Raising it lets a package with one large Parquet file pass checks,
-   * but verification buffers that resource in memory to hash it.
+   * 64 MiB. Raising it lets a package with one large Parquet file pass checks;
+   * L3 reads and hashes in 1 MiB chunks, so the resource is not buffered whole.
    */
   maxResourceBytes?: number;
   /** Total declared-bytes ceiling for L3 verification; defaults to 512 MiB. */

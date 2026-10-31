@@ -107,7 +107,53 @@ pub struct Hit {
     /// Stable numeric row identifier in this baseline. Production IDs must map to business IDs.
     pub id: usize,
     /// Distance under the selected metric. Smaller is better.
-    pub distance: f32,
+    ///
+    /// Kept in `f64` on purpose: summing `f32` inputs can exceed `f32::MAX`
+    /// (an inner product of two large vectors, or an L2 distance in high
+    /// dimensions), and saturating would destroy the ordering that callers rely
+    /// on.
+    pub distance: f64,
+}
+
+/// Distance between two vectors under `metric`, accumulated in `f64`.
+///
+/// Returns `None` when the distance is undefined: mismatched lengths, empty
+/// slices, or a cosine distance involving a zero vector. Inputs are assumed
+/// finite; [`validate_dataset`] is the guard for that.
+#[must_use]
+pub fn distance(left: &[f32], right: &[f32], metric: Metric) -> Option<f64> {
+    if left.is_empty() || left.len() != right.len() {
+        return None;
+    }
+    let (cosine, l2) = (metric == Metric::Cosine, metric == Metric::L2);
+    let mut dot = 0.0_f64;
+    let mut left_norm = 0.0_f64;
+    let mut right_norm = 0.0_f64;
+    let mut squared = 0.0_f64;
+    for (&left_value, &right_value) in left.iter().zip(right) {
+        let left_value = f64::from(left_value);
+        let right_value = f64::from(right_value);
+        dot += left_value * right_value;
+        if cosine {
+            left_norm += left_value * left_value;
+            right_norm += right_value * right_value;
+        }
+        if l2 {
+            let difference = left_value - right_value;
+            squared += difference * difference;
+        }
+    }
+    match metric {
+        Metric::Cosine => {
+            if left_norm == 0.0 || right_norm == 0.0 {
+                None
+            } else {
+                Some(1.0_f64 - (dot / (left_norm * right_norm).sqrt()).clamp(-1.0, 1.0))
+            }
+        }
+        Metric::L2 => Some(squared.sqrt()),
+        Metric::Ip => Some(-dot),
+    }
 }
 
 /// Validate a dataset for cosine search and return its common dimension.
@@ -317,10 +363,10 @@ where
                 }
                 let similarity = dot / (norm_squared * query_norm_squared).sqrt();
                 // Clamp floating point drift into the mathematical cosine range.
-                (1.0_f64 - similarity.clamp(-1.0, 1.0)) as f32
+                1.0_f64 - similarity.clamp(-1.0, 1.0)
             }
-            Metric::L2 => squared_distance.sqrt() as f32,
-            Metric::Ip => (-dot) as f32,
+            Metric::L2 => squared_distance.sqrt(),
+            Metric::Ip => -dot,
         };
         offer(&mut best, Ranked { id, distance }, capacity);
     }
@@ -332,7 +378,7 @@ where
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Ranked {
     id: usize,
-    distance: f32,
+    distance: f64,
 }
 
 impl Eq for Ranked {}

@@ -5,7 +5,7 @@ sidebar_position: 11
 hide_title: true
 ---
 
-import { PageHero } from "@site/src/components/docs/DocsUI";
+import { PageHero, ZoomImage } from "@site/src/components/docs/DocsUI";
 
 <PageHero
   kicker="快速开始"
@@ -120,9 +120,11 @@ npm run playground     # http://127.0.0.1:8099/playground/
 
 它会在浏览器里演示向量检索、全文检索、RAG 证据、目录 / `.wsql` 切换和 DuckDB-Wasm SQL，且没有后端。
 
-![WeiSQL Playground：数据包信息、加载方式与查询面板](/img/playground.png)
-
-*Playground 顶部会先列出 Manifest 声明的表、向量、文本索引与当前能力，再提供目录 / 单文件切换。*
+<ZoomImage
+  src="/img/playground.png"
+  alt="WeiSQL Playground：数据包信息、加载方式与查询面板"
+  caption="Playground 顶部会先列出 Manifest 声明的表、向量、文本索引与当前能力，再提供目录 / 单文件切换。点击可放大。"
+/>
 
 ## 4. 加一条 SQL 查询（可选）
 

@@ -215,13 +215,22 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   contracts aligned with TypeScript, and a `rust vector baseline` CI job
   (`fmt`/`clippy`/`test`/release smoke).
 - `crates/vector-wasm`: the baseline compiled to `wasm32-unknown-unknown` behind
-  a flat C ABI (`weisql_alloc` / `weisql_search_topk` / `weisql_dealloc`, ABI v2)
+  a flat C ABI (`weisql_alloc` / `weisql_search_topk` / `weisql_dealloc`, ABI v3)
   with no imports and no wasm-bindgen, about 17 KB stripped. `metric` selects
   cosine, L2 or inner product, matching the TypeScript search contract, and the
   v1 `weisql_cosine_topk` entry point remains as an alias. Two golden fixtures
   (9 cases) now gate TypeScript, native Rust and the WASM artifact, and the core
   gained `exact_search` / `exact_search_contiguous` over a `Metric` enum with a
   zero-copy row-major layout.
+- Distances are returned in `f64` (WASM `out_distances` is `f64`, ABI v3). The
+  new property tests caught that an inner product of large `f32` vectors
+  overflowed `f32::MAX` and surfaced `-inf`, which would both break the
+  "finite distance" contract and diverge from TypeScript's doubles; the scan
+  already accumulated in `f64`, so only the stored/exported type changed.
+- `tests/property_tests.rs`: deterministic property tests across shapes and
+  metrics — brute-force agreement, `top_k` being a prefix of the full ordering,
+  cosine scale invariance, L2/IP scaling laws, finite extreme magnitudes and
+  contiguous-layout equality.
 - `createWasmVectorAdapter()`: a `VectorAdapter` over that artifact. It caches
   one materialised `Float32Array` per collection, compacts `allowedRows` before
   the scan so filtered results stay exact, and maps rows back to business IDs

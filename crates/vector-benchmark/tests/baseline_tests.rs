@@ -1,6 +1,6 @@
 use weisql_vector_benchmark::{
-    exact_cosine_search, exact_cosine_search_contiguous, exact_search, exact_search_contiguous, validate_dataset,
-    Metric, SearchError, MAX_TOP_K,
+    distance, exact_cosine_search, exact_cosine_search_contiguous, exact_search, exact_search_contiguous,
+    validate_dataset, Metric, SearchError, MAX_TOP_K,
 };
 
 #[test]
@@ -158,7 +158,7 @@ fn heap_matches_full_sort_for_random_data() {
             for (hit, (id, distance)) in actual.iter().zip(expected.iter().take(limit)) {
                 assert_eq!(hit.id, *id, "top_k={top_k} trial={trial}");
                 assert!(
-                    (f64::from(hit.distance) - distance).abs() < 1e-6,
+                    (hit.distance - distance).abs() < 1e-6,
                     "top_k={top_k} trial={trial}: {} vs {distance}",
                     hit.distance
                 );
@@ -294,6 +294,18 @@ fn contiguous_l2_matches_the_vec_api() {
     let expected = exact_search(&vectors, &[0.0, 1.0], 3, Metric::L2).unwrap();
     let actual = exact_search_contiguous(&flat, 3, 2, &[0.0, 1.0], 3, Metric::L2).unwrap();
     assert_eq!(actual, expected);
+}
+
+#[test]
+fn distance_helper_handles_all_metrics_and_undefined_inputs() {
+    let left = [1.0_f32, 0.0];
+    let right = [0.0_f32, 1.0];
+    assert!((distance(&left, &right, Metric::Cosine).unwrap() - 1.0).abs() < 1e-9);
+    assert!((distance(&left, &right, Metric::L2).unwrap() - std::f64::consts::SQRT_2).abs() < 1e-6);
+    assert!(distance(&left, &right, Metric::Ip).unwrap().abs() < 1e-9);
+    assert_eq!(distance(&[0.0, 0.0], &left, Metric::Cosine), None);
+    assert_eq!(distance(&[1.0], &[1.0, 2.0], Metric::L2), None);
+    assert_eq!(distance(&[], &[], Metric::L2), None);
 }
 
 /// Independent O(n log n) reference implementation used to cross-check the heap.

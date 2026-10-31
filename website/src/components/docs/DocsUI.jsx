@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "@docusaurus/Link";
 import styles from "./docs-ui.module.css";
 
@@ -123,5 +124,68 @@ export function ExampleLinks({ items = [] }) {
         </Link>
       ))}
     </nav>
+  );
+}
+
+export function ZoomImage({ src, alt, caption }) {
+  const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const previous = document.body.style.overflow;
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previous;
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <figure className={styles.zoomFigure}>
+      <button
+        type="button"
+        className={styles.zoomButton}
+        onClick={() => setOpen(true)}
+        aria-label={`放大图片：${alt}`}
+      >
+        <img src={src} alt={alt} loading="lazy" />
+      </button>
+      {caption ? <figcaption>{caption}</figcaption> : null}
+      {open && mounted
+        ? createPortal(
+            <div
+              className={styles.lightbox}
+              role="dialog"
+              aria-modal="true"
+              aria-label={alt}
+              onClick={() => setOpen(false)}
+            >
+              <img
+                src={src}
+                alt={alt}
+                onClick={(event) => event.stopPropagation()}
+              />
+              <button
+                type="button"
+                className={styles.lightboxClose}
+                onClick={() => setOpen(false)}
+                aria-label="关闭大图"
+              >
+                ×
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
+    </figure>
   );
 }

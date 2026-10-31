@@ -2,9 +2,15 @@
 
 用 Tauri 2 + TypeScript 写的 WeiSQL 数据包桌面客户端：打开一个数据包目录或 `.wsql` 单文件，浏览表结构，执行只读 SQL，做精确向量检索与 BM25 全文检索。查询全部在本机完成，不需要数据库服务。
 
+> **状态：探索性脚手架，不是可交付版本。** 前端构建与浏览器端查询链路已通过 E2E；Tauri 原生层尚未跑通（`cargo test` 仍有宏冲突，见 [设计文档](../../docs/DESKTOP_CLIENT.md) 附录 A）。范围、IPC 契约、验收标准与里程碑以 **设计文档** 为准，本目录代码仅用于验证技术路线。
+
+设计文档：[`docs/DESKTOP_CLIENT.md`](../../docs/DESKTOP_CLIENT.md)
+
 ![WeiSQL Desktop](../../docs/assets/desktop-client.png)
 
-## 能做什么
+## 设计能力（目标）
+
+> 下列能力是设计目标；原型已实现浏览器端三条查询链路，原生打开与打包尚未验证。
 
 - **打开目录**：通过原生文件对话框选择数据包目录，按需读取字节范围；打开时执行 L3 完整性校验（尺寸 + SHA-256）。
 - **打开 `.wsql`**：把单文件容器当作随机访问字节源，只读容器头部和查询涉及的区间，不把整个文件读进内存。
@@ -27,7 +33,7 @@
 ```bash
 # 仓库根目录
 npm install
-npm run desktop:dev        # = cd apps/desktop && cargo tauri dev
+npm run desktop:dev        # = cd apps/desktop && cargo tauri dev（当前受 Rust 编译问题阻塞）
 
 # 只跑前端（浏览器预览，自动打开内置示例，便于调 UI）
 npm run desktop:web
@@ -56,8 +62,8 @@ cargo tauri build --debug --no-bundle
 ## 测试
 
 ```bash
-npm run desktop:test       # 浏览器 E2E：内置示例、SQL、向量检索、全文检索
-npm run test:rust --workspace @weisql/desktop   # Rust 命令单元测试（范围、越界、目录遍历）
+npm run desktop:test       # 浏览器 E2E：内置示例、SQL、向量检索、全文检索（当前通过）
+npm run test:rust --workspace @weisql/desktop   # Rust 单元测试（当前受宏冲突阻塞，见设计文档附录 A）
 ```
 
 E2E 用系统 Chrome/Edge 或 Playwright 缓存中的 Chromium 跑构建产物（`vite preview`），并输出截图到 `docs/assets/desktop-client.png`。

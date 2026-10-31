@@ -20,7 +20,7 @@ const FIXTURES = [
   new URL("../../crates/vector-benchmark/tests/fixtures/metrics_golden.txt", import.meta.url),
 ];
 const TOLERANCE = 1e-6;
-const ABI_VERSION = 2;
+const ABI_VERSION = 3;
 
 const METRIC_CODES = new Map([
   ["cosine", 0],
@@ -102,7 +102,7 @@ function runCase(api, testCase) {
   const vectorBytes = values.length * Float32Array.BYTES_PER_ELEMENT;
   const queryBytes = testCase.dimension * Float32Array.BYTES_PER_ELEMENT;
   const idBytes = testCase.topK * Uint32Array.BYTES_PER_ELEMENT;
-  const distanceBytes = testCase.topK * Float32Array.BYTES_PER_ELEMENT;
+  const distanceBytes = testCase.topK * Float64Array.BYTES_PER_ELEMENT;
 
   const vectorPointer = api.weisql_alloc(vectorBytes);
   const queryPointer = api.weisql_alloc(queryBytes);
@@ -136,7 +136,7 @@ function runCase(api, testCase) {
     // Re-read the buffer: the search may have grown memory.
     const output = api.memory.buffer;
     const ids = new Uint32Array(output, idPointer, count).slice();
-    const distances = new Float32Array(output, distancePointer, count).slice();
+    const distances = new Float64Array(output, distancePointer, count).slice();
 
     if (count !== testCase.hits.length) {
       throw new Error(`case ${testCase.name}: expected ${testCase.hits.length} hits, got ${count}`);

@@ -39,7 +39,8 @@ sidebar_position: 22
 - `LayerStack`：带编号与标签的分层列表；
 - `FlowSteps`：步骤卡片，`columns={2}` 或默认 3 列；
 - `Callout`：提示块，`tone="amber"` 表示警告；
-- `Module`：把一章的正文包成带边框的独立面板，章节标题仍用 `##` 保留在目录中。
+- `Module`：把一章的正文包成带边框的独立面板，章节标题仍用 `##` 保留在目录中；
+- `ZoomImage`：文档截图，点击打开全屏大图，支持 Esc/遮罩关闭。
 
 如果页面只需要一个 Hero、正文仍是普通 Markdown，可以直接用 frontmatter，不必改成 MDX：
 

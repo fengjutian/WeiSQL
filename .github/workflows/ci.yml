@@ -74,16 +74,21 @@ jobs:
         run: |
           cargo fmt --check --manifest-path crates/vector-benchmark/Cargo.toml
           cargo fmt --check --manifest-path crates/vector-wasm/Cargo.toml
+          cargo fmt --check --manifest-path crates/vector-hnsw/Cargo.toml
       - name: Lints
         run: |
           cargo clippy --locked --manifest-path crates/vector-benchmark/Cargo.toml --all-targets -- -D warnings
           cargo clippy --locked --manifest-path crates/vector-wasm/Cargo.toml --all-targets -- -D warnings
+          cargo clippy --locked --manifest-path crates/vector-hnsw/Cargo.toml --all-targets -- -D warnings
       - name: Tests
         run: |
           cargo test --locked --manifest-path crates/vector-benchmark/Cargo.toml
           cargo test --locked --manifest-path crates/vector-wasm/Cargo.toml
+          cargo test --locked --manifest-path crates/vector-hnsw/Cargo.toml
       - name: Benchmark smoke
         run: cargo run --locked --release --manifest-path crates/vector-benchmark/Cargo.toml -- 10000 128 10 2
+      - name: HNSW recall smoke
+        run: cargo run --locked --release --quiet --manifest-path crates/vector-hnsw/Cargo.toml --example recall
 
       # Same golden fixture, third implementation: the artifact that ships to
       # the browser must rank identically to TypeScript and to native Rust.

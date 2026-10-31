@@ -13,7 +13,7 @@ const METRICS_FIXTURE: &str = include_str!("fixtures/metrics_golden.txt");
 
 /// The TypeScript side serializes distances with nine decimals; both sides
 /// accumulate in `f64` and only the Rust result is rounded to `f32`.
-const TOLERANCE: f32 = 1e-6;
+const TOLERANCE: f64 = 1e-6;
 
 #[derive(Debug)]
 struct Case {
@@ -24,7 +24,7 @@ struct Case {
     top_k: usize,
     query: Vec<f32>,
     vectors: Vec<Vec<f32>>,
-    hits: Vec<(usize, f32)>,
+    hits: Vec<(usize, f64)>,
 }
 
 #[test]
@@ -154,7 +154,7 @@ fn parse(text: &str) -> Vec<Case> {
             "hit" => {
                 let case = case_mut(&mut current, line);
                 let index = number::<usize>(fields.next(), "row", line);
-                let distance = number::<f32>(fields.next(), "distance", line);
+                let distance = number::<f64>(fields.next(), "distance", line);
                 case.hits.push((index, distance));
             }
             tag => panic!("line {line}: unknown record {tag:?}"),

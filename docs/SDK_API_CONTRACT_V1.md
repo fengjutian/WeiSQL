@@ -22,8 +22,8 @@ export interface OpenOptions {
 }
 
 `maxResourceBytes` / `maxTotalBytes` 只放宽 L3 校验的预算，不改变校验算法：超限还是
-`RESOURCE_INTEGRITY_FAILED`，只是阈值可调。提高预算意味着更大的单文件会被整块读入内存
-计算 SHA-256；200 万行的 75 MB Parquet 就属于这种情况。
+`RESOURCE_INTEGRITY_FAILED`，只是阈值可调。L3 本来就按 **1 MiB chunk** 读取并增量哈希，
+所以提高预算不会把整个文件复制进内存；200 万行的 75 MB Parquet 就是这样通过的。
 
 export interface WeiSQLDatabase {
   readonly manifest: Readonly<WeiSQLManifest>;

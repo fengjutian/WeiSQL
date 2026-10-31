@@ -6,7 +6,7 @@
 //! alone. Every `unsafe` block lives in this file and exists only to turn the
 //! raw pointers the host passes in into slices.
 //!
-//! ABI version 2:
+//! ABI version 3:
 //!
 //! - `weisql_abi_version() -> u32`
 //! - `weisql_alloc(len) -> *mut u8` (8-byte aligned) / `weisql_dealloc(ptr, len)`
@@ -19,7 +19,7 @@
 //!
 //! Buffer layout: `vectors` is `rows * dimension` row-major `f32` values,
 //! `out_ids` takes up to `top_k` `u32` row ids and `out_distances` up to `top_k`
-//! `f32` distances.
+//! `f64` distances.
 
 #![deny(unsafe_op_in_unsafe_fn)]
 
@@ -30,7 +30,7 @@ use std::slice;
 use weisql_vector_benchmark::{exact_search_contiguous, Metric, SearchError};
 
 /// Bumped whenever the exported signatures or the buffer layout change.
-pub const ABI_VERSION: u32 = 2;
+pub const ABI_VERSION: u32 = 3;
 
 /// Null pointer, zero rows/dimension, an unknown metric, or an unaddressable buffer.
 pub const ERROR_ARGUMENT: i32 = -1;
@@ -90,7 +90,7 @@ pub unsafe extern "C" fn weisql_cosine_topk(
     query: *const f32,
     top_k: usize,
     out_ids: *mut u32,
-    out_distances: *mut f32,
+    out_distances: *mut f64,
 ) -> i32 {
     unsafe {
         run(
@@ -128,7 +128,7 @@ pub unsafe extern "C" fn weisql_search_topk(
     top_k: usize,
     metric: u32,
     out_ids: *mut u32,
-    out_distances: *mut f32,
+    out_distances: *mut f64,
 ) -> i32 {
     let Some(metric) = Metric::from_code(metric) else {
         return ERROR_ARGUMENT;
@@ -156,7 +156,7 @@ unsafe fn run(
     top_k: usize,
     metric: Metric,
     out_ids: *mut u32,
-    out_distances: *mut f32,
+    out_distances: *mut f64,
 ) -> i32 {
     if vectors.is_null() || query.is_null() || out_ids.is_null() || out_distances.is_null() {
         return ERROR_ARGUMENT;
@@ -220,7 +220,7 @@ mod tests {
         let vectors = [1.0_f32, 0.0, 0.0, 1.0];
         let query = [1.0_f32, 0.0];
         let mut ids = [u32::MAX; 2];
-        let mut distances = [f32::NAN; 2];
+        let mut distances = [f64::NAN; 2];
         let count = unsafe {
             weisql_cosine_topk(
                 vectors.as_ptr(),
@@ -243,7 +243,7 @@ mod tests {
         let vectors = [0.0_f32, 0.0, 3.0, 4.0];
         let query = [0.0_f32, 0.0];
         let mut ids = [u32::MAX; 2];
-        let mut distances = [f32::NAN; 2];
+        let mut distances = [f64::NAN; 2];
         let count = unsafe {
             weisql_search_topk(
                 vectors.as_ptr(),
@@ -267,7 +267,7 @@ mod tests {
         let vectors = [1.0_f32, 0.0];
         let query = [1.0_f32, 0.0];
         let mut ids = [0_u32; 1];
-        let mut distances = [0.0_f32; 1];
+        let mut distances = [0.0_f64; 1];
         let count = unsafe {
             weisql_search_topk(
                 vectors.as_ptr(),
@@ -287,7 +287,7 @@ mod tests {
     fn rejects_null_pointers() {
         let query = [1.0_f32, 0.0];
         let mut ids = [0_u32; 1];
-        let mut distances = [0.0_f32; 1];
+        let mut distances = [0.0_f64; 1];
         let count = unsafe {
             weisql_cosine_topk(
                 ptr::null(),
@@ -307,7 +307,7 @@ mod tests {
         let vectors = [1.0_f32, 0.0];
         let query = [1.0_f32, 0.0];
         let mut ids = [0_u32; 1];
-        let mut distances = [0.0_f32; 1];
+        let mut distances = [0.0_f64; 1];
         let count = unsafe {
             weisql_cosine_topk(
                 vectors.as_ptr(),

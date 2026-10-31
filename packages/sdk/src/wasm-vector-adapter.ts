@@ -11,7 +11,7 @@ import type {
 import { VectorBlockReader } from "./vector-block-reader.js";
 
 /** Must match `ABI_VERSION` in `crates/vector-wasm/src/lib.rs`. */
-const ABI_VERSION = 2;
+const ABI_VERSION = 3;
 const DEFAULT_BLOCK_SIZE = 1024;
 const METRIC_CODES: Readonly<Record<VectorMetric, number>> = { cosine: 0, l2: 1, ip: 2 };
 
@@ -226,7 +226,7 @@ function runWasm(api: WasmExports, request: VectorAdapterSearchRequest, plan: Ro
   const vectorBytes = data.byteLength;
   const queryBytes = request.query.byteLength;
   const idBytes = slots * Uint32Array.BYTES_PER_ELEMENT;
-  const distanceBytes = slots * Float32Array.BYTES_PER_ELEMENT;
+  const distanceBytes = slots * Float64Array.BYTES_PER_ELEMENT;
 
   const vectorPointer = api.weisql_alloc(vectorBytes);
   const queryPointer = api.weisql_alloc(queryBytes);
@@ -266,7 +266,7 @@ function runWasm(api: WasmExports, request: VectorAdapterSearchRequest, plan: Ro
     // The scan may have grown memory, so read from a fresh buffer.
     const output = api.memory.buffer;
     const ids = new Uint32Array(output, idPointer, count);
-    const distances = new Float32Array(output, distancePointer, count);
+    const distances = new Float64Array(output, distancePointer, count);
     const hits: RawHit[] = new Array(count);
     for (let index = 0; index < count; index++) {
       const local = ids[index]!;

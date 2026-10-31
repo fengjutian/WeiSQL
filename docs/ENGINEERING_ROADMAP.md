@@ -269,7 +269,7 @@ DuckDB-Wasm 与浏览器 SQL 已验证、WASM 向量搜索仍待推进；CDN 按
 | WASM 向量 Adapter | `createWasmVectorAdapter()` 已实现：整集合缓存 + `allowedRows` 压缩后精确扫描，三度量与零查询错误码均与 TypeScript 精确适配器逐字段对照 |
 | ANN 真实数据集召回 | 未评估；现有 Recall@K 均来自合成数据，不能外推 |
 | 全文检索 | 已实现；Manifest `textIndexes`、倒排索引读取器、BM25 排序与 Unicode 分词，`text.search()` 已接入 Runtime |
-| Rust 向量能力 | 精确 Cosine/L2/IP 搜索基线 + WASM 产物：38 个测试通过（含 9 个跨语言黄金用例与 WASM ABI）；单次扫描 + `f64` 累加 + 定容最大堆，CI 接入 `fmt`/`clippy`/`test`/release 烟测/WASM 黄金对照 |
+| Rust 向量能力 | 精确 Cosine/L2/IP 搜索基线 + WASM 产物：44 个测试通过（含 9 个跨语言黄金用例、6 个属性测试与 WASM ABI）；距离用 `f64` 返回，单次扫描 + 定容最大堆，CI 接入 `fmt`/`clippy`/`test`/release 烟测/WASM 黄金对照 |
 | 浏览器路径 | SDK 与 SQL 均已在真实 Chromium 中验证（Range、L3、精确搜索、缓存、DuckDB-Wasm SQL）；Netlify/CDN 未部署 |
 | 跨环境对照 | Node 与 Chromium 逐字段对照已通过（8 向量 + 5 文本 + 9 SQL + RAG + 容器 + 6 个 Manifest 错误用例） |
 | CI | GitHub Actions 已建立：Ubuntu/Windows 双平台 build→typecheck→test→release:check，另有 fixture 可复现、派生索引、容器、`bench:wasm --smoke`、SQL 契约、Rust 基线作业，以及 Ubuntu 上的 Chromium 探针作业 |

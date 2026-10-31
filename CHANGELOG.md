@@ -30,6 +30,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   Reciprocal Rank Fusion, reporting per-source ranks and raw values.
 - Filters support membership (`IN`), ranges and `ne`, plus `date`/`timestamp`
   values; `json` equality is still rejected explicitly.
+- Manifest signing: Ed25519 over canonical JSON, `signManifest()` /
+  `verifyManifestSignature()` with optional pinned key ids.
 - RAG retrieval: `db.rag.search()` assembling budgeted evidence with provenance;
   the SDK never calls a model.
 - `.wsql` single-file container: `createContainer()`, `parseContainer()`,
@@ -48,6 +50,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   rejects entry paths that could escape the output directory.
 - `weisql validate --l4` verifies Parquet content against the Manifest through an
   optional `@weisql/duckdb-adapter` peer; works for directories and containers.
+- `weisql keygen`, `weisql sign` and `weisql verify-signature` sign directories or
+  `.wsql` containers; `validate --signature [--trusted <keyId>]` gates on them.
 
 ### `@weisql/duckdb-adapter` 0.1.0
 

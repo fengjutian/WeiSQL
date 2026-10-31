@@ -90,6 +90,16 @@ jobs:
           node packages/cli/dist/bin.js unpack "$RUNNER_TEMP/pkg.wsql" --output "$RUNNER_TEMP/unpacked"
           node packages/cli/dist/bin.js validate "$RUNNER_TEMP/unpacked"
 
+      - name: Sign the fixture, verify it and validate with the signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -R examples/fixture "$RUNNER_TEMP/signed"
+          node packages/cli/dist/bin.js keygen --output "$RUNNER_TEMP/key"
+          node packages/cli/dist/bin.js sign "$RUNNER_TEMP/signed" --key "$RUNNER_TEMP/key.key.pem"
+          node packages/cli/dist/bin.js verify-signature "$RUNNER_TEMP/signed"
+          node packages/cli/dist/bin.js validate "$RUNNER_TEMP/signed" --signature
+
       - name: Pack a compressed container, validate and unpack it
         shell: bash
         run: |

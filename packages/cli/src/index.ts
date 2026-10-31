@@ -1,6 +1,8 @@
 export { validateContainer, validatePackage } from "./validate.js";
 export { packPackage } from "./pack.js";
 export { unpackContainer } from "./unpack.js";
+export { generateKeyFiles, signPackage, verifyPackageSignature } from "./signing.js";
 export type { ContainerValidationResult, ValidateContainerOptions, ValidatePackageOptions, ValidationIssue, ValidationResult, ValidationStage } from "./validate.js";
 export type { PackOptions, PackResult } from "./pack.js";
 export type { UnpackOptions, UnpackResult } from "./unpack.js";
+export type { SignPackageOptions, SignPackageResult, SigningKeyFiles, VerifySignatureOptions, VerifySignatureResult } from "./signing.js";

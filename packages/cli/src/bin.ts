@@ -3,6 +3,7 @@ import { stat } from "node:fs/promises";
 import path from "node:path";
 
 import { packPackage } from "./pack.js";
+import { generateKeyFiles, signPackage, verifyPackageSignature } from "./signing.js";
 import { unpackContainer } from "./unpack.js";
 import { validateContainer, validatePackage } from "./validate.js";
 import type { ValidationResult } from "./validate.js";
@@ -14,10 +15,17 @@ Commands:
   validate <directory|file.wsql>   Validate a package or a packed container
   pack <directory>                 Pack a package into a single .wsql container
   unpack <file.wsql>               Extract a container after verifying its digests
+  keygen [--output <prefix>]       Create an Ed25519 signing key pair
+  sign <dir|file.wsql> --key <pem> Sign the Manifest
+  verify-signature <dir|file.wsql> Verify the Manifest signature
 
 Options:
   --mode <none|manifest|all>   Integrity mode for validate (default: all)
   --l4                         Also verify Parquet content (needs @weisql/duckdb-adapter)
+  --signature                  Require a valid Manifest signature
+  --trusted <keyId>            Pin a publisher fingerprint (repeatable)
+  --key <pem>                  Private key for sign
+  --public <pem>               Public key for sign (derived when omitted)
   --compress                   Gzip entries when packing (container format 1.1.0)
   --output <file|directory>    Output path for pack / unpack
   --json                       Print machine-readable JSON
@@ -35,13 +43,17 @@ interface ParsedArguments {
   mode: IntegrityMode;
   output: string | undefined;
   l4: boolean;
+  signature: boolean;
   compress: boolean;
+  keyPath: string | undefined;
+  publicKeyPath: string | undefined;
+  trustedKeyIds: string[];
   json: boolean;
   help: boolean;
 }
 
 function parseArguments(argv: readonly string[]): ParsedArguments | string {
-  const parsed: ParsedArguments = { command: undefined, target: undefined, mode: "all", output: undefined, l4: false, compress: false, json: false, help: false };
+  const parsed: ParsedArguments = { command: undefined, target: undefined, mode: "all", output: undefined, l4: false, signature: false, compress: false, keyPath: undefined, publicKeyPath: undefined, trustedKeyIds: [], json: false, help: false };
   for (let index = 0; index < argv.length; index++) {
     const argument = argv[index]!;
     if (argument === "--help" || argument === "-h") {
@@ -58,6 +70,31 @@ function parseArguments(argv: readonly string[]): ParsedArguments | string {
     }
     if (argument === "--compress") {
       parsed.compress = true;
+      continue;
+    }
+    if (argument === "--signature") {
+      parsed.signature = true;
+      continue;
+    }
+    if (argument === "--trusted" || argument.startsWith("--trusted=")) {
+      const value = argument === "--trusted" ? argv[index + 1] : argument.slice("--trusted=".length);
+      if (value === undefined || value === "") return "--trusted requires a key id";
+      if (argument === "--trusted") index++;
+      parsed.trustedKeyIds.push(value);
+      continue;
+    }
+    if (argument === "--key" || argument.startsWith("--key=")) {
+      const value = argument === "--key" ? argv[index + 1] : argument.slice("--key=".length);
+      if (value === undefined || value === "") return "--key requires a path";
+      if (argument === "--key") index++;
+      parsed.keyPath = value;
+      continue;
+    }
+    if (argument === "--public" || argument.startsWith("--public=")) {
+      const value = argument === "--public" ? argv[index + 1] : argument.slice("--public=".length);
+      if (value === undefined || value === "") return "--public requires a path";
+      if (argument === "--public") index++;
+      parsed.publicKeyPath = value;
       continue;
     }
     if (argument === "--mode") {
@@ -106,6 +143,9 @@ function summarize(result: ValidationResult): string[] {
   if (result.l4 !== undefined) {
     lines.push(`l4:        ${result.l4.ok ? `${result.l4.tables} table(s) matched the Manifest` : "failed"}`);
   }
+  if (result.signature !== undefined) {
+    lines.push(`signature: ${result.signature.valid ? `valid (${result.signature.keyId})` : `invalid (${result.signature.reason ?? "unknown"})`}`);
+  }
   return lines;
 }
 
@@ -125,21 +165,84 @@ async function main(argv: readonly string[]): Promise<number> {
     console.log(USAGE);
     return parsed.help ? 0 : 2;
   }
-  if (parsed.command !== "validate" && parsed.command !== "pack" && parsed.command !== "unpack") {
+  if (!["validate", "pack", "unpack", "keygen", "sign", "verify-signature"].includes(parsed.command)) {
     console.error(`error: unknown command '${parsed.command}'`);
     console.error(USAGE);
     return 2;
   }
+  if (parsed.command === "keygen") {
+    try {
+      const generated = await generateKeyFiles(parsed.output ?? "weisql-signing-key");
+      if (parsed.json) console.log(JSON.stringify(generated, null, 2));
+      else {
+        console.log(`key id:    ${generated.keyId}`);
+        console.log(`private:   ${generated.privateKeyPath} (mode 0600)`);
+        console.log(`public:    ${generated.publicKeyPath}`);
+        console.log("OK");
+      }
+      return 0;
+    } catch (cause) {
+      console.error(`error: ${cause instanceof Error ? cause.message : String(cause)}`);
+      return 1;
+    }
+  }
+
   if (parsed.target === undefined) {
     console.error(`error: ${parsed.command} requires a path`);
     console.error(USAGE);
     return 2;
   }
+  const target = parsed.target;
+
+  if (parsed.command === "verify-signature") {
+    try {
+      const verified = await verifyPackageSignature({
+        target,
+        ...(parsed.trustedKeyIds.length === 0 ? {} : { trustedKeyIds: parsed.trustedKeyIds }),
+      });
+      if (parsed.json) console.log(JSON.stringify(verified, null, 2));
+      else {
+        console.log(`target:    ${verified.target} (${verified.kind})`);
+        console.log(`dataset:   ${verified.datasetId}`);
+        console.log(`key id:    ${verified.keyId ?? "-"}`);
+        console.log(verified.valid ? "OK" : `FAILED (${verified.reason})`);
+      }
+      return verified.valid ? 0 : 1;
+    } catch (cause) {
+      console.error(`error: ${cause instanceof Error ? cause.message : String(cause)}`);
+      return 1;
+    }
+  }
+
+  if (parsed.command === "sign") {
+    if (parsed.keyPath === undefined) {
+      console.error("error: sign requires --key <private.pem>");
+      return 2;
+    }
+    try {
+      const signed = await signPackage({
+        target,
+        privateKeyPath: parsed.keyPath,
+        ...(parsed.publicKeyPath === undefined ? {} : { publicKeyPath: parsed.publicKeyPath }),
+      });
+      if (parsed.json) console.log(JSON.stringify(signed, null, 2));
+      else {
+        console.log(`target:    ${signed.target} (${signed.kind})`);
+        console.log(`dataset:   ${signed.datasetId}`);
+        console.log(`key id:    ${signed.keyId}`);
+        console.log("OK");
+      }
+      return 0;
+    } catch (cause) {
+      console.error(`error: ${cause instanceof Error ? cause.message : String(cause)}`);
+      return 1;
+    }
+  }
 
   if (parsed.command === "unpack") {
-    const target = parsed.output ?? path.basename(parsed.target, path.extname(parsed.target));
+    const outputDirectory = parsed.output ?? path.basename(target, path.extname(target));
     try {
-      const unpacked = await unpackContainer({ file: parsed.target, directory: path.resolve(target) });
+      const unpacked = await unpackContainer({ file: target, directory: path.resolve(outputDirectory) });
       if (parsed.json) console.log(JSON.stringify(unpacked, null, 2));
       else {
         console.log(`container: ${unpacked.file}`);
@@ -162,7 +265,7 @@ async function main(argv: readonly string[]): Promise<number> {
     }
     try {
       const packed = await packPackage({
-        directory: parsed.target,
+        directory: target,
         compress: parsed.compress,
         ...(parsed.output === undefined ? {} : { output: parsed.output }),
       });
@@ -181,11 +284,11 @@ async function main(argv: readonly string[]): Promise<number> {
     }
   }
 
-  const info = await stat(parsed.target).catch(() => undefined);
+  const info = await stat(target).catch(() => undefined);
   const isContainer = info?.isFile() === true;
   const result: ValidationResult & { container?: { files: number; mismatches: number } } = isContainer
-    ? await validateContainer({ file: parsed.target, mode: parsed.mode, l4: parsed.l4 })
-    : await validatePackage({ directory: parsed.target, mode: parsed.mode, l4: parsed.l4 });
+    ? await validateContainer({ file: target, mode: parsed.mode, l4: parsed.l4, signature: parsed.signature, ...(parsed.trustedKeyIds.length === 0 ? {} : { trustedKeyIds: parsed.trustedKeyIds }) })
+    : await validatePackage({ directory: target, mode: parsed.mode, l4: parsed.l4, signature: parsed.signature, ...(parsed.trustedKeyIds.length === 0 ? {} : { trustedKeyIds: parsed.trustedKeyIds }) });
 
   if (parsed.json) {
     console.log(JSON.stringify({
@@ -196,6 +299,7 @@ async function main(argv: readonly string[]): Promise<number> {
       datasetId: result.manifest?.datasetId ?? null,
       container: result.container ?? null,
       l4: result.l4 ?? null,
+      signature: result.signature ?? null,
       integrity: result.integrity ?? null,
       issues: result.issues,
     }, null, 2));

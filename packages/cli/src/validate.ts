@@ -1,10 +1,10 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { ContainerReader, NodeFileResourceReader, open, validateManifest, verifyManifestResources } from "@weisql/sdk";
-import type { IntegrityMode, IntegrityReport, ResourceReader, WeiSQLError, WeiSQLManifest } from "@weisql/sdk";
+import { ContainerReader, NodeFileResourceReader, open, validateManifest, verifyManifestResources, verifyManifestSignature } from "@weisql/sdk";
+import type { IntegrityMode, IntegrityReport, ResourceReader, WeiSQLError, WeiSQLManifest, VerifyManifestSignatureResult } from "@weisql/sdk";
 
-export type ValidationStage = "manifest" | "resources" | "l4";
+export type ValidationStage = "manifest" | "resources" | "l4" | "signature";
 
 export interface ValidationIssue {
   stage: ValidationStage;
@@ -24,6 +24,10 @@ export interface ValidatePackageOptions {
   mode?: IntegrityMode;
   /** Also verify Parquet content against the Manifest (requires `@weisql/duckdb-adapter`). */
   l4?: boolean;
+  /** Require a valid Ed25519 Manifest signature. */
+  signature?: boolean;
+  /** Pin expected publisher fingerprints; only meaningful with `signature`. */
+  trustedKeyIds?: readonly string[];
   signal?: AbortSignal;
 }
 
@@ -34,6 +38,7 @@ export interface ValidationResult {
   manifest?: WeiSQLManifest;
   integrity?: IntegrityReport;
   l4?: L4Report;
+  signature?: VerifyManifestSignatureResult;
   issues: ValidationIssue[];
 }
 
@@ -98,6 +103,10 @@ export async function validatePackage(options: ValidatePackageOptions): Promise<
     }
   }
 
+  if (options.signature) {
+    await checkSignature(manifest, options, result, issues);
+  }
+
   result.ok = issues.length === 0;
   return result;
 }
@@ -129,6 +138,29 @@ async function runL4(manifest: WeiSQLManifest, reader: ResourceReader, signal: A
   return { ok: true, tables: manifest.tables.length };
 }
 
+async function checkSignature(
+  manifest: WeiSQLManifest,
+  options: { trustedKeyIds?: readonly string[] },
+  result: ValidationResult,
+  issues: ValidationIssue[],
+): Promise<void> {
+  try {
+    result.signature = await verifyManifestSignature(manifest, {
+      ...(options.trustedKeyIds === undefined ? {} : { trustedKeyIds: options.trustedKeyIds }),
+    });
+    if (!result.signature.valid) {
+      issues.push({
+        stage: "signature",
+        code: "SIGNATURE_INVALID",
+        message: `Manifest signature is not valid (${result.signature.reason ?? "unknown"})`,
+        ...(result.signature.keyId === undefined ? {} : { details: { keyId: result.signature.keyId } }),
+      });
+    }
+  } catch (cause) {
+    issues.push(toIssue("signature", cause));
+  }
+}
+
 function toIssue(stage: ValidationStage, cause: unknown): ValidationIssue {
   const error = cause as Partial<WeiSQLError> & { message?: string };
   const code = typeof error.code === "string" ? error.code : "INTERNAL_ERROR";
@@ -152,6 +184,10 @@ export interface ValidateContainerOptions {
   mode?: IntegrityMode;
   /** Also verify Parquet content against the Manifest (requires `@weisql/duckdb-adapter`). */
   l4?: boolean;
+  /** Require a valid Ed25519 Manifest signature. */
+  signature?: boolean;
+  /** Pin expected publisher fingerprints; only meaningful with `signature`. */
+  trustedKeyIds?: readonly string[];
   signal?: AbortSignal;
 }
 
@@ -232,6 +268,10 @@ export async function validateContainer(options: ValidateContainerOptions): Prom
         result.l4 = { ok: false, tables: 0 };
         issues.push(toIssue("l4", cause));
       }
+    }
+
+    if (options.signature) {
+      await checkSignature(manifest, options, result, issues);
     }
   } finally {
     await reader.close().catch(() => undefined);

@@ -139,6 +139,22 @@ interface TextIndexDescriptor {
 - 三个文件都参与 L3 校验，路径与其他资源一样必须全局唯一；
 - 格式与评分语义见 `FULL_TEXT_SEARCH.md`。
 
+## 4.2 Manifest 签名（可选）
+
+```ts
+interface ManifestSignature {
+  algorithm: "ed25519";
+  keyId: string;      // "sha256:<hex>"，公钥 SPKI 的指纹
+  publicKey: string;  // base64 SPKI
+  value: string;      // base64 Ed25519 签名（64 字节）
+}
+```
+
+- 签名覆盖「去掉 `signature` 字段后的规范化 Manifest」，前缀为域分隔符 `weisql-manifest-v1\n`；规范化规则是键排序、无空白的 JSON；
+- `keyId` 必须等于 `publicKey` 的 SHA-256 指纹，解析器会检查形状，密码学校验由 `verifyManifestSignature` 异步完成；
+- 签名不是 L1–L3 的一部分：它证明「发布后未被篡改」，发布者身份需要调用方固定 `keyId`（SDK 不内置信任库）；
+- 资源文件通过 Manifest 中的 SHA-256 被间接覆盖：改了任何一个资源，签名即失效。
+
 ## 5. ID Map 与偏移索引
 
 ```ts

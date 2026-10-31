@@ -48,10 +48,25 @@ export interface TextIndexDescriptor {  name: string;
   k1?: number;
   b?: number;
 }
+/**
+ * Detached Ed25519 signature over the canonical Manifest (excluding `signature`
+ * itself). `keyId` is the SHA-256 fingerprint of `publicKey`, which lets callers
+ * pin an expected publisher without shipping a trust store in the SDK.
+ */
+export interface ManifestSignature {
+  algorithm: "ed25519";
+  /** `sha256:<hex>` fingerprint of the SPKI public key. */
+  keyId: string;
+  /** Base64 SPKI public key. */
+  publicKey: string;
+  /** Base64 Ed25519 signature, 64 bytes. */
+  value: string;
+}
 export interface WeiSQLManifest {
   format: "weisql"; formatVersion: "1.0.0"; datasetId: string;
   tables: TableDescriptor[]; vectorCollections: VectorCollectionDescriptor[];
   textIndexes?: TextIndexDescriptor[];
+  signature?: ManifestSignature;
   metadata?: { title?: string; description?: string; createdAt?: string; builderVersion?: string };
 }
 export type SQLValue = string | number | bigint | boolean | null | Uint8Array | Date;

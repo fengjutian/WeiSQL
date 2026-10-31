@@ -13,7 +13,7 @@ const metrics = new Set(["cosine", "l2", "ip"]);
 export function validateManifest(input: unknown): WeiSQLManifest {
   const issues: Issue[] = [];
   if (!record(input)) fail([{ path: "$", message: "manifest must be an object" }]);
-  allowed(input, ["format", "formatVersion", "datasetId", "tables", "vectorCollections", "textIndexes", "metadata"], "$", issues);
+  allowed(input, ["format", "formatVersion", "datasetId", "tables", "vectorCollections", "textIndexes", "signature", "metadata"], "$", issues);
   if (input.format !== "weisql") issue(issues, "$.format", "must equal 'weisql'");
   if (input.formatVersion !== "1.0.0") {
     if (typeof input.formatVersion === "string") throw new WeiSQLError("FORMAT_VERSION_UNSUPPORTED", `Unsupported manifest format version '${input.formatVersion}'`, { supported: "1.0.0" });
@@ -41,6 +41,7 @@ export function validateManifest(input: unknown): WeiSQLManifest {
       input.textIndexes.forEach((value, index) => { const parsed = textIndex(value, `$.textIndexes[${index}]`, issues); if (parsed) texts.push(parsed); });
     }
   }
+  signatureValue(input.signature, "$.signature", issues);
   metadata(input.metadata, issues);
 
   unique(tables.map(item => item.name), "$.tables", "table name", issues);
@@ -110,6 +111,28 @@ export function validateManifest(input: unknown): WeiSQLManifest {
   });
   if (issues.length) fail(issues);
   return input as unknown as WeiSQLManifest;
+}
+
+/**
+ * Structural checks only. The signature itself is verified asynchronously with
+ * WebCrypto by `verifyManifestSignature`, because `validateManifest` is sync and
+ * must stay usable on code paths that never touch keys.
+ */
+function signatureValue(value: unknown, path: string, issues: Issue[]): void {
+  if (value === undefined) return;
+  if (!record(value)) { issue(issues, path, "must be an object"); return; }
+  allowed(value, ["algorithm", "keyId", "publicKey", "value"], path, issues);
+  if (value.algorithm !== "ed25519") issue(issues, `${path}.algorithm`, "must equal 'ed25519'");
+  if (typeof value.keyId !== "string" || !/^sha256:[a-f0-9]{64}$/.test(value.keyId)) issue(issues, `${path}.keyId`, "must be a sha256:<hex> fingerprint");
+  if (typeof value.publicKey !== "string" || !/^[A-Za-z0-9+/]+={0,2}$/.test(value.publicKey)) issue(issues, `${path}.publicKey`, "must be a base64 string");
+  else if (base64Length(value.publicKey) !== 44) issue(issues, `${path}.publicKey`, "must be a 44-byte Ed25519 SPKI key");
+  if (typeof value.value !== "string" || !/^[A-Za-z0-9+/]+={0,2}$/.test(value.value)) issue(issues, `${path}.value`, "must be a base64 string");
+  else if (base64Length(value.value) !== 64) issue(issues, `${path}.value`, "must be a 64-byte Ed25519 signature");
+}
+
+function base64Length(value: string): number {
+  const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
+  return (value.length / 4) * 3 - padding;
 }
 
 function table(value: unknown, path: string, issues: Issue[]): TableDescriptor | undefined {

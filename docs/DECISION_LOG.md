@@ -476,6 +476,17 @@
 - 决策五：所有值仍然参数绑定，字段仍来自 Manifest 白名单。新增能力没有放宽注入边界。
 - 后果：`compileFilter` 取代 `compileEqualityFilter`（旧名保留为别名）；SDK 单测覆盖编译与拒绝路径，DuckDB 适配器测试用真实 SQL 验证成员/不等/范围。`json` 与嵌套/全文条件仍属未支持项。
 
+## ADR-054：签名覆盖规范化 Manifest，身份靠固定 keyId
+
+- 状态：Accepted and implemented
+- 背景：L3 的 SHA-256 只证明「内容与声明一致」，任何人重新生成一份 Manifest + 资源都能自洽。静态数据包缺的是**发布者身份**与**发布后未被替换**的证据。
+- 决策一：Ed25519 + WebCrypto，而不是引入 Node `crypto`：浏览器与 Node 都能验签，SDK 保持零依赖。签名覆盖「去掉 `signature` 后的规范化 JSON」，并加域分隔符 `weisql-manifest-v1\n`，避免签名被挪作他用。
+- 决策二：`keyId` 是公钥 SPKI 的 SHA-256 指纹，公钥随签名一起携带。SDK **不内置信任库**：自签名只能证明完整性，身份必须由调用方通过 `trustedKeyIds` 固定——内置一份默认信任列表等于替用户做安全决策。
+- 决策三：签名放在 Manifest 顶层 `signature`，结构性校验留在同步的 `validateManifest`，密码学校验走异步 `verifyManifestSignature`。这样 `validate` 能在不加载密钥的情况下仍做 L1–L3。
+- 决策四：资源通过 Manifest 中的 SHA-256 被间接覆盖；篡改任何资源或任何 Manifest 字段都会让签名失效（已有测试覆盖）。
+- 决策五：`signManifest` 需要同时提供私钥与公钥——WebCrypto 不能从私钥导出公钥；CLI 用 node:crypto 在只给私钥时派生公钥，SDK 不做这个假设。
+- 后果：`keygen`（私钥 0600）、`sign`（目录与 `.wsql`）、`verify-signature`、`validate --signature --trusted` 全部落地。密钥轮换、多签名与信任链不在本次范围。
+
 ## 明确禁止的未经验证声明
 
 - 不宣称 100 万向量一定在毫秒级完成查询。

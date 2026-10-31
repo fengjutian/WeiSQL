@@ -21,14 +21,16 @@ npm run serve      # 预览 build/ 产物
 
 ```text
 website/
-├── content/                 # 产品文档（Markdown）
-├── src/css/custom.css       # 品牌色与排版
+├── content/                 # 产品文档（Markdown，路由前缀 /docs）
+├── src/pages/index.js       # 首页（/），独立 React 落地页
+├── src/css/custom.css       # 品牌色、表格、导航与侧边栏
 ├── static/img/              # logo / favicon
 ├── docusaurus.config.js     # 站点、导航、搜索插件
 ├── sidebars.js              # 手工侧边栏
-├── netlify.toml             # 若将 base 设为 website，可独立部署
 └── CONTENT-GUIDE.md         # 写作规范
 ```
+
+仓库根目录的 `netlify.toml` 声明了 `base = "website"`。
 
 仓库根目录另有 `netlify.toml`，其中 `base = "website"`，用于从仓库根触发 Netlify 构建。
 
@@ -57,5 +59,5 @@ website/
 - 只写“怎么用”，规范与 ADR 留在仓库根 `docs/`；
 - frontmatter 必须有 `title`、`description`、`sidebar_position`；
 - 正文不要重复一级标题；
-- 站内链接用根路径（如 `/sdk/sql`）；
+- 站内链接用 `/docs` 前缀（如 `/docs/sdk/sql`）；
 - 未验证的能力必须明确标注。

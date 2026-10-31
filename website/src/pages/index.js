@@ -64,7 +64,53 @@ const steps = [
   },
 ];
 
-const heroCode = `import { open, HttpResourceReader } from "@weisql/sdk";
+const apis = [
+  {
+    signature: "open(options)",
+    label: "创建只读 Runtime",
+    to: "/docs/api/runtime",
+  },
+  {
+    signature: "db.vector.search(name, vector, options?)",
+    label: "精确 / 过滤向量检索",
+    to: "/docs/api/search",
+  },
+  {
+    signature: "db.text.search(name, query, options?)",
+    label: "BM25 全文检索",
+    to: "/docs/api/search",
+  },
+  {
+    signature: "db.hybrid.search(options)",
+    label: "RRF 融合两路结果",
+    to: "/docs/api/search",
+  },
+  {
+    signature: "db.rag.search(options)",
+    label: "按字符预算组装证据",
+    to: "/docs/api/search",
+  },
+  {
+    signature: "db.sql(query, params?, options?)",
+    label: "只读 SQL",
+    to: "/docs/api/sql",
+  },
+  {
+    signature: "db.sqlStream(query, params?, options?)",
+    label: "流式读取 SQL 结果",
+    to: "/docs/api/sql",
+  },
+  {
+    signature: "db.close()",
+    label: "幂等释放资源",
+    to: "/docs/api/runtime",
+  },
+];
+
+const heroCode = `import {
+  open,
+  HttpResourceReader,
+} from "@weisql/sdk";
 
 const db = await open({
   manifestUrl: "/datasets/demo/manifest.json",
@@ -77,7 +123,10 @@ const db = await open({
 const hits = await db.vector.search(
   "document_embeddings",
   queryVector,
-  { topK: 10, filter: { category: "genetics" } },
+  {
+    topK: 10,
+    filter: { category: "genetics" },
+  },
 );`;
 
 function HeroCode() {
@@ -115,7 +164,7 @@ export default function Home() {
                 WeiSQL AI · 只读数据运行时
               </span>
               <h1 className={styles.title}>
-                把数据包发布到 CDN，
+                把数据包放上 CDN
                 <br />
                 <span className={styles.gradient}>像数据库一样查询</span>
               </h1>
@@ -130,6 +179,9 @@ export default function Home() {
                 </Link>
                 <Link className={styles.ghost} to="/docs/start/architecture">
                   看架构
+                </Link>
+                <Link className={styles.textLink} to="/docs/start/tutorial">
+                  端到端教程
                 </Link>
                 <a
                   className={styles.textLink}
@@ -190,6 +242,31 @@ export default function Home() {
           </div>
         </section>
 
+        <section className={styles.apiSection}>
+          <div className={styles.apiPanel}>
+            <div className={styles.apiHead}>
+              <div>
+                <span className={styles.kicker}>API</span>
+                <h2>公开 API，一眼能查</h2>
+                <p>
+                  从 <code>open()</code> 到向量、全文、RAG 与 SQL，每个签名都有独立的参考页。
+                </p>
+              </div>
+              <Link className={styles.ghost} to="/docs/api">
+                完整 API 参考
+              </Link>
+            </div>
+            <div className={styles.apiGrid}>
+              {apis.map((api) => (
+                <Link className={styles.apiRow} to={api.to} key={api.signature}>
+                  <code>{api.signature}</code>
+                  <span>{api.label}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section className={styles.stepsSection}>
           <div className={styles.sectionHead}>
             <span className={styles.kicker}>工作方式</span>
@@ -216,7 +293,9 @@ export default function Home() {
           <div className={styles.boundaryInner}>
             <div>
               <span className={styles.kicker}>边界</span>
-              <h2>只读、无服务端、默认公开</h2>
+              <h2>
+                只读、<span className={styles.nowrap}>无服务端</span>、默认公开
+              </h2>
               <p>
                 精确检索、全文、RRF、RAG、容器与签名已经可用；ANN
                 召回、真实 CDN 性能与浏览器大表仍是未验证项，不要写进对外承诺。

@@ -116,6 +116,24 @@
         }
         const cancelMs = Math.round(performance.now() - abortStart);
 
+        // Streaming cancellation races each batch against the signal, so the
+        // caller is released even while the worker is still busy. Wait for the
+        // previously cancelled query to finish first, otherwise this measures
+        // that leftover work rather than the abort path.
+        await db.sql("select 1");
+        const streamController = new AbortController();
+        const streamAbortStart = performance.now();
+        let streamCancelError;
+        setTimeout(() => streamController.abort(), 50);
+        try {
+          for await (const row of await db.sqlStream(slow, [], { signal: streamController.signal })) {
+            void row;
+          }
+        } catch (error) {
+          streamCancelError = error;
+        }
+        const streamCancelMs = Math.round(performance.now() - streamAbortStart);
+
         const result = {
           ok:
             capabilities.sql === true &&
@@ -137,7 +155,10 @@
             streamLimitError === "INVALID_ARGUMENT" &&
             cancelError?.code === "QUERY_CANCELLED" &&
             cancelError?.details?.engineMayStillRun === true &&
-            cancelMs < baselineMs,
+            cancelMs < baselineMs &&
+            streamCancelError?.code === "QUERY_CANCELLED" &&
+            streamCancelError?.details?.engineMayStillRun === true &&
+            streamCancelMs < baselineMs,
           openMs,
           capabilities,
           rows,
@@ -149,6 +170,7 @@
           writeError,
           writeCteError,
           cancellation: { baselineMs, cancelMs, code: cancelError?.code, details: cancelError?.details },
+          streamCancellation: { cancelMs: streamCancelMs, code: streamCancelError?.code, details: streamCancelError?.details },
         };
         log(JSON.stringify(result));
         window.__PROBE_RESULT = result;

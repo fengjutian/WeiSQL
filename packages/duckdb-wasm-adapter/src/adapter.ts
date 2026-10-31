@@ -292,13 +292,6 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
       });
     }
     const values = toWasmParameters(parameters);
-    let reader;
-    try {
-      reader = await prepared.send(...values);
-    } catch (cause) {
-      await Promise.resolve(prepared.close?.()).catch(() => undefined);
-      throw mapEngineError(cause, "execute");
-    }
     let cancelled = false;
     let detach = (): void => {};
     if (signal !== undefined) {
@@ -309,17 +302,45 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
       detach = () => signal.removeEventListener("abort", onAbort);
       signal.addEventListener("abort", onAbort, { once: true });
     }
+    const cancelError = (): WeiSQLError =>
+      new WeiSQLError("QUERY_CANCELLED", "DuckDB-Wasm query was cancelled; the engine may still be running", {
+        engine: "duckdb-wasm",
+        engineMayStillRun: true,
+      });
+    let abortReject: (() => void) | undefined;
+    const aborted = new Promise<never>((_resolve, reject) => {
+      abortReject = () => reject(cancelError());
+    });
+    const rejectOnAbort = abortReject as () => void;
+    void aborted.catch(() => undefined);
+    if (signal !== undefined) {
+      if (signal.aborted) rejectOnAbort();
+      else signal.addEventListener("abort", rejectOnAbort, { once: true });
+    }
+    // The single-threaded worker may be busy for a long time, so both `send()`
+    // and every `next()` are raced against the abort signal: waiting for
+    // cancellation to be noticed only at batch boundaries would not match the
+    // "stop waiting immediately" contract.
+    let reader;
+    try {
+      const started = prepared.send(...values);
+      reader = await (signal === undefined ? started : Promise.race([started, aborted]));
+    } catch (cause) {
+      if (cancelled) {
+        void Promise.resolve(prepared.close?.()).catch(() => undefined);
+        throw cancelError();
+      }
+      await Promise.resolve(prepared.close?.()).catch(() => undefined);
+      throw mapEngineError(cause, "execute");
+    }
+    const iterator = reader[Symbol.asyncIterator]();
     return (async function* (): AsyncGenerator<T> {
       let count = 0;
       try {
-        for await (const batch of reader) {
-          if (signal?.aborted) {
-            throw new WeiSQLError("QUERY_CANCELLED", "DuckDB-Wasm query was cancelled; the engine may still be running", {
-              engine: "duckdb-wasm",
-              engineMayStillRun: true,
-            });
-          }
-          for (const row of normalizeRows(batch.toArray())) {
+        for (;;) {
+          const step = await (signal === undefined ? iterator.next() : Promise.race([iterator.next(), aborted]));
+          if (step.done === true) break;
+          for (const row of normalizeRows(step.value.toArray())) {
             count += 1;
             if (maxRows !== undefined && count > maxRows) {
               throw new WeiSQLError("INVALID_ARGUMENT", "Query returned more rows than maxRows", {
@@ -331,7 +352,11 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
           }
         }
       } finally {
+        if (signal !== undefined) signal.removeEventListener("abort", rejectOnAbort);
         detach();
+        // Do not await an abandoned read: the worker is still busy with the
+        // cancelled query, so waiting here would defeat the early return.
+        void Promise.resolve(iterator.return?.()).catch(() => undefined);
         if (cancelled) void Promise.resolve(prepared.close?.()).catch(() => undefined);
         else await Promise.resolve(prepared.close?.()).catch(() => undefined);
       }

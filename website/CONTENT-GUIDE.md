@@ -57,7 +57,7 @@ sidebar_position: 22
 
 ## 链接
 
-- 站内链接用根路径：`/sdk/vector-search`、`/reference/manifest`。
+- 站内链接用 `/docs` 前缀的根路径：`/docs/sdk/vector-search`、`/docs/reference/manifest`。
 - 规范外链用 `https://github.com/fengjutian/WeiSQL/blob/main/docs/<file>.md`。
 - 不链接尚不存在的页面。
 

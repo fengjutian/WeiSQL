@@ -80,7 +80,7 @@ Docusaurus 内置版本化与 `zh-Hans` i18n。当前只有一条文档主线，
 | --- | --- |
 | 站点根目录 | `website/` |
 | 内容目录 | `website/content/` |
-| 路由 | 文档挂在根路径（`/start/what-is-weisql` 这类） |
+| 路由 | 首页在 `/`，文档挂在 `/docs`（如 `/docs/start/what-is-weisql`） |
 | 搜索 | 构建期生成本地索引，无外部服务 |
 | Netlify `base` | `website` |
 | Netlify `publish` | `build` |

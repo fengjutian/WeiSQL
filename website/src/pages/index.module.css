@@ -64,10 +64,11 @@
 
 .title {
   margin: 22px 0 20px;
-  font-size: clamp(2.5rem, 5vw, 4.15rem);
-  line-height: 1.08;
+  font-size: clamp(2.4rem, 4.6vw, 3.8rem);
+  line-height: 1.1;
   letter-spacing: -0.035em;
   font-weight: 760;
+  text-wrap: balance;
 }
 
 .gradient {
@@ -75,6 +76,10 @@
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+
+.nowrap {
+  white-space: nowrap;
 }
 
 .lead {
@@ -237,7 +242,7 @@
   margin: 0;
   padding: 18px 20px;
   background: transparent !important;
-  font-size: 0.8rem;
+  font-size: 0.76rem;
   line-height: 1.7;
   overflow-x: auto;
 }
@@ -262,7 +267,7 @@
 
 .floatingCard {
   position: absolute;
-  left: -28px;
+  right: -22px;
   bottom: -26px;
   z-index: 2;
   display: grid;
@@ -334,6 +339,7 @@
   font-size: clamp(1.7rem, 2.8vw, 2.35rem);
   letter-spacing: -0.025em;
   line-height: 1.2;
+  text-wrap: balance;
 }
 
 .sectionHead p,
@@ -407,8 +413,83 @@
   color: #2dd4bf;
 }
 
+.apiSection {
+  width: min(1200px, calc(100% - 48px));
+  margin: 24px auto 0;
+}
+
+.apiPanel {
+  padding: 32px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--card);
+}
+
+.apiHead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 28px;
+  margin-bottom: 22px;
+}
+
+.apiHead h2 {
+  margin: 0 0 8px;
+  font-size: clamp(1.5rem, 2.4vw, 2rem);
+  letter-spacing: -0.025em;
+}
+
+.apiHead p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.apiGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.apiRow {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(15, 118, 110, 0.03);
+  color: var(--ink);
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.apiRow:hover {
+  border-color: rgba(20, 184, 166, 0.5);
+  background: rgba(15, 118, 110, 0.06);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.apiRow code {
+  overflow: hidden;
+  color: var(--ifm-color-primary-dark);
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:global([data-theme="dark"]) .apiRow code {
+  color: #2dd4bf;
+}
+
+.apiRow span {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
 .stepsSection {
-  margin-top: 76px;
+  margin-top: 36px;
   padding: 56px 40px 48px;
   border-radius: 24px;
   background:
@@ -571,10 +652,14 @@
     right: 12px;
     bottom: -18px;
   }
-
   .grid,
   .steps {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .apiHead {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .stepsSection {
@@ -593,7 +678,12 @@
 
 @media (max-width: 640px) {
   .title {
-    font-size: 2.2rem;
+    font-size: 2.05rem;
+  }
+
+  .codeBlock :global(pre) {
+    padding: 14px 16px;
+    font-size: 0.62rem;
   }
 
   .cta h2 {
@@ -603,6 +693,14 @@
   .grid,
   .steps {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .apiGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .apiPanel {
+    padding: 22px;
   }
 
   .stats {
@@ -616,7 +714,8 @@
   .section,
   .stepsSection,
   .boundary,
-  .cta {
+  .cta,
+  .apiSection {
     width: calc(100% - 32px);
   }
 

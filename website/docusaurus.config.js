@@ -95,6 +95,11 @@ const config = {
             label: "文档",
           },
           {
+            to: "/docs/api",
+            label: "API",
+            position: "left",
+          },
+          {
             to: "/docs/start/quickstart",
             label: "快速开始",
             position: "left",
@@ -127,8 +132,8 @@ const config = {
             items: [
               { label: "文档首页", to: "/docs" },
               { label: "快速开始", to: "/docs/start/quickstart" },
-              { label: "核心概念", to: "/docs/start/concepts" },
-              { label: "SDK 使用", to: "/docs/sdk/open-and-lifecycle" },
+              { label: "端到端教程", to: "/docs/start/tutorial" },
+              { label: "API 参考", to: "/docs/api" },
               { label: "已知限制", to: "/docs/reference/limitations" },
             ],
           },

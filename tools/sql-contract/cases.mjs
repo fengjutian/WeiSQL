@@ -92,6 +92,18 @@ export const CONTRACT_CASES = [
     expect: { error: "INVALID_ARGUMENT" },
   },
   {
+    name: "stream write is rejected",
+    sql: "delete from documents",
+    stream: true,
+    expect: { error: "SQL_UNSUPPORTED" },
+  },
+  {
+    name: "stream unknown column is rejected",
+    sql: "select missing from documents",
+    stream: true,
+    expect: { error: "INVALID_ARGUMENT" },
+  },
+  {
     name: "Date parameter",
     sql: "select ? is not null as ok",
     params: [new Date(0)],

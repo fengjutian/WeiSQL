@@ -230,13 +230,30 @@ export class DuckDbSqlAdapter implements SqlAdapter {
     const names = result.columnNames();
     const interrupt = (): void => { connection.interrupt(); };
     signal?.addEventListener("abort", interrupt, { once: true });
+    // Race each chunk read against the signal. `interrupt()` stops the engine,
+    // but without the race the caller still waits for the pending `next()` to
+    // settle before it learns that it was cancelled.
+    const cancelError = (): WeiSQLError =>
+      new WeiSQLError("QUERY_CANCELLED", "DuckDB query was cancelled", { engine: "duckdb" });
+    let abortReject: (() => void) | undefined;
+    let aborted: Promise<never> | undefined;
+    if (signal !== undefined) {
+      aborted = new Promise<never>((_resolve, reject) => {
+        abortReject = () => reject(cancelError());
+      });
+      const rejectOnAbort = abortReject as () => void;
+      void aborted.catch(() => undefined);
+      if (signal.aborted) rejectOnAbort();
+      else signal.addEventListener("abort", rejectOnAbort, { once: true });
+    }
+    const iterator = result[Symbol.asyncIterator]();
     return (async function* (): AsyncGenerator<T> {
       let count = 0;
       try {
-        for await (const chunk of result) {
-          if (signal?.aborted) {
-            throw new WeiSQLError("QUERY_CANCELLED", "DuckDB query was cancelled", { engine: "duckdb" });
-          }
+        for (;;) {
+          const step = await (aborted === undefined ? iterator.next() : Promise.race([iterator.next(), aborted]));
+          if (step.done === true) break;
+          const chunk = step.value;
           const rowsInChunk = chunk.rowCount;
           for (let rowIndex = 0; rowIndex < rowsInChunk; rowIndex += 1) {
             const values = chunk.getRowValues(rowIndex);
@@ -253,6 +270,7 @@ export class DuckDbSqlAdapter implements SqlAdapter {
           }
         }
       } finally {
+        if (abortReject !== undefined) signal?.removeEventListener("abort", abortReject);
         result.closeSync();
         dispose();
         signal?.removeEventListener("abort", interrupt);

@@ -141,7 +141,9 @@ await db.close();
 
 ## 5. 下一步
 
+- 想走完整链路（CSV → 构建 → 校验 → 检索 → 全文 → 打包部署）：[端到端教程](/docs/start/tutorial)
 - 想理解数据包长什么样：[核心概念](/docs/start/concepts) 与 [Manifest 速查](/docs/reference/manifest)
+- 想查具体签名与选项：[API 参考](/docs/api)
 - 想构建自己的数据包：[构建数据包](/docs/tooling/build-package)
 - 想部署：[部署到 CDN](/docs/tooling/deploy-cdn)
 - 想知道边界：[限制与路线](/docs/reference/limitations)

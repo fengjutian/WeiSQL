@@ -10,6 +10,7 @@ const sidebars = {
       items: [
         "start/what-is-weisql",
         "start/quickstart",
+        { type: "doc", id: "start/tutorial", label: "端到端教程" },
         "start/concepts",
         "start/architecture",
         "start/tech-stack",
@@ -29,6 +30,20 @@ const sidebars = {
         "sdk/containers",
         "sdk/integrity-and-signing",
         "sdk/errors",
+      ],
+    },
+    {
+      type: "category",
+      label: "API 参考",
+      collapsed: false,
+      items: [
+        "api/index",
+        "api/runtime",
+        "api/readers",
+        "api/search",
+        "api/sql",
+        "api/build-sign",
+        "api/adapters",
       ],
     },
     {

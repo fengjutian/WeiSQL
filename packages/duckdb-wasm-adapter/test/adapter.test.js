@@ -156,6 +156,10 @@ test("streams rows and enforces maxRows", async () => {
       adapter.stream("DELETE FROM documents"),
       (error) => error.code === "SQL_UNSUPPORTED",
     );
+    await assert.rejects(
+      adapter.stream("SELECT missing FROM documents"),
+      (error) => error.code === "INVALID_ARGUMENT",
+    );
   });
 });
 

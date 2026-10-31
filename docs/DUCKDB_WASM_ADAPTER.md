@@ -131,6 +131,11 @@ DECIMAL 这一条不是可选项：不设置 `castDecimalToDouble` 时 Arrow 会
 如果调用方在 abort 后立刻 `close()`，关闭会排在仍在执行的查询之后；适配器在取消路径上
 不 `await` prepared statement 的关闭，避免把取消伪装成一次长等待。
 
+**流式路径**：`db.sqlStream()` 把 `prepared.send()` 和每一次 `next()` 都与 abort 信号
+`Promise.race`，所以即使 worker 还在算第一个 batch，调用方也会立即收到 `QUERY_CANCELLED`；
+被放弃的 reader 用 fire-and-forget 方式 `return()`/关闭，不阻塞返回。探针实测：完整执行
+286 ms 的查询，在第 50 ms abort，流式调用 **53 ms** 返回（`db.sql()` 同场景 64 ms）。
+
 ## 7. 扩展自托管与部署
 
 `npm run vendor:wasm-extension` 会把与 WASM 核心版本匹配的 `parquet` 扩展下载到
@@ -169,7 +174,7 @@ fixture 3 行、扩展已缓存。
 | 只读 CTE / 写 CTE | 前者返回结果、后者 `SQL_UNSUPPORTED` | probe 断言 |
 | 过滤检索 | `exact-filter-first`，`exact: true`，2 条命中 | probe 断言（`db.vector.search` + `filter`） |
 | Node ↔ Chromium SQL | 9 个查询 / 错误码全部一致 | `probe:parity` |
-| 浏览器流式读取 | 1M 行 1,058 ms（约 945k 行/s），首行 14 ms | `bench:wasm-stream`，Chromium 1248，单次运行 |
+| 浏览器流式读取 | 1M 行 685 ms（约 1.46M 行/s），首行 5 ms；20 万行真实 Parquet 595 ms，堆 +20.5 MB | `bench:wasm-stream`，Chromium 1248，单次运行 |
 | 查询中取消 | 202 ms 的查询在 50 ms abort 后 **51 ms** 返回 `QUERY_CANCELLED` | probe 断言；`cancelSent()` 返回 `false`，引擎未停 |
 | parquet 扩展 | 498,915 B（`wasm_eh`，v1.4.3） | 自托管文件 |
 

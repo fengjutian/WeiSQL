@@ -666,7 +666,8 @@
 - 决策三：Node 用 `DuckDBPreparedStatement.stream()` 的 chunk 迭代器，逐 chunk 转成行；WASM 用 `AsyncPreparedStatement.send()` 的 Arrow batch 流。两者都在 `finally` 中关闭 result/prepared，`break` 会触发异步生成器的 `return`。
 - 决策四：`maxRows` 在流式路径上同样是硬失败，但调用方**可能已经收到前 `maxRows` 行**——这是流式交付的固有语义，文档明确写出，不假装原子。
 - 决策五：取消保留各自语义（Node 原生中断、WASM 立即停止等待且引擎可能继续跑）；流式路径同样适用。
-- 后果：浏览器与 Node 都能在物化整表结果前消费行，`maxRows` 之外多了一层真正的规模控制。共享契约新增“stream rows / stream maxRows”两个用例，Chromium 探针也断言真实 WASM 流。
+- 决策六：WASM 流式路径把 `send()` 与每次 `next()` 都和 abort 信号 `Promise.race`。只在 batch 边界检查 `signal.aborted` 不够——单线程 worker 可能长时间不产生下一个 batch，调用方会被卡住；被放弃的 reader 与 prepared statement 用 fire-and-forget 关闭，不阻塞取消返回。
+- 后果：浏览器与 Node 都能在物化整表结果前消费行，`maxRows` 之外多了一层真正的规模控制。共享契约新增“stream rows / stream maxRows / stream error”用例，Chromium 探针同时断言真实 WASM 流与流式取消。
 
 ## 明确禁止的未经验证声明
 

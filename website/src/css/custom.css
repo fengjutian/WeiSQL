@@ -256,15 +256,23 @@ html {
   transition: background 0.15s ease, color 0.15s ease;
 }
 
-.navbar__link:hover,
-.navbar__link--active {
+.navbar__link:hover {
   background: rgba(15, 118, 110, 0.08);
   color: var(--ifm-color-primary-dark);
 }
 
-[data-theme="dark"] .navbar__link:hover,
-[data-theme="dark"] .navbar__link--active {
+.navbar__link--active {
+  background: transparent;
+  color: var(--ifm-color-primary-dark);
+}
+
+[data-theme="dark"] .navbar__link:hover {
   background: rgba(45, 212, 191, 0.1);
+  color: var(--ifm-color-primary-light);
+}
+
+[data-theme="dark"] .navbar__link--active {
+  background: transparent;
   color: var(--ifm-color-primary-light);
 }
 

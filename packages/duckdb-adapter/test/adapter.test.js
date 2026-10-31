@@ -154,6 +154,24 @@ test("streams rows lazily and enforces maxRows across chunks", async t => {
   assert.deepEqual(delivered, ["doc-001", "doc-002"]);
 });
 
+test("stream cancellation rejects promptly instead of waiting for the next chunk", async t => {
+  const { adapter } = await openAdapter(t);
+  const controller = new AbortController();
+  const started = performance.now();
+  setTimeout(() => controller.abort(), 10);
+  await assert.rejects(async () => {
+    for await (const row of await adapter.stream(
+      "SELECT sum(sqrt(range)) AS n FROM range(50000000)",
+      [],
+      { signal: controller.signal },
+    )) {
+      void row;
+    }
+  }, (error) => error.code === "QUERY_CANCELLED");
+  const elapsed = performance.now() - started;
+  assert.ok(elapsed < 1000, `stream cancellation took ${Math.round(elapsed)}ms`);
+});
+
 test("write, DDL, config and CALL statements are rejected as SQL_UNSUPPORTED", async t => {
   const { adapter } = await openAdapter(t);
   const statements = [

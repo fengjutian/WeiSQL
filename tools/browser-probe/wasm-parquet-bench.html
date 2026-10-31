@@ -1,0 +1,105 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>WeiSQL Parquet streaming benchmark</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "@duckdb/duckdb-wasm": "/vendor/@duckdb/duckdb-wasm/dist/duckdb-browser.mjs",
+          "@weisql/sdk/errors": "/sdk/errors.js",
+          "apache-arrow": "/vendor/apache-arrow/Arrow.dom.mjs",
+          "flatbuffers": "/vendor/flatbuffers/mjs/flatbuffers.js",
+          "tslib": "/vendor/tslib/tslib.es6.mjs"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <pre id="log"></pre>
+    <script type="module">
+      import { open } from "/sdk/database.js";
+      import { HttpResourceReader } from "/sdk/http-resource-reader.js";
+      import { createDuckDbWasmAdapter } from "/wasm-adapter/index.js";
+
+      const log = (message) => {
+        document.getElementById("log").textContent += `${message}\n`;
+        console.log(message);
+      };
+      const heap = () => performance.memory?.usedJSHeapSize ?? null;
+      const megabytes = (bytes) => (bytes === null ? null : Number((bytes / (1024 * 1024)).toFixed(1)));
+
+      /**
+       * Streams a real Parquet-backed table, not `range()`: the bytes come over
+       * HTTP Range, go through L3 checks, are materialized into DuckDB-Wasm and
+       * then read back by `sqlStream()`.
+       */
+      async function main() {
+        const base = new URL("/fixture/", location.href).href;
+        const adapter = createDuckDbWasmAdapter({
+          bundles: {
+            mainModule: "/vendor/@duckdb/duckdb-wasm/dist/duckdb-eh.wasm",
+            mainWorker: "/vendor/@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js",
+          },
+          extensionRepository: `${location.origin}/extensions`,
+        });
+        const beforeOpen = heap();
+        const openStarted = performance.now();
+        const db = await open({
+          manifestUrl: new URL("manifest.json", base).href,
+          resourceReader: new HttpResourceReader({ baseUrl: base }),
+          sqlAdapter: adapter,
+          verifyChecksums: "all",
+        });
+        const openMs = Math.round(performance.now() - openStarted);
+        const afterOpen = heap();
+
+        const beforeStream = heap();
+        const started = performance.now();
+        let firstRowMs = null;
+        let count = 0;
+        let categoryCount = 0;
+        for await (const row of await db.sqlStream("select id, category from documents")) {
+          if (firstRowMs === null) firstRowMs = Math.round(performance.now() - started);
+          count += 1;
+          if (row.category === "alpha") categoryCount += 1;
+        }
+        const streamMs = Math.round(performance.now() - started);
+        const afterStream = heap();
+
+        const beforeArray = heap();
+        const arrayStarted = performance.now();
+        const materialized = await db.sql("select id, category from documents");
+        const arrayMs = Math.round(performance.now() - arrayStarted);
+        const afterArray = heap();
+
+        const result = {
+          ok: count === materialized.length && count > 0,
+          openMs,
+          openHeapDeltaMB: beforeOpen === null ? null : megabytes(Math.max(0, (afterOpen ?? 0) - beforeOpen)),
+          stream: {
+            rows: count,
+            categoryCount,
+            firstRowMs,
+            totalMs: streamMs,
+            rowsPerSecond: Math.round(count / (streamMs / 1000)),
+            heapDeltaMB: beforeStream === null ? null : megabytes(Math.max(0, (afterStream ?? 0) - beforeStream)),
+          },
+          materialized: {
+            rows: materialized.length,
+            totalMs: arrayMs,
+            heapDeltaMB: beforeArray === null ? null : megabytes(Math.max(0, (afterArray ?? 0) - beforeArray)),
+          },
+        };
+        log(JSON.stringify(result));
+        window.__BENCH_RESULT = result;
+        await db.close();
+      }
+
+      main().catch((error) => {
+        window.__BENCH_RESULT = { ok: false, error: `${error.name}: ${error.message}` };
+        log(String(error));
+      });
+    </script>
+  </body>
+</html>

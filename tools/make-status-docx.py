@@ -1,4 +1,4 @@
-"""Build the WeiSQL AI status report as a Word document.
+﻿"""Build the WeiSQL AI status report as a Word document.
 
 Run with the bundled Python (python-docx is provided there):
 
@@ -181,13 +181,13 @@ def build(target: Path):
     style_run(run, size=22, bold=True, color=ACCENT)
 
     subtitle = document.add_paragraph()
-    run = subtitle.add_run("2026-10-31 · 仓库 HEAD 0bc3b80 · 318 个自动化测试 · 尚未发布 npm")
+    run = subtitle.add_run("2026-10-31 · 仓库 HEAD c6fcfae · 321 个自动化测试 · 尚未发布 npm")
     style_run(run, size=10, color=MUTED)
 
     document.add_heading("1. 一句话状态", level=1)
     paragraph = document.add_paragraph()
     run = paragraph.add_run(
-        "工程原型。Manifest V1 与数据包格式稳定，五个包共 318 个自动化测试，CI 覆盖构建、类型、测试与发布元数据；"
+        "工程原型。Manifest V1 与数据包格式稳定，五个包共 321 个自动化测试，CI 覆盖构建、类型、测试与发布元数据；"
         "精确检索、ANN、全文、融合、RAG、单文件容器与浏览器 SQL 均有实现与实测数字。尚未发布 npm 包，也没有任何未经测量的性能承诺。"
     )
     style_run(run, size=10.5)
@@ -196,7 +196,7 @@ def build(target: Path):
         document,
         ["维度", "状态"],
         [
-            ["测试", "318 个全绿（SDK 207 / DuckDB 23 / WASM 37 / USearch 13 / CLI 38）"],
+            ["测试", "321 个全绿（SDK 208 / DuckDB 24 / WASM 38 / USearch 13 / CLI 38）"],
             ["CI", "GitHub Actions：Ubuntu + Windows 行为闸门，另有派生索引、容器与 bench:wasm 冒烟作业"],
             ["许可证", "Apache-2.0（根目录与每个包内各一份）"],
             ["发布", "未发布 npm 包（缺组织与访问令牌）"],
@@ -261,7 +261,7 @@ def build(target: Path):
             ["@weisql/duckdb-wasm-adapter", "37", "关键字白名单、CTE 分类、值映射、两层预算、取消、错误契约、真实 WASM 集成"],
             ["@weisql/usearch-adapter", "13", "度量映射、持久化索引、后过滤、生命周期"],
             ["@weisql/cli", "38", "校验退出码、--json、pack、unpack、容器校验、--l4"],
-            ["合计", "318", ""],
+            ["合计", "321", ""],
         ],
         widths=[4.6, 1.8, 9.4],
     )
@@ -285,7 +285,7 @@ def build(target: Path):
             ["ANN Recall@10", "0.385–0.740", "均匀 0.735；紧聚类 0.385", "强依赖数据分布"],
             ["ANN 索引构建", "2.7–15.2 s", "同上", "构建时间随分布变化"],
             ["过滤查询（窄过滤）", "p50 17.1 ms", "100k 行，尾部 1000 行", "反向索引把 ID Map 读取从 4.0 MB 降到 480 B"],
-            ["量化（合成）", "f16 −39% / i8 −58% 体积", "50k × 128，均匀随机", "召回 0.81 → 0.775 / 0.785；真实语料未测"],
+            ["量化（合成，成簇）", "f16 −39% 无损 / i8 −58% 掉 9.5 点", "50k × 128，64 簇", "提高 expansion 不能恢复 i8；真实语料未测"],
             ["全文索引体积", "74.2 MB", "100k 文档、5000 词项、50 tokens/文档", "其中正文 33.1 MB"],
             ["全文查询 p50", "10.2–10.8 ms", "同上", "固定开销 ≈8 ms + 每命中随机读"],
             ["全文索引构建", "4.5 s", "同上", "含读取 Parquet 文本列"],
@@ -343,7 +343,7 @@ def build(target: Path):
             ["时间戳与嵌套列的源数据推断", "转换工具只覆盖标量类型"],
             ["中文分词", "CJK 逐字，精度换可预测性"],
             ["浏览器 SQL 参数类型", "JSON 绑定；Date、二进制与超范围 bigint 明确拒绝"],
-            ["SQL 结果规模", "maxRows 会在超限时硬失败；结果仍是一次性数组，流式返回未实现"],
+            ["SQL 结果规模", "maxRows 超限硬失败；sqlStream() 提供增量交付，db.sql() 仍一次性返回"],
             ["浏览器大表与冷启动", "只测了 Node 内的同一 WASM 构建（500k 行），浏览器内存与 34 MB 首载未测"],
             ["COI / 多线程", "已试不可用：parquet 扩展与共享内存 ABI 不兼容（ADR-063）"],
         ],
@@ -352,7 +352,7 @@ def build(target: Path):
 
     document.add_heading("7. 关键决策", level=1)
     paragraph = document.add_paragraph()
-    run = paragraph.add_run("完整 69 条记录见仓库 docs/DECISION_LOG.md；下表列出与外部读者最相关的决策。")
+    run = paragraph.add_run("完整 70 条记录见仓库 docs/DECISION_LOG.md；下表列出与外部读者最相关的决策。")
     style_run(run, size=10, color=MUTED)
     add_table(
         document,
@@ -383,7 +383,7 @@ def build(target: Path):
         document,
         ["检查项", "状态"],
         [
-            ["测试 / 类型 / 构建", "✓ 318 测试，typecheck 通过"],
+            ["测试 / 类型 / 构建", "✓ 321 测试，typecheck 通过"],
             ["打包内容", "✓ 仅 dist/ + README + LICENSE，无 src/test 泄漏"],
             ["依赖范围", "✓ caret 且跟踪本地版本"],
             ["许可证", "✓ Apache-2.0（根 + 每包）"],

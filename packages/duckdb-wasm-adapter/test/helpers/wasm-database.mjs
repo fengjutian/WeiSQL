@@ -26,7 +26,8 @@ export async function createWasmTestDatabase() {
     NODE_RUNTIME,
   );
   await bindings.instantiate();
-  bindings.open({});
+  // Mirrors the adapter's own configuration: DECIMAL must arrive as a number.
+  bindings.open({ query: { castDecimalToDouble: true } });
 
   const wrapTable = (data) => {
     const table = tableFromIPC(data);
@@ -61,6 +62,9 @@ export async function createWasmTestDatabase() {
     registerFileBuffer(name, buffer) {
       bindings.registerFileBuffer(name, buffer);
       return Promise.resolve();
+    },
+    tokenize(sql) {
+      return Promise.resolve(bindings.tokenize(sql));
     },
     dropFile(name) {
       bindings.dropFile(name);

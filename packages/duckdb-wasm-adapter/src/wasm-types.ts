@@ -26,4 +26,6 @@ export interface WasmDuckDb {
   registerFileBuffer(name: string, buffer: Uint8Array): Promise<void> | void;
   dropFile?(name: string): Promise<void> | void;
   terminate?(): Promise<void> | void;
+  /** DuckDB's lexer; it is what lets the guard reason about CTEs. */
+  tokenize?(sql: string): Promise<{ offsets: readonly number[]; types: readonly number[] }> | { offsets: readonly number[]; types: readonly number[] };
 }

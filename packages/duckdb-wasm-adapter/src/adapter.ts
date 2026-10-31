@@ -1,8 +1,9 @@
-﻿import { WeiSQLError } from "@weisql/sdk/errors";
+import { WeiSQLError } from "@weisql/sdk/errors";
 import type { QueryOptions, SqlAdapter, SqlAdapterCapabilities, SqlAdapterOpenContext, SQLValue } from "@weisql/sdk";
 
 import { quoteIdentifier, verifyTableSchema } from "./schema.js";
 import { assertReadOnlyStatement } from "./sql-guard.js";
+import type { SqlTokenStream } from "./sql-guard.js";
 import { normalizeRows, toWasmParameters } from "./values.js";
 import type { WasmDuckDb, WasmDuckDbConnection } from "./wasm-types.js";
 
@@ -87,6 +88,7 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
   private database: WasmDuckDb | undefined;
   private connection: WasmDuckDbConnection | undefined;
   private ownsDatabase = false;
+  private tokenizerAvailable = false;
   private capabilitiesValue: SqlAdapterCapabilities = Object.freeze({
     engine: "duckdb-wasm",
     parameterBinding: true,
@@ -146,7 +148,10 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
         engineVersion: version,
         parameterBinding: true,
         parquet: true,
-        supportedFeatures: [...SUPPORTED_FEATURES],
+        supportedFeatures: [
+          ...SUPPORTED_FEATURES,
+          ...(this.tokenizerAvailable ? ["cte"] : []),
+        ],
         cancellation: "best-effort" as const,
       });
       this.stateValue = "READY";
@@ -163,9 +168,10 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
     options?: QueryOptions,
   ): Promise<readonly T[]> {
     this.ensureReady();
-    assertReadOnlyStatement(statement);
     const signal = options?.signal;
     if (signal?.aborted) throw new WeiSQLError("QUERY_CANCELLED", "Query was cancelled before execution");
+    const tokens = await this.tokenizeForGuard(statement);
+    assertReadOnlyStatement(statement, tokens);
     const connection = this.connection!;
     const prepared = await connection.prepare(statement).catch((cause: unknown) => {
       throw mapEngineError(cause, "prepare");
@@ -211,6 +217,7 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
     if (this.options.database !== undefined) {
       this.database = this.options.database;
       this.ownsDatabase = false;
+      this.tokenizerAvailable = typeof this.database.tokenize === "function";
       return;
     }
     const bundles = this.options.bundles!;
@@ -219,8 +226,28 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
     const worker = new Worker(bundles.mainWorker);
     const database = new duckdb.AsyncDuckDB(logger, worker);
     await database.instantiate(bundles.mainModule, bundles.pthreadWorker ?? null);
+    // Arrow hands DECIMAL back as a typed-array of unscaled words, which is not
+    // a public `SQLValue`. The Node adapter's driver already reports DECIMAL as
+    // `number`; asking DuckDB to cast it to DOUBLE keeps the two engines aligned
+    // and documents the same >15-significant-digit limitation.
+    await database.open({ path: ":memory:", query: { castDecimalToDouble: true } });
     this.database = database as unknown as WasmDuckDb;
     this.ownsDatabase = true;
+    this.tokenizerAvailable = typeof this.database.tokenize === "function";
+  }
+
+  /**
+   * Tokens are only an extra source of truth for the guard; if the engine
+   * cannot tokenize (or the injected database has no tokenizer), the stricter
+   * keyword fallback still applies and `WITH` stays rejected.
+   */
+  private async tokenizeForGuard(statement: string): Promise<SqlTokenStream | undefined> {
+    if (!this.tokenizerAvailable) return undefined;
+    try {
+      return await this.database!.tokenize!(statement);
+    } catch {
+      return undefined;
+    }
   }
 
   private async loadParquetExtension(): Promise<void> {

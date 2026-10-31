@@ -1,15 +1,13 @@
-﻿import { WeiSQLError } from "@weisql/sdk/errors";
+import { WeiSQLError } from "@weisql/sdk/errors";
 
 /**
  * Statement keywords the browser adapter is willing to send to DuckDB-Wasm.
  *
- * Why an allow-list instead of DuckDB's own statement classification: the
- * DuckDB-Wasm JavaScript API exposes no `StatementType` for a prepared
- * statement (unlike `@duckdb/node-api`, which the Node adapter relies on). A
- * deny-list alone would be bypassable: `WITH x AS (...) DELETE FROM t` leads
- * with `WITH`, so it would slip past a keyword filter. The browser adapter
- * therefore refuses anything that does not start with one of the verbs below,
- * and that includes `WITH` itself 鈥?see docs/DUCKDB_WASM_ADAPTER.md.
+ * The allow-list is the fallback boundary. When the engine's tokenizer is
+ * available the guard additionally understands `WITH`: it walks the CTE list
+ * and classifies the statement that follows it, so `WITH ... SELECT` is allowed
+ * while `WITH ... DELETE` is still rejected. Without tokens, `WITH` is refused
+ * outright — see docs/DUCKDB_WASM_ADAPTER.md.
  */
 export const READ_ONLY_FIRST_KEYWORDS: ReadonlySet<string> = new Set([
   "SELECT",
@@ -23,21 +21,42 @@ export const READ_ONLY_FIRST_KEYWORDS: ReadonlySet<string> = new Set([
   "VALUES",
 ]);
 
+/** DuckDB's token types, as returned by `tokenize()`. */
+const TOKEN_IDENTIFIER = 0;
+const TOKEN_OPERATOR = 3;
+const TOKEN_KEYWORD = 4;
+
+/**
+ * The token stream DuckDB returns: parallel arrays of byte offsets and token
+ * types. Token text is recovered from the source between offsets, so comments
+ * and whitespace never become part of a comparison.
+ */
+export interface SqlTokenStream {
+  offsets: readonly number[];
+  types: readonly number[];
+}
+
+interface Token {
+  text: string;
+  type: number;
+}
+
 /**
  * Rejects statements that are not single, read-only queries.
  *
- * `WITH` is rejected with its own message because it is the one construct a
- * user is likely to reach for and the one that would otherwise be the obvious
- * bypass. Multiple statements are rejected by a scanner rather than by
- * splitting on `;`, so semicolons inside strings and comments do not count.
+ * With `tokens`, the classification uses DuckDB's own lexer, which is what makes
+ * CTEs safe: the first keyword after the CTE list decides the statement type.
+ * Without `tokens`, the stricter fallback applies and `WITH` is rejected.
  */
-export function assertReadOnlyStatement(statement: string): string {
+export function assertReadOnlyStatement(statement: string, tokens?: SqlTokenStream): string {
   if (typeof statement !== "string" || statement.trim().length === 0) {
     throw new WeiSQLError("INVALID_ARGUMENT", "SQL statement must be a non-empty string");
   }
+  if (tokens !== undefined) return classifyWithTokens(statement, tokens);
+
   const keyword = leadingKeyword(statement);
   if (keyword === "WITH") {
-    throw new WeiSQLError("SQL_UNSUPPORTED", "CTEs (`WITH`) are not supported by the DuckDB-Wasm adapter", {
+    throw new WeiSQLError("SQL_UNSUPPORTED", "CTEs (`WITH`) require the DuckDB-Wasm tokenizer", {
       engine: "duckdb-wasm",
       statementType: keyword,
     });
@@ -54,6 +73,153 @@ export function assertReadOnlyStatement(statement: string): string {
     });
   }
   return keyword;
+}
+
+/** Classifies a token stream and returns the statement verb. Fails closed. */
+export function classifyWithTokens(statement: string, stream: SqlTokenStream): string {
+  const tokens = readTokens(statement, stream);
+  if (tokens.length === 0) {
+    throw new WeiSQLError("SQL_UNSUPPORTED", "Only read-only statements (SELECT/EXPLAIN) are allowed", {
+      engine: "duckdb-wasm",
+      statementType: "UNKNOWN",
+    });
+  }
+  for (let index = 0; index < tokens.length; index += 1) {
+    if (isOperator(tokens[index], ";") && index < tokens.length - 1) {
+      throw new WeiSQLError("SQL_UNSUPPORTED", "Only one SQL statement per query is allowed", {
+        engine: "duckdb-wasm",
+      });
+    }
+  }
+
+  let index = 0;
+  if (isKeyword(tokens[0], "WITH")) index = skipCteList(tokens, 1);
+  const verb = tokens[index];
+  if (verb === undefined || verb.type !== TOKEN_KEYWORD) throw unsupported(verb?.text);
+  const upper = verb.text.toUpperCase();
+  if (!READ_ONLY_FIRST_KEYWORDS.has(upper)) throw unsupported(upper);
+  return upper;
+}
+
+function unsupported(verb: string | undefined): WeiSQLError {
+  return new WeiSQLError("SQL_UNSUPPORTED", "Only read-only statements (SELECT/EXPLAIN) are allowed", {
+    engine: "duckdb-wasm",
+    statementType: verb === undefined || verb === "" ? "UNKNOWN" : verb.toUpperCase(),
+  });
+}
+
+/**
+ * Skips `[RECURSIVE] name [(cols)] [MATERIALIZED] AS ( body ) {, ...}` and
+ * returns the index of the token that follows the CTE list. Any shape this does
+ * not recognise is rejected rather than guessed.
+ */
+function skipCteList(tokens: readonly Token[], start: number): number {
+  let index = start;
+  if (isKeyword(tokens[index], "RECURSIVE")) index += 1;
+  for (;;) {
+    const name = tokens[index];
+    if (name === undefined || (name.type !== TOKEN_IDENTIFIER && name.type !== TOKEN_KEYWORD)) throw unsupported(name?.text);
+    index += 1;
+    if (isOperator(tokens[index], "(")) index = skipBalanced(tokens, index);
+    if (isKeyword(tokens[index], "MATERIALIZED")) index += 1;
+    else if (isKeyword(tokens[index], "NOT") && isKeyword(tokens[index + 1], "MATERIALIZED")) index += 2;
+    if (!isKeyword(tokens[index], "AS")) throw unsupported(tokens[index]?.text);
+    index += 1;
+    if (!isOperator(tokens[index], "(")) throw unsupported(tokens[index]?.text);
+    index = skipBalanced(tokens, index);
+    if (isOperator(tokens[index], ",")) {
+      index += 1;
+      continue;
+    }
+    return index;
+  }
+}
+
+/** `start` must point at `(`; returns the index after the matching `)`. */
+function skipBalanced(tokens: readonly Token[], start: number): number {
+  let depth = 0;
+  for (let index = start; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (isOperator(token, "(")) depth += 1;
+    else if (isOperator(token, ")")) {
+      depth -= 1;
+      if (depth === 0) return index + 1;
+    }
+  }
+  throw unsupported("UNBALANCED");
+}
+
+function readTokens(statement: string, stream: SqlTokenStream): Token[] {
+  const tokens: Token[] = [];
+  // DuckDB reports UTF-8 byte offsets, not JavaScript string indices. Slicing
+  // with them directly misreads every token that follows a non-ASCII character
+  // (for example a Chinese literal), so they are translated first.
+  const starts = byteOffsetsToIndices(statement, stream.offsets);
+  for (let index = 0; index < starts.length; index += 1) {
+    const start = starts[index]!;
+    const end = index + 1 < starts.length ? starts[index + 1]! : statement.length;
+    const slice = statement.slice(start, end).trimStart();
+    const type = stream.types[index] ?? -1;
+    // Keywords and identifiers may be followed by a comment or whitespace that
+    // the next offset does not skip, so only the leading word is the token.
+    const text = type === TOKEN_KEYWORD || type === TOKEN_IDENTIFIER
+      ? (/^[A-Za-z_][A-Za-z0-9_$]*/.exec(slice)?.[0] ?? "")
+      : (slice[0] ?? "");
+    tokens.push({ type, text });
+  }
+  return tokens;
+}
+
+/**
+ * Translates UTF-8 byte offsets into JavaScript string indices.
+ *
+ * A code point may be one to four bytes; offsets always point at a character
+ * boundary, so a single forward pass is enough and no allocation per token is
+ * needed.
+ */
+export function byteOffsetsToIndices(statement: string, offsets: readonly number[]): number[] {
+  if (offsets.length === 0) return [];
+  const indices: number[] = [];
+  let byteOffset = 0;
+  let codeUnitIndex = 0;
+  let target = 0;
+  while (target < offsets.length && codeUnitIndex < statement.length) {
+    const wanted = offsets[target]!;
+    if (byteOffset === wanted) {
+      indices.push(codeUnitIndex);
+      target += 1;
+      continue;
+    }
+    if (byteOffset > wanted) {
+      // Not a character boundary; fail closed by pointing at the current index.
+      indices.push(codeUnitIndex);
+      target += 1;
+      continue;
+    }
+    const codePoint = statement.codePointAt(codeUnitIndex)!;
+    byteOffset += utf8Length(codePoint);
+    codeUnitIndex += codePoint > 0xffff ? 2 : 1;
+  }
+  while (target < offsets.length) {
+    indices.push(codeUnitIndex);
+    target += 1;
+  }
+  return indices;
+}
+
+function utf8Length(codePoint: number): number {
+  if (codePoint <= 0x7f) return 1;
+  if (codePoint <= 0x7ff) return 2;
+  if (codePoint <= 0xffff) return 3;
+  return 4;
+}
+
+function isKeyword(token: Token | undefined, keyword: string): boolean {
+  return token !== undefined && token.type === TOKEN_KEYWORD && token.text.toUpperCase() === keyword;
+}
+
+function isOperator(token: Token | undefined, operator: string): boolean {
+  return token !== undefined && token.type === TOKEN_OPERATOR && token.text === operator;
 }
 
 /** First keyword after leading whitespace and SQL comments, upper-cased. */
@@ -82,9 +248,10 @@ export function leadingKeyword(statement: string): string {
 /**
  * True when a `;` is followed by anything other than whitespace or comments.
  *
- * The scanner understands single-quoted strings (with `''` escapes),
- * double-quoted identifiers, dollar-quoted strings, line comments and block
- * comments, because all of them may legally contain a semicolon.
+ * Used only by the fallback path (no tokenizer). The scanner understands
+ * single-quoted strings (with `''` escapes), double-quoted identifiers,
+ * dollar-quoted strings, line comments and block comments, because all of them
+ * may legally contain a semicolon.
  */
 export function containsSecondStatement(statement: string): boolean {
   let index = 0;

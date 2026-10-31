@@ -73,3 +73,40 @@ export function summarizeRag(result) {
     droppedHits: result.droppedHits,
   };
 }
+
+/**
+ * SQL queries both engines must answer the same way.
+ *
+ * Only the intersection is listed: parameters are JSON scalars (no `Date` or
+ * binary), and every statement is read-only. The error cases pin the codes the
+ * two adapters must agree on.
+ */
+export const SQL_QUERIES = [
+  { name: "sql rows", sql: "select id, title, category from documents order by id" },
+  { name: "sql parameter", sql: "select id from documents where category = ? order by id", params: ["genetics"] },
+  { name: "sql aggregate", sql: "select category, count(*) as n from documents group by category order by category" },
+  { name: "sql cte", sql: "with g as (select id from documents where category = ?) select count(*) as n from g", params: ["genetics"] },
+  { name: "sql literals", sql: "select 42 as i, 1.5 as f, true as b, null as z, 'x' as s" },
+  { name: "sql error write", sql: "delete from documents" },
+  { name: "sql error multi", sql: "select 1; select 2" },
+  { name: "sql error unknown column", sql: "select missing from documents" },
+  { name: "sql error write cte", sql: "with x as (select 1) delete from documents" },
+];
+
+/** JSON-safe row values; both engines return bigint for COUNT(*). */
+export function summarizeSqlRows(rows) {
+  return rows.map(row => Object.fromEntries(
+    Object.entries(row).map(([key, value]) => [key, normalizeSqlValue(value)]),
+  ));
+}
+
+function normalizeSqlValue(value) {
+  if (typeof value === "bigint") return Number(value);
+  if (value instanceof Date) return value.toISOString();
+  if (value instanceof Uint8Array) return Array.from(value);
+  if (Array.isArray(value)) return value.map(normalizeSqlValue);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, normalizeSqlValue(item)]));
+  }
+  return value;
+}

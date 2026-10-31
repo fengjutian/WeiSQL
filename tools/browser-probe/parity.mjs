@@ -13,8 +13,10 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 
 import { ContainerReader, NodeFileResourceReader, open, validateManifest } from "@weisql/sdk";
+import { createDuckDbAdapter } from "@weisql/duckdb-adapter";
 
-import { INVALID_MANIFESTS, QUERIES, RAG_QUERY, TEXT_INDEX, TEXT_QUERIES, summarizeError, summarizeHits, summarizeRag, summarizeTextHits } from "./parity-queries.mjs";
+import { INVALID_MANIFESTS, QUERIES, RAG_QUERY, SQL_QUERIES, TEXT_INDEX, TEXT_QUERIES, summarizeError, summarizeHits, summarizeRag, summarizeSqlRows, summarizeTextHits } from "./parity-queries.mjs";
+import { ensureParquetExtension } from "../fetch-duckdb-wasm-extension.mjs";
 import { prepareProbePackage } from "./prepare-package.mjs";
 import { createProbeServer } from "./server.mjs";
 
@@ -47,7 +49,7 @@ function findChromium() {
 async function runNode(packageDirectory, containerPath) {
   const manifest = JSON.parse(await readFile(path.join(packageDirectory, "manifest.json"), "utf8"));
   const reader = new NodeFileResourceReader({ rootDirectory: packageDirectory });
-  const db = await open({ manifest, resourceReader: reader, verifyChecksums: "all" });
+  const db = await open({ manifest, resourceReader: reader, verifyChecksums: "all", sqlAdapter: createDuckDbAdapter() });
   const queries = [];
   for (const query of QUERIES) {
     try {
@@ -74,6 +76,15 @@ async function runNode(packageDirectory, containerPath) {
   } catch (error) {
     rag = { ok: false, error: summarizeError(error) };
   }
+
+  const sql = [];
+  for (const query of SQL_QUERIES) {
+    try {
+      sql.push({ name: query.name, ok: true, rows: summarizeSqlRows(await db.sql(query.sql, query.params ?? [])) });
+    } catch (error) {
+      sql.push({ name: query.name, ok: false, error: summarizeError(error) });
+    }
+  }
   await db.close();
 
   const invalid = INVALID_MANIFESTS.map(({ name, mutate }) => {
@@ -95,7 +106,7 @@ async function runNode(packageDirectory, containerPath) {
   const containerText = summarizeTextHits(await containerDb.text.search(TEXT_INDEX, "dna", { topK: 2 }));
   await containerDb.close();
 
-  return { environment: "node", queries, textQueries, rag, invalid, container: { digests, vector: containerVector, text: containerText } };
+  return { environment: "node", queries, textQueries, rag, sql, invalid, container: { digests, vector: containerVector, text: containerText } };
 }
 
 async function runBrowser(port, executablePath) {
@@ -132,6 +143,9 @@ if (!executablePath) {
 // Both environments must read identical bytes, including the derived text index
 // and the packed container, so the package is built once and served to both.
 const probePackage = await prepareProbePackage();
+// The browser adapter loads parquet from this origin (extensions.duckdb.org
+// sends no CORS headers).
+await ensureParquetExtension("wasm_eh");
 const nodeResult = await runNode(probePackage.packageDirectory, probePackage.containerPath);
 const probe = createProbeServer(probePackage.packageDirectory, probePackage.containerPath);
 const port = await probe.listen();
@@ -211,6 +225,30 @@ for (const kind of ["vector", "text"]) {
   check(`container ${kind} rows`, JSON.stringify(left.rows) === JSON.stringify(right.rows), `${JSON.stringify(left.rows)} vs ${JSON.stringify(right.rows)}`);
 }
 
+// SQL parity is limited to the queries both adapters can answer (JSON scalar
+// parameters, read-only) plus the error codes they must agree on.
+const sqlRows = [];
+for (const [index, query] of SQL_QUERIES.entries()) {
+  const left = nodeResult.sql[index];
+  const right = browserResult.sql[index];
+  check(`sql "${query.name}" status`, left.ok === right.ok, `node ok=${left.ok} browser ok=${right.ok}`);
+  if (left.ok && right.ok) {
+    check(
+      `sql "${query.name}" rows`,
+      JSON.stringify(left.rows) === JSON.stringify(right.rows),
+      `${JSON.stringify(left.rows)} vs ${JSON.stringify(right.rows)}`,
+    );
+  } else if (!left.ok && !right.ok) {
+    check(`sql "${query.name}" error code`, left.error.code === right.error.code, `${left.error.code} vs ${right.error.code}`);
+  }
+  sqlRows.push({
+    query: query.name,
+    node: left.ok ? `${left.rows.length} row(s)` : `error:${left.error.code}`,
+    browser: right.ok ? `${right.rows.length} row(s)` : `error:${right.error.code}`,
+    match: failures.filter(failure => failure.startsWith(`sql "${query.name}" `)).length === 0,
+  });
+}
+
 for (const [index, invalid] of INVALID_MANIFESTS.entries()) {
   const left = nodeResult.invalid[index];
   const right = browserResult.invalid[index];
@@ -221,22 +259,30 @@ for (const [index, invalid] of INVALID_MANIFESTS.entries()) {
 }
 
 console.log("ENVIRONMENT PARITY");
-console.log(`node:    ${nodeResult.queries.length} vector + ${nodeResult.textQueries.length} text queries, ${nodeResult.invalid.length} manifest cases, 1 container`);
+console.log(`node:    ${nodeResult.queries.length} vector + ${nodeResult.textQueries.length} text + ${nodeResult.sql.length} SQL queries, ${nodeResult.invalid.length} manifest cases, 1 container`);
 console.log(`browser: ${executablePath}`);
 console.log("");
-const widths = {
-  query: Math.max(5, ...rows.map(row => row.query.length)),
-  node: Math.max(4, ...rows.map(row => row.node.length)),
-  browser: Math.max(7, ...rows.map(row => row.browser.length)),
-};
-const pad = (value, width) => value.padEnd(width);
-console.log(pad("query", widths.query + 2) + pad("node", widths.node + 2) + pad("browser", widths.browser + 2) + "match");
-for (const row of rows) {
-  console.log(pad(row.query, widths.query + 2) + pad(row.node, widths.node + 2) + pad(row.browser, widths.browser + 2) + (row.match ? "PASS" : "FAIL"));
+function printTable(tableRows) {
+  const widths = {
+    query: Math.max(5, ...tableRows.map(row => row.query.length)),
+    node: Math.max(4, ...tableRows.map(row => row.node.length)),
+    browser: Math.max(7, ...tableRows.map(row => row.browser.length)),
+  };
+  const pad = (value, width) => value.padEnd(width);
+  console.log(pad("query", widths.query + 2) + pad("node", widths.node + 2) + pad("browser", widths.browser + 2) + "match");
+  for (const row of tableRows) {
+    console.log(pad(row.query, widths.query + 2) + pad(row.node, widths.node + 2) + pad(row.browser, widths.browser + 2) + (row.match ? "PASS" : "FAIL"));
+  }
+}
+printTable(rows);
+if (sqlRows.length > 0) {
+  console.log("");
+  console.log("SQL");
+  printTable(sqlRows);
 }
 console.log("");
 if (failures.length === 0) {
-  console.log(`RESULT: ${QUERIES.length} vector + ${TEXT_QUERIES.length} text queries, RAG evidence, 1 container and ${INVALID_MANIFESTS.length} manifest cases match`);
+  console.log(`RESULT: ${QUERIES.length} vector + ${TEXT_QUERIES.length} text + ${SQL_QUERIES.length} SQL queries, RAG evidence, 1 container and ${INVALID_MANIFESTS.length} manifest cases match`);
   console.log(`        (distance tolerance ${DISTANCE_TOLERANCE}, BM25 score tolerance ${SCORE_TOLERANCE})`);
   process.exit(0);
 }

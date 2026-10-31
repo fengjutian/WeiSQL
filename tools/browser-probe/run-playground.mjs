@@ -167,6 +167,25 @@ if (sqlState.sqlIds.join(",") !== "doc-001,doc-002,doc-003") {
 }
 const sqlRows = await page.locator("#sql-results tr").count();
 
+// Filtered vector search: the same Runtime now has a SQL engine, so the
+// exact-filter-first strategy must run in the browser.
+try {
+  await page.selectOption("#filter-category", "genetics");
+  await page.click("#search");
+  await page.waitForFunction(
+    () => window.__PLAYGROUND_STATE?.filterCategory === "genetics" && (window.__PLAYGROUND_STATE?.ids ?? []).length === 2,
+    undefined,
+    { timeout: 60_000 },
+  );
+} catch (error) {
+  await fail(`filtered search failed: ${String(error).slice(0, 300)}\n${await page.locator("#error").innerText()}`);
+}
+const filterState = await page.evaluate(() => window.__PLAYGROUND_STATE);
+if (filterState.ids.join(",") !== "doc-001,doc-002") {
+  await fail(`filtered results were ${JSON.stringify(filterState.ids)}`);
+}
+const filterDiagnostics = await page.locator("#diagnostics").innerText();
+
 console.log(JSON.stringify({
   browser: executablePath,
   initial,
@@ -182,6 +201,7 @@ console.log(JSON.stringify({
   container: { mode: containerState.mode, ids: containerState.ids, loadedBytes: containerState.loadedBytes, textIds: containerState.textIds },
   streaming: { mode: streamingState.mode, ids: streamingState.ids, textIds: streamingState.textIds },
   sql: { ids: sqlState.sqlIds, rows: sqlRows },
+  filter: { ids: filterState.ids, diagnostics: filterDiagnostics.split("\n").filter(Boolean) },
 }, null, 2));
 
 await browser.close();

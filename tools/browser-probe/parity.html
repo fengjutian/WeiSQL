@@ -3,6 +3,17 @@
   <head>
     <meta charset="utf-8" />
     <title>WeiSQL parity probe</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "@duckdb/duckdb-wasm": "/vendor/@duckdb/duckdb-wasm/dist/duckdb-browser.mjs",
+          "@weisql/sdk/errors": "/sdk/errors.js",
+          "apache-arrow": "/vendor/apache-arrow/Arrow.dom.mjs",
+          "flatbuffers": "/vendor/flatbuffers/mjs/flatbuffers.js",
+          "tslib": "/vendor/tslib/tslib.es6.mjs"
+        }
+      }
+    </script>
   </head>
   <body>
     <pre id="log"></pre>
@@ -11,15 +22,18 @@
       import { validateManifest } from "/sdk/manifest.js";
       import { HttpResourceReader } from "/sdk/http-resource-reader.js";
       import { ContainerReader } from "/sdk/wsql-container.js";
+      import { createDuckDbWasmAdapter } from "/wasm-adapter/index.js";
       import {
         INVALID_MANIFESTS,
         QUERIES,
         RAG_QUERY,
+        SQL_QUERIES,
         TEXT_INDEX,
         TEXT_QUERIES,
         summarizeError,
         summarizeHits,
         summarizeRag,
+        summarizeSqlRows,
         summarizeTextHits,
       } from "/parity/parity-queries.mjs";
 
@@ -32,7 +46,18 @@
         const base = new URL("/fixture/", location.href).href;
         const manifest = await (await fetch(new URL("manifest.json", base))).json();
         const reader = new HttpResourceReader({ baseUrl: base });
-        const db = await open({ manifest, resourceReader: reader, verifyChecksums: "all" });
+        const db = await open({
+          manifest,
+          resourceReader: reader,
+          verifyChecksums: "all",
+          sqlAdapter: createDuckDbWasmAdapter({
+            bundles: {
+              mainModule: "/vendor/@duckdb/duckdb-wasm/dist/duckdb-eh.wasm",
+              mainWorker: "/vendor/@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js",
+            },
+            extensionRepository: `${location.origin}/extensions`,
+          }),
+        });
 
         const queries = [];
         for (const query of QUERIES) {
@@ -61,6 +86,15 @@
           rag = { ok: false, error: summarizeError(error) };
         }
 
+        const sql = [];
+        for (const query of SQL_QUERIES) {
+          try {
+            sql.push({ name: query.name, ok: true, rows: summarizeSqlRows(await db.sql(query.sql, query.params ?? [])) });
+          } catch (error) {
+            sql.push({ name: query.name, ok: false, error: summarizeError(error) });
+          }
+        }
+
         const invalid = INVALID_MANIFESTS.map(({ name, mutate }) => {
           const copy = structuredClone(manifest);
           mutate(copy);
@@ -87,6 +121,7 @@
           queries,
           textQueries,
           rag,
+          sql,
           invalid,
           container: { digests, vector: containerVector, text: containerText },
         };

@@ -60,6 +60,19 @@
         const rows = await db.sql("select id, title from documents where category = ? order by id", ["genetics"]);
         const filtered = await db.sql("select id from documents order by id limit 1");
         const nulls = await db.sql("select ? is null as is_null", [null]);
+        const cte = await db.sql(
+          "with x as (select id from documents where category = ?) select count(*) as n from x",
+          ["genetics"],
+        );
+        // Token offsets are UTF-8 byte offsets; a Chinese literal before the
+        // final SELECT must not break the classification.
+        const chinese = await db.sql("with x as (select '中' as s) select s from x");
+        // The filter path goes through the SQL adapter, so it only works now
+        // that the browser has a SQL engine.
+        const filteredHits = await db.vector.search("document_embeddings", [1, 0], {
+          topK: 2,
+          filter: { category: "genetics" },
+        });
 
         let writeError;
         try {
@@ -67,21 +80,39 @@
         } catch (error) {
           writeError = error.code;
         }
+        let writeCteError;
+        try {
+          await db.sql("with x as (select 1) delete from documents");
+        } catch (error) {
+          writeCteError = error.code;
+        }
 
         const result = {
           ok:
             capabilities.sql === true &&
             adapter.capabilities.engine === "duckdb-wasm" &&
+            adapter.capabilities.supportedFeatures.includes("cte") &&
             rows.length === 2 &&
             rows[0].id === "doc-001" &&
             rows[1].title === "RNA 转录" &&
             filtered.length === 1 &&
             nulls[0].is_null === true &&
-            writeError === "SQL_UNSUPPORTED",
+            cte[0].n === 2n &&
+            chinese[0].s === "中" &&
+            filteredHits.length === 2 &&
+            filteredHits[0].id === "doc-001" &&
+            filteredHits[0].diagnostics.exact === true &&
+            writeError === "SQL_UNSUPPORTED" &&
+            writeCteError === "SQL_UNSUPPORTED",
           openMs,
           capabilities,
           rows,
+          // count(*) comes back as BigInt, which JSON cannot serialise.
+          cte: cte.map((row) => ({ ...row, n: Number(row.n) })),
+          chinese,
+          filteredHits: filteredHits.map((hit) => ({ id: hit.id, exact: hit.diagnostics.exact, strategy: hit.diagnostics.strategy })),
           writeError,
+          writeCteError,
         };
         log(JSON.stringify(result));
         window.__PROBE_RESULT = result;

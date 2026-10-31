@@ -1,6 +1,6 @@
-# DuckDB-Wasm Adapter
+﻿# DuckDB-Wasm Adapter
 
-- 状态：Accepted and implemented（`@weisql/duckdb-wasm-adapter` 0.1.0，19 个测试 + 真实 Chromium 探针）
+- 状态：Accepted and implemented（`@weisql/duckdb-wasm-adapter` 0.1.0，27 个测试 + 真实 Chromium 探针）
 - 适用：浏览器端只读 SQL；Node.js 请用 `@weisql/duckdb-adapter`
 - 契约：[SQL Adapter 契约](SQL_ADAPTER_CONTRACT.md)
 
@@ -43,18 +43,24 @@ Manifest
 | 层 | 做法 | 能挡住什么 |
 | --- | --- | --- |
 | 关键字白名单 | 只放行 `SELECT` / `EXPLAIN` / `DESCRIBE` / `SHOW` / `SUMMARIZE` / `PIVOT` / `UNPIVOT` / `TABLE` / `VALUES` | 写入、DDL、`SET`、`ATTACH`、`LOAD`、`INSTALL`、`COPY`、事务 |
+| CTE 分类 | 用 DuckDB 自己的 tokenizer 跳过 CTE 列表，再判定真正的语句动词 | `with x as (...) delete from t` |
 | 单语句扫描 | 识别字符串、标识符、注释与 dollar-quoted 文本后的 `;` | `select 1; delete from t` |
 | 外部访问 | `enable_external_access=false` | 用户 SQL 里的 `read_parquet('/etc/passwd')` |
 | 配置锁 | `lock_configuration=true` | 查询期再把外部访问打开 |
 
-**`WITH` 被显式拒绝**（`SQL_UNSUPPORTED`），不是遗漏：
+**CTE 支持取决于 tokenizer**。`WITH` 的首关键字不能说明语句类型：
 
-- 白名单只看首个关键字，`WITH x AS (SELECT 1) DELETE FROM documents` 的首关键字是 `WITH`；
-- 放行 `WITH` 就必须自己解析 CTE 之后真正的语句类型，正则做不到可靠；
-- DuckDB-Wasm 没有 `StatementType` 可依赖，Node 适配器的做法在浏览器不可用。
+- `AsyncDuckDB.tokenize()` 返回 `{ offsets, types }`，适配器据此跳过
+  `[RECURSIVE] name [(cols)] [MATERIALIZED] AS ( ... ) {, ...}`，再看下一个关键字；
+- 只有后面是 `SELECT` / `VALUES` / `TABLE` 等只读动词才放行，
+  `WITH ... DELETE/INSERT/UPDATE` 一律 `SQL_UNSUPPORTED`；
+- 结构无法识别（括号不闭合、缺 `AS`、CTE 后直接跟 `(` 等）**fail closed**；
+- 注入的数据库没有 `tokenize`（或 tokenizer 抛错）时退回严格白名单，此时 `WITH` 仍被拒绝，
+  且 `capabilities().supportedFeatures` 不含 `cte`；
+- tokenizer 给的是 **UTF-8 字节偏移**，不是 JS 字符串下标；适配器先映射再切片，
+  否则中文/emoji 字面量会把后面的关键字切错（`with x as (select '中') select 1` 有测试）。
 
-代价是浏览器端不能用 CTE。这是**能力差异**，已在 `capabilities().supportedFeatures`
-与本文档中声明，不假装两端一致。
+`probe:wasm` 在真实 Chromium 里同时断言：带参数的只读 CTE 返回结果、写 CTE 被拒绝。
 
 ## 4. 参数绑定
 
@@ -69,6 +75,19 @@ Manifest
 | `Date` / `Uint8Array` / 对象 | `INVALID_ARGUMENT`，提示改传 ISO 字符串 |
 
 参数值不会被拼进 SQL；`select ? is null`、`where id = ?` 都有测试覆盖。
+
+### 结果映射
+
+| 引擎类型 | 公开值 | 说明 |
+| --- | --- | --- |
+| `BIGINT` | `bigint` | `count(*)` 不降精度 |
+| `DECIMAL` | `number` | 打开时 `castDecimalToDouble`，与 Node 驱动的行为一致；超过 15 位有效数字会丢精度 |
+| `TIMESTAMP` | `Date` | Arrow 的 timestamp |
+| `BLOB` | `Uint8Array` | 复制一份，不泄漏 Arrow 缓冲 |
+| `INTEGER` / `DOUBLE` / `BOOLEAN` / `VARCHAR` / `NULL` | 原样 | |
+
+DECIMAL 这一条不是可选项：不设置 `castDecimalToDouble` 时 Arrow 会把 `1.5` 交成
+`Uint32Array`（unscaled words），既不是 `SQLValue`，也会让两端结果不一致。
 
 ## 5. L4 与版本
 
@@ -122,6 +141,9 @@ fixture 3 行、扩展已缓存。
 | 参数化查询 | < 50 ms | 3 行表 |
 | 浏览器 SQL 能力 | `capabilities().sql === true` | probe 断言 |
 | 写入拒绝 | `SQL_UNSUPPORTED` | probe 断言 |
+| 只读 CTE / 写 CTE | 前者返回结果、后者 `SQL_UNSUPPORTED` | probe 断言 |
+| 过滤检索 | `exact-filter-first`，`exact: true`，2 条命中 | probe 断言（`db.vector.search` + `filter`） |
+| Node ↔ Chromium SQL | 9 个查询 / 错误码全部一致 | `probe:parity` |
 | parquet 扩展 | 498,915 B（`wasm_eh`，v1.4.3） | 自托管文件 |
 
 这些数字只说明「能跑通、量级合理」，不构成性能承诺：数据只有 3 行，
@@ -129,17 +151,19 @@ fixture 3 行、扩展已缓存。
 
 ## 9. 测试
 
-- 单元：`sql-guard`（白名单、注释、字符串里的分号）、`values`（参数与行归一化）。
+- 单元：`sql-guard`（白名单、注释、字符串里的分号、CTE 分类、UTF-8 偏移、fail-closed）、`values`（参数与行归一化）。
 - 集成：用 `@duckdb/duckdb-wasm/blocking` 在 Node 里跑**同一个 WASM 引擎**，
-  覆盖打开、参数绑定、注入、只读拒绝、外部访问、L4、预算、生命周期（9 个用例）。
+  覆盖打开、参数绑定、注入、只读拒绝、只读/写/递归 CTE、中文 CTE、值映射、非法 SQL、预取消、外部访问、L4、预算、生命周期（12 个用例）。
   测试需要网络下载一次 parquet 扩展（缓存在 `~/.duckdb`）。
-- 浏览器：`npm run probe:wasm` 在真实 Chromium 中断言 `db.sql()` 结果、参数绑定与写入拒绝；
-  `npm run probe:playground` 还会在 Playground 里点「运行」，断言返回同样的三行。
+- 跨环境：`probe:parity` 把同一批 SQL 分别交给 Node DuckDB 与浏览器 DuckDB-Wasm，逐行比较并核对错误码。
+- 浏览器：`npm run probe:wasm` 在真实 Chromium 中断言 `db.sql()` 结果、参数绑定、只读 CTE、过滤检索与写入拒绝；
+  `npm run probe:playground` 还会在 Playground 里点「运行」并选类别过滤，断言两处结果一致。
 
 ## 10. 未验证 / 明确不做
 
 - 大表（> 100 MB）的物化时间与内存上限；`maxTableBytes` 只是拒绝阈值。
 - OPFS 持久化、多线程（COI）与 `pthread` 路径。
-- 浏览器端 `WITH`、`date`/`timestamp`/二进制参数、结构化错误位置。
+- `date`/`timestamp`/二进制参数、结构化错误位置。
+- 非 `SELECT` 的只读 CTE 形态（如 CTE 后直接跟括号子查询）按 fail-closed 拒绝，未逐一支持。
 - CDN 上的扩展 CORS 配置（本实现要求同源自托管）。
 - 与 Node 适配器的 SQL 方言一致性承诺：两端都叫 DuckDB，但能力边界不同，见 §3–§4。

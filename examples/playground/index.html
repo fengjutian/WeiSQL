@@ -68,9 +68,17 @@
         <div class="row" id="presets" style="margin-bottom:12px"></div>
         <div class="row">
           <label>topK <input id="topk" type="number" min="1" max="20" value="3" /></label>
+          <label>类别
+            <select id="filter-category">
+              <option value="">全部</option>
+              <option value="genetics">genetics</option>
+              <option value="metabolism">metabolism</option>
+            </select>
+          </label>
           <button id="search">检索</button>
           <span class="muted" id="status">初始化中…</span>
         </div>
+        <p class="muted" style="margin:10px 0 0">选择类别会用 DuckDB-Wasm 先过滤再精确检索（`exact-filter-first`）；首次会加载 WASM。</p>
       </section>
 
       <section>
@@ -113,7 +121,7 @@
         </div>
         <table>
           <thead id="sql-head"><tr><th>首次运行会加载 DuckDB-Wasm 与 parquet 扩展</th></tr></thead>
-          <tbody id="sql-results"><tr><td class="muted">只读；WITH 与写语句会被拒绝。</td></tr></tbody>
+          <tbody id="sql-results"><tr><td class="muted">只读；写语句会被拒绝，只读 CTE 可用。</td></tr></tbody>
         </table>
       </section>
 

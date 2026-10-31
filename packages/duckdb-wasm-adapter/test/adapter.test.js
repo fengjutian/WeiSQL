@@ -61,14 +61,40 @@ test("rejects statements outside the read-only allow-list", async () => {
   await withAdapter(async (adapter) => {
     await assert.rejects(adapter.query("DELETE FROM documents"), (error) => error.code === "SQL_UNSUPPORTED");
     await assert.rejects(adapter.query("CREATE TABLE x AS SELECT 1"), (error) => error.code === "SQL_UNSUPPORTED");
-    await assert.rejects(adapter.query("WITH x AS (SELECT 1) SELECT * FROM x"), (error) => {
-      assert.equal(error.code, "SQL_UNSUPPORTED");
-      assert.match(error.message, /CTEs/);
-      return true;
-    });
     await assert.rejects(adapter.query("SELECT 1; SELECT 2"), (error) => error.code === "SQL_UNSUPPORTED");
     const semicolon = await adapter.query("SELECT ';' AS semicolon");
     assert.deepEqual(semicolon, [{ semicolon: ";" }]);
+  });
+});
+
+test("accepts read-only CTEs and still rejects write CTEs", async () => {
+  await withAdapter(async (adapter) => {
+    assert.ok(adapter.capabilities.supportedFeatures.includes("cte"));
+
+    const rows = await adapter.query("WITH x AS (SELECT id FROM documents WHERE category = ?) SELECT id FROM x ORDER BY id", ["genetics"]);
+    assert.deepEqual(rows, [{ id: "doc-001" }, { id: "doc-002" }]);
+
+    const multiple = await adapter.query(
+      "WITH a AS (SELECT 1 AS n), b AS (SELECT 2 AS n) SELECT a.n + b.n AS total FROM a, b",
+    );
+    assert.deepEqual(multiple, [{ total: 3 }]);
+
+    const recursive = await adapter.query(
+      "WITH RECURSIVE t(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM t WHERE n < 3) SELECT n FROM t ORDER BY n",
+    );
+    assert.deepEqual(recursive, [{ n: 1 }, { n: 2 }, { n: 3 }]);
+
+    // Token offsets are UTF-8 bytes; a non-ASCII literal before a keyword must
+    // not shift the classification.
+    const chinese = await adapter.query("WITH x AS (SELECT '中' AS s) SELECT s FROM x");
+    assert.deepEqual(chinese, [{ s: "中" }]);
+    await assert.rejects(adapter.query("SELECT '中'; DELETE FROM documents"), (error) => error.code === "SQL_UNSUPPORTED");
+
+    await assert.rejects(adapter.query("WITH x AS (SELECT 1) DELETE FROM documents"), (error) => error.code === "SQL_UNSUPPORTED");
+    await assert.rejects(
+      adapter.query("WITH x AS (SELECT 1) INSERT INTO documents SELECT * FROM documents"),
+      (error) => error.code === "SQL_UNSUPPORTED",
+    );
   });
 });
 
@@ -86,6 +112,35 @@ test("rejects parameter types DuckDB-Wasm cannot bind", async () => {
     await assert.rejects(adapter.query("SELECT ? AS value", [new Uint8Array([1])]), (error) => error.code === "INVALID_ARGUMENT");
     await assert.rejects(adapter.query("SELECT ? AS value", [9007199254740993n]), (error) => error.code === "INVALID_ARGUMENT");
     assert.deepEqual(await adapter.query("SELECT ? AS value", [1n]), [{ value: 1 }]);
+  });
+});
+
+test("maps engine values onto the public SQLValue shapes", async () => {
+  await withAdapter(async (adapter) => {
+    const rows = await adapter.query("SELECT 42 AS i, 1.5 AS f, true AS b, 'x' AS s, NULL AS z, count(*) AS n FROM documents");
+    const [row] = rows;
+    assert.equal(row.i, 42);
+    // DECIMAL is cast to DOUBLE, matching the Node adapter's driver behaviour.
+    assert.equal(typeof row.f, "number");
+    assert.equal(row.f, 1.5);
+    assert.equal(row.b, true);
+    assert.equal(row.s, "x");
+    assert.equal(row.z, null);
+    // COUNT(*) is BIGINT and must stay a bigint, not a lossy number.
+    assert.equal(typeof row.n, "bigint");
+    assert.equal(row.n, 3n);
+  });
+});
+
+test("rejects invalid SQL and pre-aborted queries with stable codes", async () => {
+  await withAdapter(async (adapter) => {
+    await assert.rejects(adapter.query("SELECT 1 +"), (error) => error.code === "INVALID_ARGUMENT");
+    const controller = new AbortController();
+    controller.abort();
+    await assert.rejects(
+      adapter.query("SELECT 1", [], { signal: controller.signal }),
+      (error) => error.code === "QUERY_CANCELLED",
+    );
   });
 });
 

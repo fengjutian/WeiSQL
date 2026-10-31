@@ -58,13 +58,36 @@ function renderPresets() {
   });
 }
 
+/** Opens a second Runtime with the DuckDB-Wasm adapter; used by SQL and filters. */
+async function ensureSqlDb() {
+  if (state.sqlDb !== undefined) return state.sqlDb;
+  const { createDuckDbWasmAdapter } = await import("/wasm-adapter/index.js");
+  const adapter = createDuckDbWasmAdapter({
+    bundles: {
+      mainModule: "/vendor/@duckdb/duckdb-wasm/dist/duckdb-eh.wasm",
+      mainWorker: "/vendor/@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js",
+    },
+    // Same origin: extensions.duckdb.org sends no CORS headers (ADR-058).
+    extensionRepository: `${location.origin}/extensions`,
+  });
+  state.sqlDb = await open({ manifest: state.manifest, resourceReader: state.reader, sqlAdapter: adapter });
+  return state.sqlDb;
+}
+
 async function search() {
   const topK = Number($("topk").value);
+  const category = $("filter-category").value;
   setText("error", "");
   setText("status", "检索中…");
   try {
     const started = performance.now();
-    const hits = await state.db.vector.search(state.collection.name, state.query.vector, { topK });
+    // Filters go through SQL, so they need the DuckDB-Wasm Runtime. Without a
+    // filter the built-in exact path is enough and no WASM is loaded.
+    const db = category === "" ? state.db : await ensureSqlDb();
+    const hits = await db.vector.search(state.collection.name, state.query.vector, {
+      topK,
+      ...(category === "" ? {} : { filter: { category } }),
+    });
     const elapsed = Math.round(performance.now() - started);
     const body = $("results");
     body.replaceChildren();
@@ -93,6 +116,7 @@ async function search() {
       ["results", String(hits.length)],
       ["backend", String(first?.diagnostics?.backend ?? "-")],
       ["exact", String(first?.diagnostics?.exact ?? "-")],
+      ...(category === "" ? [] : [["filter", `category = ${category}`]]),
       ["query ms", String(elapsed)],
       ...(state.loadedBytes === undefined ? [] : [["loaded bytes", String(state.loadedBytes)]]),
       ...(stats === undefined ? [] : [["cache hits/misses", `${stats.hits}/${stats.misses}`], ["coalesced", String(stats.coalesced)], ["bytes read", String(stats.bytesRead)], ["cached entries", String(stats.entries)]]),
@@ -105,6 +129,7 @@ async function search() {
       ...(state.loadedBytes === undefined ? {} : { loadedBytes: state.loadedBytes }),
       ids: hits.map(hit => hit.id),
       distances: hits.map(hit => Number(hit.distance.toFixed(6))),
+      ...(category === "" ? {} : { filterCategory: category }),
     };
   } catch (error) {
     setText("status", "失败");
@@ -187,21 +212,10 @@ async function runSql() {
   setText("sql-status", "运行中…");
   setText("error", "");
   try {
-    if (state.sqlDb === undefined) {
-      setText("sql-status", "加载 DuckDB-Wasm…");
-      const { createDuckDbWasmAdapter } = await import("/wasm-adapter/index.js");
-      const adapter = createDuckDbWasmAdapter({
-        bundles: {
-          mainModule: "/vendor/@duckdb/duckdb-wasm/dist/duckdb-eh.wasm",
-          mainWorker: "/vendor/@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js",
-        },
-        // Same origin: extensions.duckdb.org sends no CORS headers (ADR-057).
-        extensionRepository: `${location.origin}/extensions`,
-      });
-      state.sqlDb = await open({ manifest: state.manifest, resourceReader: state.reader, sqlAdapter: adapter });
-    }
+    if (state.sqlDb === undefined) setText("sql-status", "加载 DuckDB-Wasm…");
+    const sqlDb = await ensureSqlDb();
     const started = performance.now();
-    const rows = await state.sqlDb.sql($("sql-query").value);
+    const rows = await sqlDb.sql($("sql-query").value);
     const elapsed = Math.round(performance.now() - started);
     const head = $("sql-head");
     const body = $("sql-results");
@@ -232,7 +246,7 @@ async function runSql() {
         body.append(tr);
       }
     }
-    setText("sql-status", `${rows.length} 行 · ${elapsed} ms · ${state.sqlDb.capabilities().sql ? "DuckDB-Wasm" : "?"}`);
+    setText("sql-status", `${rows.length} 行 · ${elapsed} ms · ${sqlDb.capabilities().sql ? "DuckDB-Wasm" : "?"}`);
     window.__PLAYGROUND_STATE = { ...(window.__PLAYGROUND_STATE ?? {}), sqlIds: rows.map(row => row.id).filter(Boolean) };
   } catch (error) {
     setText("sql-status", "失败");

@@ -36,6 +36,12 @@ const normalize = (value) => {
 
 const attempt = async (adapter, testCase) => {
   try {
+    if (testCase.stream === true) {
+      const rows = [];
+      const iterable = await adapter.stream(testCase.sql, testCase.params ?? [], testCase.options);
+      for await (const row of iterable) rows.push(normalize(row));
+      return { ok: true, rows };
+    }
     const rows = await adapter.query(testCase.sql, testCase.params ?? [], testCase.options);
     return { ok: true, rows: normalize(rows) };
   } catch (error) {

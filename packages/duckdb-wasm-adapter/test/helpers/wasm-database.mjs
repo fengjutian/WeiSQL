@@ -47,6 +47,31 @@ export async function createWasmTestDatabase() {
           return {
             query: (...params) =>
               Promise.resolve(wrapTable(connection.useUnsafe((b, id) => b.runPrepared(id, statementId, params)))),
+            // The blocking bindings expose `sendPrepared` plus chunk fetching.
+            // The chunks are raw Arrow messages without a schema, so they are
+            // concatenated into one IPC stream and parsed once; the real browser
+            // adapter consumes the batches lazily.
+            async send(...params) {
+              const header = connection.useUnsafe((b, id) => b.sendPrepared(id, statementId, params));
+              const parts = [header];
+              for (;;) {
+                const chunk = connection.useUnsafe((b, id) => b.fetchQueryResults(id));
+                if (!chunk || chunk.length === 0) break;
+                parts.push(chunk);
+              }
+              const combined = new Uint8Array(parts.reduce((total, part) => total + part.length, 0));
+              let offset = 0;
+              for (const part of parts) {
+                combined.set(part, offset);
+                offset += part.length;
+              }
+              const table = tableFromIPC(combined);
+              return {
+                async *[Symbol.asyncIterator]() {
+                  for (const batch of table.batches) yield { toArray: () => batch.toArray() };
+                },
+              };
+            },
             close: () => Promise.resolve(connection.useUnsafe((b, id) => b.closePrepared(id, statementId))),
           };
         },

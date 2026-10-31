@@ -80,6 +80,18 @@ export const CONTRACT_CASES = [
     expect: { error: "INVALID_ARGUMENT" },
   },
   {
+    name: "stream rows",
+    sql: "select id from documents order by id",
+    stream: true,
+  },
+  {
+    name: "stream maxRows exceeded",
+    sql: "select id from documents order by id",
+    stream: true,
+    options: { maxRows: 2 },
+    expect: { error: "INVALID_ARGUMENT" },
+  },
+  {
     name: "Date parameter",
     sql: "select ? is not null as ok",
     params: [new Date(0)],

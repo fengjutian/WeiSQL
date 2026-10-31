@@ -101,6 +101,11 @@ DECIMAL 这一条不是可选项：不设置 `castDecimalToDouble` 时 Arrow 会
 `DESCRIBE` / `SHOW` / `SUMMARIZE` / `EXPLAIN` / `PIVOT` / `UNPIVOT` 无法安全包装，
 在返回后检查。
 
+**流式结果**：`db.sqlStream()` 用 `prepared.send()` 逐 Arrow batch 交付，不再把整表
+放进一个数组；`maxRows` 逐行累计，超限抛 `INVALID_ARGUMENT`（调用方可能已收到前
+`maxRows` 行）。取消语义与 `db.sql()` 相同：立即停止等待，单线程引擎可能继续跑完。
+`break` 会关闭 prepared 语句。`probe:wasm` 断言了真实浏览器中的流式读取。
+
 ## 5. L4 与版本
 
 - 默认开启 L4：对每张已物化的表执行 `DESCRIBE`，列名缺失或类型不匹配返回

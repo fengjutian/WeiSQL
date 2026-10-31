@@ -73,6 +73,17 @@
           topK: 2,
           filter: { category: "genetics" },
         });
+        // Streaming goes through the WASM adapter's prepared statement `send()`.
+        const streamedIds = [];
+        for await (const row of await db.sqlStream("select id from documents order by id")) streamedIds.push(row.id);
+        let streamLimitError;
+        try {
+          for await (const row of await db.sqlStream("select id from documents order by id", [], { maxRows: 2 })) {
+            void row;
+          }
+        } catch (error) {
+          streamLimitError = error.code;
+        }
 
         let writeError;
         try {
@@ -122,6 +133,8 @@
             filteredHits[0].diagnostics.exact === true &&
             writeError === "SQL_UNSUPPORTED" &&
             writeCteError === "SQL_UNSUPPORTED" &&
+            streamedIds.join(",") === "doc-001,doc-002,doc-003" &&
+            streamLimitError === "INVALID_ARGUMENT" &&
             cancelError?.code === "QUERY_CANCELLED" &&
             cancelError?.details?.engineMayStillRun === true &&
             cancelMs < baselineMs,
@@ -132,6 +145,7 @@
           cte: cte.map((row) => ({ ...row, n: Number(row.n) })),
           chinese,
           filteredHits: filteredHits.map((hit) => ({ id: hit.id, exact: hit.diagnostics.exact, strategy: hit.diagnostics.strategy })),
+          streaming: { ids: streamedIds, limitError: streamLimitError },
           writeError,
           writeCteError,
           cancellation: { baselineMs, cancelMs, code: cancelError?.code, details: cancelError?.details },

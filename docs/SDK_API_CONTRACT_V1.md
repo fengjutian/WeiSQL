@@ -25,6 +25,11 @@ export interface WeiSQLDatabase {
     params?: readonly SQLValue[],
     options?: QueryOptions,
   ): Promise<readonly T[]>;
+  sqlStream<T extends Record<string, unknown> = Record<string, unknown>>(
+    query: string,
+    params?: readonly SQLValue[],
+    options?: QueryOptions,
+  ): Promise<AsyncIterable<T>>;
   vector: {
     search(
       vectorName: string,
@@ -145,6 +150,13 @@ export interface VectorHit {
 DuckDB is an adapter, not the public API contract. The public SDK should avoid leaking DuckDB-specific connection, relation or extension types. Browser and Node adapters may have different supported SQL functions; expose a capability report rather than promising complete parity.
 
 `db.sql()` 的 `maxRows` 是行数预算，不是分页：超过时抛 `INVALID_ARGUMENT`（`details.maxRows`），**不会静默截断**。普通 `SELECT`/`VALUES`/`TABLE` 会被改写为带 `LIMIT maxRows + 1` 的子查询，让引擎提前停止；`DESCRIBE`/`SHOW`/`SUMMARIZE`/`EXPLAIN` 这类元数据语句在返回后检查。
+
+`db.sqlStream()` 返回 `AsyncIterable`，逐批/逐行交付：
+
+- 适配器实现 `stream` 时走引擎原生流（Node：`prepared.stream()`；浏览器：`prepared.send()` 的 Arrow batch）；
+- 未实现时回退到 `query()`，语义正确但不懒；
+- `maxRows` 仍为硬失败，但流式路径下调用方可能已收到前 `maxRows` 行；`signal` 语义与 `sql()` 相同；
+- `break` 会关闭底层 result/prepared，也可以显式 `close()` 释放。
 
 ```ts
 // Actual V1 shape: booleans describing this instance's wiring. Engine details

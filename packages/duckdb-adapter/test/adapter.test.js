@@ -137,6 +137,23 @@ test("maxRows bounds the result instead of truncating", async t => {
   );
 });
 
+test("streams rows lazily and enforces maxRows across chunks", async t => {
+  const { adapter } = await openAdapter(t);
+  const ids = [];
+  for await (const row of await adapter.stream("SELECT id FROM documents ORDER BY id")) ids.push(row.id);
+  assert.deepEqual(ids, ["doc-001", "doc-002", "doc-003"]);
+
+  const delivered = [];
+  await assert.rejects(async () => {
+    for await (const row of await adapter.stream("SELECT id FROM documents ORDER BY id", [], { maxRows: 2 })) {
+      delivered.push(row.id);
+    }
+  }, (error) => error.code === "INVALID_ARGUMENT" && error.details?.maxRows === 2);
+  // Streaming is hard-fail too: the caller sees the rows before the breach.
+  assert.equal(delivered.length, 2);
+  assert.deepEqual(delivered, ["doc-001", "doc-002"]);
+});
+
 test("write, DDL, config and CALL statements are rejected as SQL_UNSUPPORTED", async t => {
   const { adapter } = await openAdapter(t);
   const statements = [

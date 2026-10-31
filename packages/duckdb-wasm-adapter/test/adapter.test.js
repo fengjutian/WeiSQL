@@ -139,6 +139,26 @@ test("maxRows bounds the result instead of truncating", async () => {
   });
 });
 
+test("streams rows and enforces maxRows", async () => {
+  await withAdapter(async (adapter) => {
+    const ids = [];
+    for await (const row of await adapter.stream("SELECT id FROM documents ORDER BY id")) ids.push(row.id);
+    assert.deepEqual(ids, ["doc-001", "doc-002", "doc-003"]);
+
+    const delivered = [];
+    await assert.rejects(async () => {
+      for await (const row of await adapter.stream("SELECT id FROM documents ORDER BY id", [], { maxRows: 2 })) {
+        delivered.push(row.id);
+      }
+    }, (error) => error.code === "INVALID_ARGUMENT" && error.details?.maxRows === 2);
+    assert.equal(delivered.length, 2);
+    await assert.rejects(
+      adapter.stream("DELETE FROM documents"),
+      (error) => error.code === "SQL_UNSUPPORTED",
+    );
+  });
+});
+
 test("maps engine values onto the public SQLValue shapes", async () => {
   await withAdapter(async (adapter) => {
     const rows = await adapter.query("SELECT 42 AS i, 1.5 AS f, true AS b, 'x' AS s, NULL AS z, count(*) AS n FROM documents");

@@ -77,6 +77,41 @@ test("Runtime initializes, delegates to and closes a SQL adapter", async () => {
   ]);
 });
 
+test("sqlStream delegates to the adapter and falls back to query()", async () => {
+  const manifest = JSON.parse(await readFile(new URL("../../../examples/manifest/valid-minimal.json", import.meta.url), "utf8"));
+  const reader = new MemoryReader(new Map());
+  const calls = [];
+  const adapter = {
+    capabilities: { engine: "test-sql", parameterBinding: true, parquet: true, supportedFeatures: ["select"], cancellation: "native" },
+    async open() {},
+    async query() { calls.push("query"); return [{ id: "fallback" }]; },
+    async stream(statement, parameters) {
+      calls.push(["stream", statement, parameters]);
+      return (async function* () { yield { id: "streamed" }; })();
+    },
+    async close() {},
+  };
+  const db = await open({ manifest, resourceReader: reader, sqlAdapter: adapter });
+  const streamed = [];
+  for await (const row of await db.sqlStream("select 1", [], { maxRows: 5 })) streamed.push(row);
+  assert.deepEqual(streamed, [{ id: "streamed" }]);
+  assert.deepEqual(calls, [["stream", "select 1", []]]);
+
+  // An adapter without `stream` still yields rows, via query().
+  const fallback = {
+    capabilities: { engine: "test-sql", parameterBinding: true, parquet: true, supportedFeatures: ["select"], cancellation: "native" },
+    async open() {},
+    async query() { return [{ id: "fallback" }]; },
+    async close() {},
+  };
+  const db2 = await open({ manifest, resourceReader: new MemoryReader(new Map()), sqlAdapter: fallback });
+  const rows = [];
+  for await (const row of await db2.sqlStream("select 1")) rows.push(row);
+  assert.deepEqual(rows, [{ id: "fallback" }]);
+  await db.close();
+  await db2.close();
+});
+
 test("Runtime releases initialized resources when SQL adapter open fails", async () => {
   const manifest = JSON.parse(await readFile(new URL("../../../examples/manifest/valid-minimal.json", import.meta.url), "utf8"));
   const reader = new MemoryReader(new Map());

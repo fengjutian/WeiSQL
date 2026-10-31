@@ -20,6 +20,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   idempotent `close()`, `SqlAdapter` / `VectorAdapter` injection.
 - `QueryOptions.maxRows`: an explicit row budget for `db.sql()`; adapters reject
   with `INVALID_ARGUMENT` instead of truncating.
+- `db.sqlStream()`: `AsyncIterable` rows via an optional adapter `stream` path,
+  with a `query()` fallback when an adapter has no streaming implementation.
 - Exact vector search, ID Map join, stable Top-K and the `exact-filter-first`
   and `vector-first` hybrid strategies.
 - `buildPackage()` Builder: writes vectors, ID Map, real digests and Manifest,

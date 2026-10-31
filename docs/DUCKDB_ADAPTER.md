@@ -94,6 +94,8 @@ const adapter = createDuckDbAdapter({ tableLoading: "lazy" });
 
 **结果行数预算**：`db.sql(sql, params, { maxRows })` 超过预算时返回 `INVALID_ARGUMENT`（`details.maxRows`），不会静默截断。`SELECT` 会被改写为 `SELECT * FROM (<sql>) AS "weisql_row_limit" LIMIT maxRows + 1`，由引擎提前停止，只多物化一行；`EXPLAIN` 无法包装，在返回后检查。只读分类仍针对**原始语句**做一次 `prepare()`，改写不会放松写入边界。
 
+**流式结果**：`db.sqlStream()` 走本适配器的 `stream()`，用 `prepared.stream()` 按 chunk（约 2048 行）交付；`maxRows` 逐行累计，超限时抛 `INVALID_ARGUMENT`，调用方可能已收到前 `maxRows` 行。`break`/`return()` 会关闭 result 与 prepared 语句。
+
 ## 5. 取消与生命周期
 
 - 取消是**原生**的：`AbortSignal` 触发 `connection.interrupt()`，执行中的查询以 `QUERY_CANCELLED` 结束（测试中约 50–100 ms 内返回），连接在中断后仍可继续使用。

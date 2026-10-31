@@ -168,6 +168,17 @@ const hnsw = await createHnswWasmVectorAdapter({ module: hnswBytes, m: 16, efCon
 
 它在首次查询某个集合时建图（一个模块实例只持有一个图，切换集合或度量会重建），`capabilities.exactSearch` 为 `false`；带 `allowedRows` 的查询先超额召回 `topK × oversample` 再筛选，结果按契约可能少于 `topK`，并标记 `diagnostics.postFiltered`。`tools/bench/hnsw-adapter.mjs` 用同一集合比较 Recall@10、每条距离与过滤边界。
 
+已有预建图时可以跳过建图：
+
+```ts
+const hnsw = await createHnswWasmVectorAdapter({
+  module: hnswBytes,
+  loadIndex: vector => prebuilt.get(`${vector.data.path}#${vector.metric}`),
+});
+```
+
+`loadIndex` 返回 `weisql_hnsw_save` 的字节；适配器导入后校验行数、维度与度量，**错配或损坏直接抛 `RESOURCE_INTEGRITY_FAILED`**，不会悄悄回退到重建（旧图会返回错误的行号）。探针覆盖了正常导入、度量错配和截断字节三种情况。
+
 ## Manifest V1
 
 数据包的逻辑布局：

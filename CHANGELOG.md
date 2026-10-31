@@ -258,6 +258,11 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   `weisql_hnsw_load`. The WASM probe now builds a graph, exports it, imports it
   into a second freshly instantiated module and asserts the same query returns
   bit-identical ids and distances (122 KB for 1000×16).
+- HNSW WASM ABI v3 adds `weisql_hnsw_metric()`, and
+  `createHnswWasmVectorAdapter()` accepts `loadIndex`: a serialized graph is
+  imported instead of built, then checked against the descriptor's row count,
+  dimension and metric. A corrupt buffer or a graph for another metric raises
+  `RESOURCE_INTEGRITY_FAILED` rather than silently rebuilding.
 - `createWasmVectorAdapter()`: a `VectorAdapter` over that artifact. It caches
   one materialised `Float32Array` per collection, compacts `allowedRows` before
   the scan so filtered results stay exact, and maps rows back to business IDs

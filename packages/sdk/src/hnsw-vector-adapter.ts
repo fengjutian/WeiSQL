@@ -1,6 +1,6 @@
 import { WeiSQLError } from "./errors.js";
 import type { ResourceReader } from "./resource-reader.js";
-import type { VectorHit, VectorMetric } from "./types.js";
+import type { VectorCollectionDescriptor, VectorHit, VectorMetric } from "./types.js";
 import type {
   VectorAdapter,
   VectorAdapterCapabilities,
@@ -10,7 +10,11 @@ import type {
 import { assertBusinessId, materializeVectors, readBusinessIds, throwIfAborted } from "./wasm-vector-support.js";
 
 /** Must match `ABI_VERSION` in `crates/vector-hnsw-wasm/src/lib.rs`. */
-const ABI_VERSION = 2;
+const ABI_VERSION = 3;
+/** Manifest `index.engine` this adapter can consume. */
+const PERSISTED_ENGINE = "weisql-hnsw";
+/** Serialized format major version understood by this build. */
+const INDEX_FORMAT_MAJOR = "1";
 const DEFAULT_BLOCK_SIZE = 1024;
 const DEFAULT_OVERSAMPLE = 4;
 const DEFAULT_SEED = 0x5eed_5eed;
@@ -31,6 +35,13 @@ export interface HnswWasmVectorAdapterOptions {
   blockSize?: number;
   /** Candidate multiplier when a row filter is present. Defaults to 4. */
   oversample?: number;
+  /**
+   * Supplies a serialized graph for a collection (`weisql_hnsw_save` output).
+   * Returning `undefined` falls back to building the graph from the vectors.
+   * The loaded graph must match the descriptor's row count, dimension and
+   * metric; a mismatch or corrupt buffer is rejected, never silently rebuilt.
+   */
+  loadIndex?: (vector: VectorCollectionDescriptor) => Uint8Array | BufferSource | undefined;
 }
 
 interface HnswExports {
@@ -50,8 +61,10 @@ interface HnswExports {
     seedHigh: number,
   ): number;
   weisql_hnsw_search(query: number, topK: number, outIds: number, outDistances: number): number;
+  weisql_hnsw_load(bytes: number, length: number): number;
   weisql_hnsw_dimension(): number;
   weisql_hnsw_len(): number;
+  weisql_hnsw_metric(): number;
 }
 
 /**
@@ -98,7 +111,7 @@ export async function createHnswWasmVectorAdapter(options: HnswWasmVectorAdapter
     engine: "weisql-hnsw-wasm",
     engineVersion: `abi-${ABI_VERSION}`,
     metrics: ["cosine", "l2", "ip"] as const,
-    persistedIndex: false,
+    persistedIndex: true,
     metadataFiltering: false,
     postFiltering: true,
     exactSearch: false,
@@ -133,9 +146,16 @@ export async function createHnswWasmVectorAdapter(options: HnswWasmVectorAdapter
       }
       throwIfAborted(request.signal);
 
-      if (indexKey !== indexIdentity(request)) {
-        buildIndex(api, request, vectors, { m, efConstruction, efSearch, seed });
-        indexKey = indexIdentity(request);
+      const identity = indexIdentity(request);
+      if (indexKey !== identity) {
+        const provided = options.loadIndex?.(request.vector);
+        const prebuilt = provided ?? (await readPersistedIndex(source, request.vector, request.signal));
+        if (prebuilt === undefined) {
+          buildIndex(api, request, vectors, { m, efConstruction, efSearch, seed });
+        } else {
+          loadSerialized(api, request, prebuilt);
+        }
+        indexKey = identity;
       }
 
       const filtered = request.allowedRows;
@@ -214,16 +234,60 @@ function buildIndex(
       Math.floor(settings.seed / 2 ** 32) >>> 0,
     );
     if (code !== 0) throw hnswError(code, "build");
-    if (api.weisql_hnsw_len() !== count || api.weisql_hnsw_dimension() !== dimension) {
-      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Built HNSW index does not match the descriptor", {
-        expectedRows: count,
-        actualRows: api.weisql_hnsw_len(),
-        expectedDimension: dimension,
-        actualDimension: api.weisql_hnsw_dimension(),
-      });
-    }
+    assertIndexMatches(api, request);
   } finally {
     api.weisql_hnsw_dealloc(pointer, bytes);
+  }
+}
+
+function loadSerialized(
+  api: HnswExports,
+  request: VectorAdapterSearchRequest,
+  serialized: Uint8Array | BufferSource,
+): void {
+  const data = serialized instanceof ArrayBuffer
+    ? new Uint8Array(serialized)
+    : new Uint8Array(serialized.buffer, serialized.byteOffset, serialized.byteLength);
+  if (data.byteLength === 0) {
+    throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "The prebuilt HNSW index is empty");
+  }
+  const pointer = api.weisql_hnsw_alloc(data.byteLength);
+  if (!pointer) {
+    throw new WeiSQLError("INTERNAL_ERROR", "WASM allocation failed for the prebuilt HNSW index", {
+      bytes: data.byteLength,
+    });
+  }
+  try {
+    new Uint8Array(api.memory.buffer, pointer, data.byteLength).set(data);
+    const code = api.weisql_hnsw_load(pointer, data.byteLength);
+    if (code !== 0) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "The prebuilt HNSW index was rejected", {
+        code,
+        bytes: data.byteLength,
+      });
+    }
+    assertIndexMatches(api, request);
+  } finally {
+    api.weisql_hnsw_dealloc(pointer, data.byteLength);
+  }
+}
+
+/** Rejects a graph that does not describe the requested collection. */
+  const { count, dimension, metric } = request.vector;
+  const metricCode = METRIC_CODES[metric];
+  if (
+    api.weisql_hnsw_len() !== count ||
+    api.weisql_hnsw_dimension() !== dimension ||
+    api.weisql_hnsw_metric() !== metricCode
+  ) {
+    throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "HNSW index does not match the descriptor", {
+      expectedRows: count,
+      actualRows: api.weisql_hnsw_len(),
+      expectedDimension: dimension,
+      actualDimension: api.weisql_hnsw_dimension(),
+      expectedMetric: metricCode,
+      actualMetric: api.weisql_hnsw_metric(),
+    });
   }
 }
 
@@ -316,7 +380,8 @@ function assertAbi(api: Partial<HnswExports>): asserts api is HnswExports {
     typeof api.weisql_hnsw_alloc !== "function" ||
     typeof api.weisql_hnsw_dealloc !== "function" ||
     typeof api.weisql_hnsw_build !== "function" ||
-    typeof api.weisql_hnsw_search !== "function"
+    typeof api.weisql_hnsw_search !== "function" ||
+    typeof api.weisql_hnsw_metric !== "function"
   ) {
     throw new WeiSQLError("INVALID_ARGUMENT", "WASM module is missing required HNSW exports");
   }

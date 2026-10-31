@@ -5,7 +5,7 @@
 //! exact WASM shim, this crate has no imports and avoids `wasm-bindgen`, so it
 //! instantiates from raw bytes on any host.
 //!
-//! ABI version 2:
+//! ABI version 3:
 //!
 //! - `weisql_hnsw_abi_version() -> u32`
 //! - `weisql_hnsw_alloc(len) -> *mut u8` / `weisql_hnsw_dealloc(ptr, len)`
@@ -13,7 +13,7 @@
 //! - `weisql_hnsw_search(query, top_k, out_ids, out_distances) -> i32`
 //! - `weisql_hnsw_serialized_len() -> u32`, `weisql_hnsw_save(out, capacity) -> i32`
 //! - `weisql_hnsw_load(bytes, len) -> i32`
-//! - `weisql_hnsw_dimension() -> u32`, `weisql_hnsw_len() -> u32`
+//! - `weisql_hnsw_dimension() -> u32`, `weisql_hnsw_len() -> u32`, `weisql_hnsw_metric() -> u32`
 //!
 //! `metric` is `0` cosine, `1` L2, `2` inner product. Distances are `f64`, ids
 //! are `u32` row ids and are **approximate**: the caller must report
@@ -30,7 +30,7 @@ use weisql_vector_benchmark::Metric;
 use weisql_vector_hnsw::{HnswConfig, HnswError, HnswIndex};
 
 /// Bumped whenever the exported signatures or the buffer layout change.
-pub const ABI_VERSION: u32 = 2;
+pub const ABI_VERSION: u32 = 3;
 
 pub const ERROR_ARGUMENT: i32 = -1;
 pub const ERROR_DATASET: i32 = -2;
@@ -169,6 +169,13 @@ pub extern "C" fn weisql_hnsw_len() -> u32 {
     INDEX.lock().ok().and_then(|guard| guard.as_ref().map(|index| index.len() as u32)).unwrap_or(0)
 }
 
+/// Metric of the current index (`0` cosine, `1` L2, `2` inner product), or
+/// `u32::MAX` when none is built.
+#[no_mangle]
+pub extern "C" fn weisql_hnsw_metric() -> u32 {
+    INDEX.lock().ok().and_then(|guard| guard.as_ref().map(|index| index.metric().code())).unwrap_or(u32::MAX)
+}
+
 /// Serialized byte length of the current index, or zero when none is built.
 #[no_mangle]
 pub extern "C" fn weisql_hnsw_serialized_len() -> u32 {
@@ -269,6 +276,7 @@ mod tests {
         assert_eq!(unsafe { weisql_hnsw_build(vectors.as_ptr(), 3, 2, 1, 4, 16, 8, 7, 0) }, 0);
         assert_eq!(weisql_hnsw_len(), 3);
         assert_eq!(weisql_hnsw_dimension(), 2);
+        assert_eq!(weisql_hnsw_metric(), 1);
 
         let count = unsafe { weisql_hnsw_search(query.as_ptr(), 2, ids.as_mut_ptr(), distances.as_mut_ptr()) };
         assert_eq!(count, 2);
@@ -280,6 +288,7 @@ mod tests {
         assert_eq!(unsafe { weisql_hnsw_build(replacement.as_ptr(), 2, 2, 2, 4, 16, 8, 1, 0) }, 0);
         assert_eq!(weisql_hnsw_len(), 2);
         assert_eq!(weisql_hnsw_dimension(), 2);
+        assert_eq!(weisql_hnsw_metric(), 2);
     }
 
     #[test]

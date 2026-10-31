@@ -170,6 +170,77 @@ for (const metric of ["cosine", "l2"]) {
   console.log(`ok ${metric}-filtered: ${filtered.length} hits, all inside allowedRows`);
 }
 
+// Prebuilt graphs: export from one module, load through the adapter in another.
+const prebuiltL2 = await buildPrebuilt(wasmBytes, flat, 1);
+const prebuiltCosine = await buildPrebuilt(wasmBytes, flat, 0);
+
+const prebuiltAdapter = await createHnswWasmVectorAdapter({
+  module: wasmBytes,
+  blockSize: 64,
+  loadIndex: vector => (vector.metric === "l2" ? prebuiltL2 : undefined),
+});
+await prebuiltAdapter.open({ manifest: {}, reader });
+const prebuiltVector = descriptor("l2", resources);
+const prebuiltQuery = Float32Array.from(rowOf(flat, 3));
+const prebuiltExpected = await exact.search({ vector: prebuiltVector, query: prebuiltQuery, topK: TOP_K });
+const prebuiltHits = await prebuiltAdapter.search({ vector: prebuiltVector, query: prebuiltQuery, topK: TOP_K });
+const prebuiltExpectedIds = new Set(prebuiltExpected.map(hit => hit.row));
+let prebuiltHitsMatched = 0;
+for (const hit of prebuiltHits) {
+  if (prebuiltExpectedIds.has(hit.row)) prebuiltHitsMatched += 1;
+  const reference = vectorDistance(prebuiltQuery, rowOf(flat, hit.row), "l2");
+  if (Math.abs(hit.distance - reference) > TOLERANCE) throw new Error(`prebuilt distance ${hit.distance} != ${reference}`);
+}
+const prebuiltRecall = prebuiltHitsMatched / prebuiltExpected.length;
+if (prebuiltRecall < MIN_RECALL) throw new Error(`prebuilt recall ${prebuiltRecall.toFixed(3)} < ${MIN_RECALL}`);
+console.log(`ok prebuilt: ${prebuiltL2.length} bytes loaded, recall@${TOP_K} ${prebuiltRecall.toFixed(3)}`);
+await prebuiltAdapter.close();
+
+// A graph for another metric must be rejected, not silently rebuilt.
+const staleAdapter = await createHnswWasmVectorAdapter({ module: wasmBytes, loadIndex: () => prebuiltCosine });
+await staleAdapter.open({ manifest: {}, reader });
+let staleCode;
+try {
+  await staleAdapter.search({ vector: descriptor("l2", resources), query: prebuiltQuery, topK: TOP_K });
+} catch (error) {
+  staleCode = error instanceof WeiSQLError ? error.code : String(error);
+}
+if (staleCode !== "RESOURCE_INTEGRITY_FAILED") throw new Error(`stale index should be rejected, got ${staleCode}`);
+console.log("ok prebuilt: metric mismatch rejected");
+await staleAdapter.close();
+
+// Truncated bytes must fail loudly.
+const corruptAdapter = await createHnswWasmVectorAdapter({ module: wasmBytes, loadIndex: () => prebuiltL2.slice(0, 32) });
+await corruptAdapter.open({ manifest: {}, reader });
+let corruptCode;
+try {
+  await corruptAdapter.search({ vector: descriptor("l2", resources), query: prebuiltQuery, topK: TOP_K });
+} catch (error) {
+  corruptCode = error instanceof WeiSQLError ? error.code : String(error);
+}
+if (corruptCode !== "RESOURCE_INTEGRITY_FAILED") throw new Error(`truncated index should be rejected, got ${corruptCode}`);
+console.log("ok prebuilt: truncated bytes rejected");
+await corruptAdapter.close();
+
 await exact.close();
 await hnsw.close();
+
+async function buildPrebuilt(wasmBytes, vectors, metricCode) {
+  const { instance } = await WebAssembly.instantiate(wasmBytes, {});
+  const api = instance.exports;
+  const pointer = api.weisql_hnsw_alloc(vectors.byteLength);
+  if (!pointer) throw new Error("prebuilt build allocation failed");
+  new Float32Array(api.memory.buffer, pointer, vectors.length).set(vectors);
+  const built = api.weisql_hnsw_build(pointer, ROWS, DIMENSION, metricCode, 12, 120, 96, 7, 0);
+  api.weisql_hnsw_dealloc(pointer, vectors.byteLength);
+  if (built !== 0) throw new Error(`prebuilt build failed with code ${built}`);
+  const length = api.weisql_hnsw_serialized_len();
+  const buffer = api.weisql_hnsw_alloc(length);
+  if (!buffer) throw new Error("prebuilt save allocation failed");
+  const written = api.weisql_hnsw_save(buffer, length);
+  if (written !== length) throw new Error(`prebuilt save wrote ${written} of ${length}`);
+  const snapshot = new Uint8Array(api.memory.buffer, buffer, length).slice();
+  api.weisql_hnsw_dealloc(buffer, length);
+  return snapshot;
+}
 console.log(`hnsw adapter parity: ${comparisons} unfiltered queries compared`);

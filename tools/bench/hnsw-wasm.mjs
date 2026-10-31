@@ -15,7 +15,7 @@ const DEFAULT_WASM = new URL(
   "../../crates/vector-hnsw-wasm/target/wasm32-unknown-unknown/release/weisql_vector_hnsw_wasm.wasm",
   import.meta.url,
 );
-const ABI_VERSION = 2;
+const ABI_VERSION = 3;
 const METRIC_L2 = 1;
 const ROWS = 1_000;
 const DIMENSION = 16;

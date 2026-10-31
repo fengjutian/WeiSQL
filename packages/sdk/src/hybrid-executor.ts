@@ -1,10 +1,10 @@
 import { WeiSQLError } from "./errors.js";
 import type { IdMapReader } from "./vector-core-types.js";
 import type { SqlAdapter } from "./sql-adapter.js";
-import type { HybridStrategy, VectorCollectionDescriptor, WeiSQLManifest } from "./types.js";
-import { businessIdKey, buildIdRowIndex, compileEqualityFilter, normalizeBusinessId } from "./vector-filter.js";
+import type { FilterExpression, HybridStrategy, VectorCollectionDescriptor, WeiSQLManifest } from "./types.js";
+import { businessIdKey, buildIdRowIndex, compileFilter, normalizeBusinessId } from "./vector-filter.js";
 
-export type FilterExpression = Readonly<Record<string, string | number | boolean | null>>;
+export type { FilterExpression } from "./types.js";
 
 interface FilterQueryInput {
   manifest: Readonly<WeiSQLManifest>;
@@ -126,7 +126,7 @@ async function queryFilteredIds(input: FilterQueryInput): Promise<(string | numb
   if (table === undefined) {
     throw new WeiSQLError("MANIFEST_INVALID", "Vector collection references an unknown table", { collection: vector.name, table: vector.tableName });
   }
-  const compiled = compileEqualityFilter(table, vector, filter);
+  const compiled = compileFilter(table, vector, filter);
   const rows = await sqlAdapter.query<Record<string, unknown>>(
     compiled.sql,
     compiled.parameters,

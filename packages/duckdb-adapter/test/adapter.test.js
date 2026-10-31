@@ -295,6 +295,26 @@ test("vector-first trades exactness for a bounded candidate window", async t => 
   assert.deepEqual(exact.map(hit => hit.id), ["doc-003"]);
 });
 
+test("filter expressions support membership, inequality and ranges through real SQL", async t => {
+  const manifest = await fixtureManifest();
+  const reader = new NodeFileResourceReader({ rootDirectory: FIXTURE });
+  const db = await open({ manifest, resourceReader: reader, sqlAdapter: createDuckDbAdapter() });
+  t.after(() => db.close().catch(() => undefined));
+
+  const membership = await db.vector.search("document_embeddings", [1, 0], { topK: 3, filter: { category: ["genetics", "metabolism"] } });
+  assert.deepEqual(membership.map(hit => hit.id), ["doc-001", "doc-002", "doc-003"]);
+
+  const inequality = await db.vector.search("document_embeddings", [1, 0], { topK: 3, filter: { category: { ne: "metabolism" } } });
+  assert.deepEqual(inequality.map(hit => hit.id), ["doc-001", "doc-002"]);
+
+  // String ranges are lexicographic; this proves the operator reaches SQL rather
+  // than being silently ignored.
+  const range = await db.vector.search("document_embeddings", [1, 0], { topK: 3, filter: { id: { gte: "doc-002" } } });
+  assert.deepEqual(range.map(hit => hit.id), ["doc-002", "doc-003"]);
+
+  await assert.rejects(db.vector.search("document_embeddings", [1, 0], { filter: { category: { in: [] } } }), { code: "INVALID_ARGUMENT" });
+});
+
 test("lazy table loading keeps memory bounded but re-enables file access", async t => {
   const manifest = await fixtureManifest();
   const reader = new NodeFileResourceReader({ rootDirectory: FIXTURE });

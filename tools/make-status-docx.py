@@ -181,13 +181,13 @@ def build(target: Path):
     style_run(run, size=22, bold=True, color=ACCENT)
 
     subtitle = document.add_paragraph()
-    run = subtitle.add_run("2026-10-31 · 仓库 HEAD eabb963 · 235 个自动化测试 · 尚未发布 npm")
+    run = subtitle.add_run("2026-10-31 · 仓库 HEAD ddee911 · 240 个自动化测试 · 尚未发布 npm")
     style_run(run, size=10, color=MUTED)
 
     document.add_heading("1. 一句话状态", level=1)
     paragraph = document.add_paragraph()
     run = paragraph.add_run(
-        "工程原型。Manifest V1 与数据包格式稳定，四个包共 235 个自动化测试，CI 覆盖构建、类型、测试与发布元数据；"
+        "工程原型。Manifest V1 与数据包格式稳定，四个包共 240 个自动化测试，CI 覆盖构建、类型、测试与发布元数据；"
         "精确检索、ANN、全文、融合、RAG 与单文件容器均有实现与实测数字。尚未发布 npm 包，也没有任何未经测量的性能承诺。"
     )
     style_run(run, size=10.5)
@@ -196,7 +196,7 @@ def build(target: Path):
         document,
         ["维度", "状态"],
         [
-            ["测试", "235 个全绿（SDK 176 / DuckDB 19 / USearch 13 / CLI 27）"],
+            ["测试", "240 个全绿（SDK 179 / DuckDB 20 / USearch 13 / CLI 27）"],
             ["CI", "GitHub Actions：Ubuntu + Windows 行为闸门，另有派生索引与容器作业"],
             ["许可证", "Apache-2.0（根目录与每个包内各一份）"],
             ["发布", "未发布 npm 包（缺组织与访问令牌）"],
@@ -217,7 +217,7 @@ def build(target: Path):
             ["有界 LRU 缓存 + 请求合并", "✓", "✓", "✓", "—"],
             ["Runtime 生命周期与能力报告", "✓", "✓", "✓", "—"],
             ["精确向量检索", "✓", "✓", "✓", "129–152 ms p50 @100k×128"],
-            ["Hybrid 过滤两策略", "✓", "✓", "✓", "—"],
+            ["Hybrid 过滤两策略（等值/IN/范围/日期）", "✓", "✓", "✓", "—"],
             ["DuckDB 只读 SQL（memory / lazy）", "✓", "✓", "✓", "—"],
             ["USearch ANN（持久化 / 现场构建）", "✓", "✓", "✓", "0.385–0.740 Recall@10"],
             ["ANN 后过滤（显式可选）", "✓", "✓", "✓", "—"],
@@ -253,11 +253,11 @@ def build(target: Path):
         document,
         ["包", "测试数", "覆盖重点"],
         [
-            ["@weisql/sdk", "176", "校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约"],
-            ["@weisql/duckdb-adapter", "19", "只读边界、参数绑定、两种表加载、取消"],
+            ["@weisql/sdk", "179", "校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约"],
+            ["@weisql/duckdb-adapter", "20", "只读边界、参数绑定、两种表加载、取消"],
             ["@weisql/usearch-adapter", "13", "度量映射、持久化索引、后过滤、生命周期"],
             ["@weisql/cli", "27", "校验退出码、--json、pack、unpack、容器校验、--l4"],
-            ["合计", "235", ""],
+            ["合计", "240", ""],
         ],
         widths=[4.6, 1.8, 9.4],
     )
@@ -331,6 +331,7 @@ def build(target: Path):
             ["ANN 过滤的完整性保证", "只有显式后过滤，可能少于 topK，已在诊断中标注"],
             ["同主版本内的索引格式变化", "只按主版本判定，无法探测其内部变化"],
             [".wsql 压缩算法协商", "目前只有 gzip；brotli 需要新版本号"],
+            ["JSON 等值过滤", "需要规范化形式，当前明确拒绝"],
             ["融合质量需要相关性标注", "k 只做了稳定性测量，未回答哪个 k 排序更好"],
             ["时间戳与嵌套列的源数据推断", "转换工具只覆盖标量类型"],
             ["中文分词", "CJK 逐字，精度换可预测性"],
@@ -367,7 +368,7 @@ def build(target: Path):
         document,
         ["检查项", "状态"],
         [
-            ["测试 / 类型 / 构建", "✓ 235 测试，typecheck 通过"],
+            ["测试 / 类型 / 构建", "✓ 240 测试，typecheck 通过"],
             ["打包内容", "✓ 仅 dist/ + README + LICENSE，无 src/test 泄漏"],
             ["依赖范围", "✓ caret 且跟踪本地版本"],
             ["许可证", "✓ Apache-2.0（根 + 每包）"],

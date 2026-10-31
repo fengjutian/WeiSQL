@@ -104,10 +104,19 @@ export interface RagResult {
 }
 export interface VectorSearchOptions {
   topK?: number;
-  /** Field → scalar equality, AND semantics; V1 implements `exact-filter-first`. */
-  filter?: Readonly<Record<string, string | number | boolean | null>>;
+  /** Equality, membership or range conditions on declared columns, AND-combined. */
+  filter?: FilterExpression;
   signal?: AbortSignal;
+  strategy?: "exact-filter-first" | "vector-first";
 }
+export type FilterScalar = string | number | boolean | Date | null;
+export type FilterCondition =
+  | FilterScalar
+  | readonly FilterScalar[]
+  | { readonly in: readonly FilterScalar[] }
+  | { readonly gte?: FilterScalar; readonly gt?: FilterScalar; readonly lte?: FilterScalar; readonly lt?: FilterScalar }
+  | { readonly ne: FilterScalar };
+export type FilterExpression = Readonly<Record<string, FilterCondition>>;
 export interface VectorHit {
   row: number;
   id: string | number;

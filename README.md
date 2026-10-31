@@ -371,7 +371,18 @@ const rows = await db.sql(
 
 ## 过滤与混合检索
 
-`vector.search()` 接受 `filter`，语义是「字段 = 标量」的 AND 等值条件，并提供两种策略。
+`vector.search()` 接受 `filter`，条件是 AND 组合，支持等值、成员与范围：
+
+```ts
+filter: {
+  category: "genetics",                  // 等值
+  title: ["DNA", "RNA"],                  // IN
+  score: { gte: 0.5, lt: 0.9 },           // 范围
+  published: { gte: new Date("2026-01-01") }, // date/timestamp 支持 Date 或 ISO 字符串
+}
+```
+
+也可以显式写 `{ in: [...] }`、`{ ne: value }`，或用 `null` 表示 `IS NULL`。条件全部参数绑定，字段必须在 Manifest 中声明。
 
 **`exact-filter-first`（默认）** —— 先求出完整过滤集合，再在集合内做精确比较：
 
@@ -407,7 +418,8 @@ const hits = await db.vector.search("document_embeddings", [1, 0], {
 
 - 需要 `sqlAdapter`；未注入时返回 `SQL_UNSUPPORTED`，不会静默忽略过滤条件。
 - 字段必须在 Manifest 中声明（未知列 → `INVALID_ARGUMENT`），值按列类型校验并全部参数绑定，`null` 编译为 `IS NULL`。
-- `date`/`timestamp`/`json` 的等值过滤尚未支持，会明确报错而不是静默匹配不到。
+- `date`/`timestamp` 接受 `Date` 或 ISO 字符串并按列类型校验；`json` 的等值过滤仍然明确报错——JSON 相等需要规范化形式，猜测会静默匹配不到。
+- 成员条件上限 1000 个值；`in` 不接受 `null`，范围不接受空条件或同时给 `gt` 与 `gte`。
 - 只传 `strategy` 不传 `filter` 会返回 `INVALID_ARGUMENT`。
 
 ## 仓库结构

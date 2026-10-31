@@ -28,6 +28,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   the opposite of vector distance).
 - Hybrid fusion: `db.hybrid.search()` combining vector and text rankings with
   Reciprocal Rank Fusion, reporting per-source ranks and raw values.
+- Filters support membership (`IN`), ranges and `ne`, plus `date`/`timestamp`
+  values; `json` equality is still rejected explicitly.
 - RAG retrieval: `db.rag.search()` assembling budgeted evidence with provenance;
   the SDK never calls a model.
 - `.wsql` single-file container: `createContainer()`, `parseContainer()`,

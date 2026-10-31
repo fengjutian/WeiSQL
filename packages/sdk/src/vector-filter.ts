@@ -1,6 +1,6 @@
 import { WeiSQLError } from "./errors.js";
 import type { IdMapReader } from "./vector-core-types.js";
-import type { SQLValue, TableDescriptor, VectorCollectionDescriptor, WeiSQLScalarType } from "./types.js";
+import type { FilterExpression, FilterScalar, SQLValue, TableDescriptor, VectorCollectionDescriptor, WeiSQLScalarType } from "./types.js";
 
 const DEFAULT_INDEX_BATCH_ROWS = 256;
 
@@ -48,17 +48,17 @@ export interface CompiledEqualityFilter {
 }
 
 /**
- * Compiles the V1 filter object (`field → scalar`, AND semantics) into a
- * parameterised statement.
+ * Compiles a filter expression into a parameterised statement.
  *
- * Column identifiers come from the Manifest whitelist and are quoted; every
- * value is bound. Values are never interpolated, and a field that the Manifest
- * does not declare is rejected instead of being forwarded to the engine.
+ * Column identifiers come from the Manifest whitelist and are quoted; every value
+ * is bound. Fields the Manifest does not declare are rejected instead of being
+ * forwarded to the engine, and values are checked against the declared column
+ * type before they reach SQL.
  */
-export function compileEqualityFilter(
+export function compileFilter(
   table: TableDescriptor,
   vector: VectorCollectionDescriptor,
-  filter: Readonly<Record<string, string | number | boolean | null>>,
+  filter: FilterExpression,
 ): CompiledEqualityFilter {
   const idColumn = table.columns.find(column => column.name === vector.idColumn);
   if (idColumn === undefined) {
@@ -71,20 +71,139 @@ export function compileEqualityFilter(
     if (column === undefined) {
       throw new WeiSQLError("INVALID_ARGUMENT", "Filter references a column the Manifest does not declare", { table: table.name, column: field });
     }
-    const value = filter[field]!;
-    if (value === null) {
-      conditions.push(`${quoteIdentifier(field)} IS NULL`);
+    const quoted = quoteIdentifier(field);
+    const condition = filter[field]!;
+
+    if (condition instanceof Date) {
+      conditions.push(`${quoted} = ?`);
+      parameters.push(normalizeFilterValue(column.type, field, condition));
       continue;
     }
-    assertFilterScalar(column.type, field, value);
-    conditions.push(`${quoteIdentifier(field)} = ?`);
-    parameters.push(value);
+    if (Array.isArray(condition)) {
+      appendIn(quoted, column.type, field, condition, conditions, parameters);
+      continue;
+    }
+    if (typeof condition === "object" && condition !== null) {
+      const keys = Object.keys(condition);
+      if (keys.includes("in")) {
+        if (keys.length !== 1) throw new WeiSQLError("INVALID_ARGUMENT", "A filter condition cannot mix 'in' with other operators", { column: field });
+        appendIn(quoted, column.type, field, (condition as { in: readonly FilterScalar[] }).in, conditions, parameters);
+        continue;
+      }
+      if (keys.includes("ne")) {
+        if (keys.length !== 1) throw new WeiSQLError("INVALID_ARGUMENT", "A filter condition cannot mix 'ne' with other operators", { column: field });
+        const value = (condition as { ne: FilterScalar }).ne;
+        if (value === null) throw new WeiSQLError("INVALID_ARGUMENT", "'ne' does not accept null", { column: field });
+        conditions.push(`${quoted} <> ?`);
+        parameters.push(normalizeFilterValue(column.type, field, value));
+        continue;
+      }
+      appendRange(quoted, column.type, field, condition as Record<string, FilterScalar | undefined>, conditions, parameters);
+      continue;
+    }
+    if (condition === null) {
+      conditions.push(`${quoted} IS NULL`);
+      continue;
+    }
+    conditions.push(`${quoted} = ?`);
+    parameters.push(normalizeFilterValue(column.type, field, condition));
   }
   const where = conditions.length === 0 ? "" : ` WHERE ${conditions.join(" AND ")}`;
   return {
     sql: `SELECT ${quoteIdentifier(vector.idColumn)} AS id FROM ${quoteIdentifier(table.name)}${where}`,
     parameters,
   };
+}
+
+/** Backwards-compatible name for the original equality-only entry point. */
+export function compileEqualityFilter(
+  table: TableDescriptor,
+  vector: VectorCollectionDescriptor,
+  filter: FilterExpression,
+): CompiledEqualityFilter {
+  return compileFilter(table, vector, filter);
+}
+
+function appendIn(
+  quoted: string,
+  type: WeiSQLScalarType,
+  field: string,
+  values: readonly FilterScalar[],
+  conditions: string[],
+  parameters: SQLValue[],
+): void {
+  if (!Array.isArray(values) || values.length === 0) {
+    throw new WeiSQLError("INVALID_ARGUMENT", "A membership condition needs at least one value", { column: field });
+  }
+  if (values.length > 1000) {
+    throw new WeiSQLError("INVALID_ARGUMENT", "A membership condition is limited to 1000 values", { column: field, count: values.length });
+  }
+  for (const value of values) {
+    if (value === null) throw new WeiSQLError("INVALID_ARGUMENT", "Membership conditions do not accept null; use IS NULL separately", { column: field });
+    parameters.push(normalizeFilterValue(type, field, value));
+  }
+  conditions.push(`${quoted} IN (${values.map(() => "?").join(", ")})`);
+}
+
+function appendRange(
+  quoted: string,
+  type: WeiSQLScalarType,
+  field: string,
+  range: Record<string, FilterScalar | undefined>,
+  conditions: string[],
+  parameters: SQLValue[],
+): void {
+  const allowedKeys = new Set(["gte", "gt", "lte", "lt"]);
+  const keys = Object.keys(range);
+  for (const key of keys) {
+    if (!allowedKeys.has(key)) throw new WeiSQLError("INVALID_ARGUMENT", "Range conditions only accept gte/gt/lte/lt", { column: field, operator: key });
+  }
+  if (keys.length === 0) throw new WeiSQLError("INVALID_ARGUMENT", "A range condition needs at least one bound", { column: field });
+  if (range.gte !== undefined && range.gt !== undefined) {
+    throw new WeiSQLError("INVALID_ARGUMENT", "A range condition cannot combine 'gte' and 'gt'", { column: field });
+  }
+  if (range.lte !== undefined && range.lt !== undefined) {
+    throw new WeiSQLError("INVALID_ARGUMENT", "A range condition cannot combine 'lte' and 'lt'", { column: field });
+  }
+  const operators: [string, string, FilterScalar | undefined][] = [["gt", ">", range.gt], ["gte", ">=", range.gte], ["lt", "<", range.lt], ["lte", "<=", range.lte]];
+  for (const [name, sqlOperator, value] of operators) {
+    if (value === undefined) continue;
+    if (value === null) throw new WeiSQLError("INVALID_ARGUMENT", "Range bounds must not be null", { column: field, operator: name });
+    conditions.push(`${quoted} ${sqlOperator} ?`);
+    parameters.push(normalizeFilterValue(type, field, value));
+  }
+}
+
+/** Validates one value against the declared column type and converts it for SQL. */
+function normalizeFilterValue(type: WeiSQLScalarType, field: string, value: FilterScalar): SQLValue {
+  if (value === null) throw new WeiSQLError("INVALID_ARGUMENT", "Filter values must not be null here", { column: field });
+  if (value instanceof Date) {
+    if (type !== "date" && type !== "timestamp") {
+      throw new WeiSQLError("INVALID_ARGUMENT", "Date values are only valid for date or timestamp columns", { column: field, columnType: type });
+    }
+    if (Number.isNaN(value.getTime())) throw new WeiSQLError("INVALID_ARGUMENT", "Filter Date is invalid", { column: field });
+    return type === "date" ? value.toISOString().slice(0, 10) : value.toISOString();
+  }
+  const accepted: Record<WeiSQLScalarType, boolean> = {
+    string: typeof value === "string",
+    int32: typeof value === "number" && Number.isSafeInteger(value),
+    int64: typeof value === "number" && Number.isSafeInteger(value),
+    float32: typeof value === "number" && Number.isFinite(value),
+    float64: typeof value === "number" && Number.isFinite(value),
+    boolean: typeof value === "boolean",
+    timestamp: typeof value === "string" && !Number.isNaN(Date.parse(value)),
+    date: typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)),
+    json: false,
+  };
+  if (!accepted[type]) {
+    throw new WeiSQLError("INVALID_ARGUMENT", "Filter value does not match the declared column type", {
+      column: field,
+      columnType: type,
+      valueType: typeof value,
+      supported: type === "json" ? "unsupported (JSON equality needs a canonical form)" : "scalar, membership or range",
+    });
+  }
+  return value as SQLValue;
 }
 
 /**
@@ -105,30 +224,6 @@ export function normalizeBusinessId(value: unknown, table: string): string | num
     return Number(value);
   }
   throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Business ID has an unsupported type", { table, type: typeof value });
-}
-
-function assertFilterScalar(type: WeiSQLScalarType, field: string, value: string | number | boolean): void {
-  const accepted: Record<WeiSQLScalarType, (input: string | number | boolean) => boolean> = {
-    string: input => typeof input === "string",
-    int32: input => typeof input === "number" && Number.isSafeInteger(input),
-    int64: input => typeof input === "number" && Number.isSafeInteger(input),
-    float32: input => typeof input === "number" && Number.isFinite(input),
-    float64: input => typeof input === "number" && Number.isFinite(input),
-    boolean: input => typeof input === "boolean",
-    // Date, timestamp and json equality are not part of the frozen V1 filter
-    // object; guessing a string format here would silently produce no matches.
-    timestamp: () => false,
-    date: () => false,
-    json: () => false,
-  };
-  if (!accepted[type](value)) {
-    throw new WeiSQLError("INVALID_ARGUMENT", "Filter value does not match the declared column type", {
-      column: field,
-      columnType: type,
-      valueType: typeof value,
-      supported: type === "date" || type === "timestamp" || type === "json" ? "unsupported in V1" : "scalar equality",
-    });
-  }
 }
 
 function quoteIdentifier(name: string): string {

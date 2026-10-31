@@ -65,9 +65,34 @@ export interface VectorFirstOptions {
   maxCandidates?: number;
 }
 export type HybridStrategy = "exact-filter-first" | "vector-first";
+
+/** Scalar values a filter may compare against. `Date` is only valid for date/timestamp columns. */
+export type FilterScalar = string | number | boolean | Date | null;
+
+/**
+ * One column condition:
+ * - a scalar means equality (`null` becomes `IS NULL`);
+ * - an array means `IN (...)` (membership, at least one value);
+ * - `{ in }` is the explicit form of membership;
+ * - `{ gte, gt, lte, lt }` is a range (at least one bound);
+ * - `{ ne }` means `<>`.
+ */
+export type FilterCondition =
+  | FilterScalar
+  | readonly FilterScalar[]
+  | { readonly in: readonly FilterScalar[] }
+  | { readonly gte?: FilterScalar; readonly gt?: FilterScalar; readonly lte?: FilterScalar; readonly lt?: FilterScalar }
+  | { readonly ne: FilterScalar };
+
+export type FilterExpression = Readonly<Record<string, FilterCondition>>;
 export interface VectorSearchOptions {
   topK?: number;
-  filter?: Readonly<Record<string, string | number | boolean | null>>;
+  /**
+   * Equality, membership or range conditions on declared columns, AND-combined.
+   * `json` columns remain unsupported: JSON equality needs a canonical form, and
+   * guessing one would silently match nothing.
+   */
+  filter?: FilterExpression;
   signal?: AbortSignal;
   /** Requires `filter`. Defaults to `exact-filter-first`. */
   strategy?: HybridStrategy;

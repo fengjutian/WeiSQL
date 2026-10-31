@@ -19,7 +19,7 @@ const QUANTIZATIONS = {
 };
 
 function parseArguments(argv) {
-  const options = { rows: 20_000, dimension: 64, queries: 20, topK: 10, clusters: 0, seed: 7, quantizations: ["f32", "f16", "i8"] };
+  const options = { rows: 20_000, dimension: 64, queries: 20, topK: 10, clusters: 0, seed: 7, connectivity: 16, expansion: 128, quantizations: ["f32", "f16", "i8"] };
   for (let index = 0; index < argv.length; index++) {
     const argument = argv[index];
     const next = () => {
@@ -34,6 +34,8 @@ function parseArguments(argv) {
       case "--top-k": options.topK = Number(next()); break;
       case "--clusters": options.clusters = Number(next()); break;
       case "--seed": options.seed = Number(next()); break;
+      case "--connectivity": options.connectivity = Number(next()); break;
+      case "--expansion": options.expansion = Number(next()); break;
       case "--quantizations": options.quantizations = next().split(",").map(item => item.trim()).filter(Boolean); break;
       default: throw new Error(`unknown argument: ${argument}`);
     }
@@ -141,8 +143,8 @@ try {
       dimensions: options.dimension,
       metric: MetricKind.Cos,
       quantization: QUANTIZATIONS[name],
-      connectivity: 16,
-      expansion_search: 128,
+      connectivity: options.connectivity,
+      expansion_search: options.expansion,
     });
     const keys = new BigUint64Array(options.rows);
     for (let row = 0; row < options.rows; row++) keys[row] = BigInt(row);
@@ -172,7 +174,7 @@ try {
       p50Ms: Number(percentile(latencies, 0.5).toFixed(2)),
       buildMs: Math.round(buildMs),
       indexBytes: size,
-      searchExpansion: 128,
+      searchExpansion: options.expansion,
     });
   }
 } finally {

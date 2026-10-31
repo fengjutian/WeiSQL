@@ -632,8 +632,8 @@
 - 决策一：先写独立基准 `bench:quantization`，用同一批向量建 f32/f16/i8 索引，报告 Recall@10 与索引体积。结果：f16 −39% 体积 / −4.5 召回点，i8 −58% / −10.5 点（50k × 128，均匀随机）。
 - 决策二：**不修改 Manifest 与 encoding**。量化是有损且不可逆的：一旦数据以 i8 写入，想换回 f32 只能重建；而真实 embedding 的召回损失尚未测量。
 - 决策三：也不给 Adapter 增加 `quantization` 选项。持久化索引必须与构建时的量化一致，否则加载即错配；这需要在 Manifest 的 `index.params` 里表达字符串，属于格式变更。
-- 决策四：记录基准中的一个反常：50k 时 HNSW 构建从 3 s 涨到 236 s。没有解释之前，不基于这个数字做任何优化决策。
-- 后果：得到可复现的「体积—召回」曲线与明确的下一步条件：提供真实语料、解释构建时间、再评估格式扩展。
+- 决策四：基准最初报告 50k 构建耗时 236 s。定位结果是**基准脚本的 bug**：`index.add(keys, vectors, rows)` 的第三个参数是线程数，等于请求了 5 万个线程。修正后构建 2.5–5.7 s、召回稳定；库本身没有问题。
+- 后果：得到可复现的「体积—召回」曲线（f32 0.81 / f16 0.775 / i8 0.785，体积 −39% / −58%）与明确的下一步条件：提供真实语料，再评估格式扩展。教训：基准脚本也要核对第三方 API 的签名，否则会产出看似可信的错误结论。
 
 ## ADR-064：JSON 列不做规范化，过滤 DSL 不支持 JSON 等值，SQL 透传是受支持路径
 
@@ -655,6 +655,17 @@
 - 决策四：无法安全包装的语句（`DESCRIBE` / `SHOW` / `SUMMARIZE` / `EXPLAIN`，以及 WASM 侧的 `PIVOT` / `UNPIVOT`）在返回后检查；它们返回的是有界元数据行，风险远小于全表 SELECT。
 - 决策五：`maxRows` 非法（0、负数、非安全整数）返回 `INVALID_ARGUMENT`；写入/多语句等错误码优先于行预算。
 - 后果：两端语义一致并有共享契约用例；结果集仍是一次性数组，真正的流式 API 仍未实现（README 的「尚未实现」保留这一条）。
+
+## ADR-069：流式结果用 `sqlStream()` 返回 AsyncIterable，适配器可选实现
+
+- 状态：Accepted and implemented
+- 背景：ADR-068 的 `maxRows` 只能拒绝超限，不能把结果逐批交给调用方；`db.sql()` 仍会把全部行放进数组。
+- 决策一：新增 `db.sqlStream(query, params, options): Promise<AsyncIterable<T>>`。返回 Promise 是为了让 `open`/prepare 阶段的错误在开始时抛出；行级错误在迭代时抛出。
+- 决策二：`SqlAdapter.stream?` 是**可选**方法；没有实现的适配器由 Runtime 回退到 `query()` 并逐行 yield。回退语义正确但不懒，调用方仍可用 `close()` 释放。
+- 决策三：Node 用 `DuckDBPreparedStatement.stream()` 的 chunk 迭代器，逐 chunk 转成行；WASM 用 `AsyncPreparedStatement.send()` 的 Arrow batch 流。两者都在 `finally` 中关闭 result/prepared，`break` 会触发异步生成器的 `return`。
+- 决策四：`maxRows` 在流式路径上同样是硬失败，但调用方**可能已经收到前 `maxRows` 行**——这是流式交付的固有语义，文档明确写出，不假装原子。
+- 决策五：取消保留各自语义（Node 原生中断、WASM 立即停止等待且引擎可能继续跑）；流式路径同样适用。
+- 后果：浏览器与 Node 都能在物化整表结果前消费行，`maxRows` 之外多了一层真正的规模控制。共享契约新增“stream rows / stream maxRows”两个用例，Chromium 探针也断言真实 WASM 流。
 
 ## 明确禁止的未经验证声明
 

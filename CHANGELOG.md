@@ -22,6 +22,9 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   with `INVALID_ARGUMENT` instead of truncating.
 - `db.sqlStream()`: `AsyncIterable` rows via an optional adapter `stream` path,
   with a `query()` fallback when an adapter has no streaming implementation.
+- `OpenOptions.maxResourceBytes` / `maxTotalBytes`: raise the L3 per-resource
+  (default 64 MiB) and total budgets so a single large Parquet file can be
+  verified; the hashing algorithm is unchanged.
 - Exact vector search, ID Map join, stable Top-K and the `exact-filter-first`
   and `vector-first` hybrid strategies.
 - `buildPackage()` Builder: writes vectors, ID Map, real digests and Manifest,
@@ -219,6 +222,12 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   (9 cases) now gate TypeScript, native Rust and the WASM artifact, and the core
   gained `exact_search` / `exact_search_contiguous` over a `Metric` enum with a
   zero-copy row-major layout.
+- `createWasmVectorAdapter()`: a `VectorAdapter` over that artifact. It caches
+  one materialised `Float32Array` per collection, compacts `allowedRows` before
+  the scan so filtered results stay exact, and maps rows back to business IDs
+  through the indexed ID map. A Node probe compares it with
+  `createExactVectorAdapter` on the same in-memory collection for all three
+  metrics, filtered and unfiltered, plus the zero-query error code.
 - ANN index builder and release checks.
 - Text index builder (`tools/build-text-index.mjs`) reading the Parquet column and
   updating the Manifest.

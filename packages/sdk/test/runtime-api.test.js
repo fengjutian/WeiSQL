@@ -27,6 +27,26 @@ class MemoryReader {
   async close() { this.closed = true; }
 }
 
+test("maxResourceBytes raises the per-resource L3 budget", async () => {
+  const manifest = JSON.parse(await readFile(new URL("../../../examples/manifest/valid-minimal.json", import.meta.url), "utf8"));
+  manifest.tables[0].file.bytes = 70 * 1024 * 1024;
+  const reader = {
+    async stat() { return { size: 1, supportsRange: true }; },
+    async read() { return new Uint8Array(1); },
+    async readRange() { return new Uint8Array(0); },
+    async close() {},
+  };
+  await assert.rejects(
+    open({ manifest, resourceReader: reader, verifyChecksums: "all" }),
+    (error) => error.code === "RESOURCE_INTEGRITY_FAILED" && error.details?.maxResourceBytes === 64 * 1024 * 1024,
+  );
+  // With the budget raised, verification proceeds to the actual size check.
+  await assert.rejects(
+    open({ manifest, resourceReader: reader, verifyChecksums: "all", maxResourceBytes: 80 * 1024 * 1024 }),
+    (error) => error.code === "RESOURCE_INTEGRITY_FAILED" && /size does not match/.test(error.message),
+  );
+});
+
 test("public Runtime opens an injected package and executes exact vector search", async () => {
   const manifest = JSON.parse(await readFile(new URL("../../../examples/manifest/valid-minimal.json", import.meta.url), "utf8"));
   const idData = new TextEncoder().encode('{"row":0,"id":"doc-001"}\n{"row":1,"id":"doc-002"}\n{"row":2,"id":"doc-003"}\n');

@@ -194,7 +194,7 @@ fixture 3 行、扩展已缓存。
 | 过滤检索 | `exact-filter-first`，`exact: true`，2 条命中 | probe 断言（`db.vector.search` + `filter`） |
 | Node ↔ Chromium SQL | 9 个查询 / 错误码全部一致 | `probe:parity` |
 | 浏览器流式读取 | 1M 行 871 ms（约 1.15M 行/s），首行 5 ms；20 万/50 万行真实 Parquet 430/2,165 ms | `bench:wasm-stream`，Chromium 1248，单次运行 |
-| 浏览器物化内存 | 20 万/50 万/100 万行：堆 +10.7/+21.8/+40.7 MB，引擎 12.2/30.7/60.1 MB，`open()` 2.1–2.8 s | 同上 materialize 段；200 万行超过 64 MiB 校验预算 |
+| 浏览器物化内存 | 20 万/50 万/100 万/200 万行：引擎 12.2/30.7/60.1/119.4 MB，`open()` 2.0–4.4 s | 同上 materialize 段；200 万行需提高 L3/表/reader 预算 |
 | 浏览器冷启动 | `open()` 1,817 ms，传输 36.3 MB（WASM 32.7 + 扩展 2.9 + worker 0.7） | `bench:wasm-cold`，关闭 HTTP 缓存；本地服务器，无 CDN |
 | 查询中取消 | 202 ms 的查询在 50 ms abort 后 **51 ms** 返回 `QUERY_CANCELLED` | probe 断言；`cancelSent()` 返回 `false`，引擎未停 |
 | parquet 扩展 | 498,915 B（`wasm_eh`，v1.4.3） | 自托管文件 |
@@ -228,9 +228,10 @@ fixture 3 行、扩展已缓存。
 
 ## 10. 未验证 / 明确不做
 
-- 浏览器内的大表：§8 已有 20 万 / 50 万 / 100 万行的物化内存曲线（约每百万行 60 MB 引擎内存），
-  但 200 万行（75 MB Parquet）会先撞上 `verifyChecksums` 的每资源 64 MiB 校验预算，尚未验证。
-  `maxTableBytes` 只是拒绝阈值，不是内存保证。
+- 浏览器内的大表：§8 已有 20 万 / 50 万 / 100 万 / 200 万行的物化内存曲线（约每百万行
+  60 MB 引擎内存，200 万行 119.4 MB、`open()` 4.4 s）。200 万行需要显式提高三项预算：
+  `open({ maxResourceBytes })`、`maxTableBytes` 与 reader 的 `maxReadBytes`；默认 64 MiB
+  仍会按 `RESOURCE_INTEGRITY_FAILED` 拒绝。`maxTableBytes` 只是拒绝阈值，不是内存保证。
 - **COI / 多线程**：试过，不可用。页面跨域隔离后 `duckdb-coi.wasm` 能跑（`threads=4`），但加载
   `parquet` 扩展直接 `LinkError`：扩展声明非共享内存，COI 运行时是共享内存；`wasm_threads`
   变体同样如此（v1.4.3）。见 ADR-063。

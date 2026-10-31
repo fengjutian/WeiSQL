@@ -67,6 +67,7 @@ npm run desktop:build   # 生成安装包
 - Rust 精确 Cosine 搜索基线（单次扫描、`f64` 累加、定容最大堆）
 - TypeScript ↔ Rust 跨语言黄金对照：同一固定数据集两侧排名与距离一致（6 个用例，CI 双向校验）
 - WASM 构建（`npm run build:wasm`）：无 wasm-bindgen、无导入的 17 KB 模块，cosine/L2/IP 三种度量，同一 fixture 第三方实现对照（`npm run test:wasm-golden`）
+- WASM Vector Adapter（`createWasmVectorAdapter`）：把该产物接成 `VectorAdapter`，与 TypeScript 精确适配器逐字段对照（`npm run test:wasm-adapter`）
 
 ## 尚未实现 / 未验证
 
@@ -75,7 +76,7 @@ npm run desktop:build   # 生成安装包
 - `db.sql()` 仍一次性返回全部行；需要增量消费时用 `db.sqlStream()`（流式 API 已提供）
 - ANN 在真实数据集上的 Recall@K 评估；ANN 后过滤的完整性保证
 - 时间戳的自动推断（需用 `--timestamp` 显式声明；嵌套 JSON 列已支持，见 [源数据转换](docs/SOURCE_CONVERSION.md)）
-- WASM 产物接入 SDK Runtime / Playground（当前只做基准与黄金对照，未替换 TypeScript 精确搜索）
+- WASM adapter 的产物分发与浏览器实测（adapter 已实现并对照通过，但 `.wasm` 未随 npm 包发布，也尚未在 Chromium 中跑通）
 - 真实 CDN（CORS、Range、缓存）与多机/冷缓存验收
 - npm 发布（元数据与发布脚本已就绪，缺 npm 组织与访问令牌）
 
@@ -138,6 +139,16 @@ Rust 示例参数依次为向量数量、维度、Top-K 和可选的测量轮数
 跨语言黄金对照：`tools/bench/rust-golden.mjs` 用 SDK 的 `exactVectorSearch` 把 6 个固定数据集写入 `crates/vector-benchmark/tests/fixtures/exact_cosine_golden.txt`，Rust 的 `golden_tests.rs` 在 1e-6 容差内断言相同排名与距离。修改任一侧语义都会让 `npm run test:rust-golden` 或 `cargo test` 失败；需要更新基线时运行 `node tools/bench/rust-golden.mjs --write`。
 
 WASM：[vector-wasm](crates/vector-wasm/src/lib.rs) 把 `exact_search_contiguous` 暴露为无导入的 C ABI（`weisql_alloc` / `weisql_search_topk` / `weisql_dealloc`，ABI v2，`metric` 取 0/1/2 对应 cosine/L2/IP），发布构建约 17 KB。`tools/bench/wasm-baseline.mjs` 用两份 fixture（9 个用例）在 Node 中实例化并逐项断言，形成 TypeScript、原生 Rust、WASM 三方一致。
+
+`createWasmVectorAdapter()` 把产物接到 Runtime 的适配器边界上，调用方只需提供模块字节：
+
+```ts
+import { open, createWasmVectorAdapter } from "@weisql/sdk";
+const wasm = await createWasmVectorAdapter({ module: await (await fetch("/weisql_vector_wasm.wasm")).arrayBuffer() });
+const db = await open("./pkg", { vectorAdapter: wasm });
+```
+
+适配器第一次搜索时按 `blockSize` 把整个集合读入 `Float32Array` 并缓存（包不可变），每次搜索再拷入 WASM 线性内存；因此内存约为 `count × dimension × 4` 字节。`tools/bench/wasm-adapter.mjs` 在同一份内存数据上比较 `createWasmVectorAdapter` 与 `createExactVectorAdapter` 的行号、业务 ID、距离和错误码。
 
 ## Manifest V1
 

@@ -92,6 +92,17 @@ jobs:
       - name: WASM golden parity
         run: node tools/bench/wasm-baseline.mjs
 
+      # The adapter is the SDK-facing half: build the package and run it against
+      # the TypeScript exact adapter on the same in-memory collection.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build --workspace @weisql/sdk
+      - name: WASM adapter parity
+        run: node tools/bench/wasm-adapter.mjs
+
   derived:
     name: derived indexes and fixture determinism
     runs-on: ubuntu-latest

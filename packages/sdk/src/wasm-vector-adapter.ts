@@ -105,7 +105,7 @@ export async function createWasmVectorAdapter(options: WasmVectorAdapterOptions)
       if (plan === undefined) return [];
       throwIfAborted(request.signal);
 
-      const hits = runWasm(api, request, plan.data, plan.rows, plan.compacted);
+      const hits = runWasm(api, request, plan);
       throwIfAborted(request.signal);
 
       const idMap = new IndexedIdMapReader(source, {
@@ -158,8 +158,8 @@ export async function createWasmVectorAdapter(options: WasmVectorAdapterOptions)
 interface RowPlan {
   /** Values passed to the module: the full cache or a compacted copy. */
   data: Float32Array;
-  /** Original row id for every row in `data`. */
-  rows: readonly number[];
+  /** Original row id for every compacted row; absent for the full cache. */
+  rows?: readonly number[];
   /** True when `data` is a compacted subset rather than the full cache. */
   compacted: boolean;
 }
@@ -168,8 +168,7 @@ function selectRows(request: VectorAdapterSearchRequest, full: Float32Array): Ro
   const { count, dimension } = request.vector;
   const allowed = request.allowedRows;
   if (allowed === undefined) {
-    const rows = Array.from({ length: count }, (_, row) => row);
-    return { data: full, rows, compacted: false };
+    return { data: full, compacted: false };
   }
   const selected = [...allowed].filter(row => Number.isSafeInteger(row) && row >= 0 && row < count).sort((a, b) => a - b);
   if (selected.length === 0) return undefined;
@@ -213,21 +212,17 @@ interface RawHit {
   distance: number;
 }
 
-function runWasm(
-  api: WasmExports,
-  request: VectorAdapterSearchRequest,
-  data: Float32Array,
-  rows: readonly number[],
-  compacted: boolean,
-): RawHit[] {
+function runWasm(api: WasmExports, request: VectorAdapterSearchRequest, plan: RowPlan): RawHit[] {
   const { dimension, metric } = request.vector;
   const metricCode = METRIC_CODES[metric];
   if (metricCode === undefined) {
     throw new WeiSQLError("MANIFEST_INVALID", "Unsupported vector metric for the WASM adapter", { metric });
   }
-  const slots = Math.min(request.topK, rows.length);
+  const rowCount = plan.compacted ? plan.rows!.length : request.vector.count;
+  const slots = Math.min(request.topK, rowCount);
   if (slots <= 0) return [];
 
+  const data = plan.data;
   const vectorBytes = data.byteLength;
   const queryBytes = request.query.byteLength;
   const idBytes = slots * Uint32Array.BYTES_PER_ELEMENT;
@@ -258,7 +253,7 @@ function runWasm(
 
     const count = api.weisql_search_topk(
       vectorPointer,
-      rows.length,
+      rowCount,
       dimension,
       queryPointer,
       request.topK,
@@ -275,7 +270,10 @@ function runWasm(
     const hits: RawHit[] = new Array(count);
     for (let index = 0; index < count; index++) {
       const local = ids[index]!;
-      hits[index] = { row: compacted ? rows[local]! : local, distance: distances[index]! };
+      hits[index] = {
+        row: plan.compacted ? plan.rows![local]! : local,
+        distance: distances[index]!,
+      };
     }
     return hits;
   } finally {

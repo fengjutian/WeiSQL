@@ -120,6 +120,10 @@ npm run playground     # http://127.0.0.1:8099/playground/
 
 它会在浏览器里演示向量检索、全文检索、RAG 证据、目录 / `.wsql` 切换和 DuckDB-Wasm SQL，且没有后端。
 
+![WeiSQL Playground：数据包信息、加载方式与查询面板](/img/playground.png)
+
+*Playground 顶部会先列出 Manifest 声明的表、向量、文本索引与当前能力，再提供目录 / 单文件切换。*
+
 ## 4. 加一条 SQL 查询（可选）
 
 SQL 不是 SDK 内置引擎，而是注入 Adapter。Node.js 端使用仓库内的 `@weisql/duckdb-adapter`（尚未发布到 npm，workspace 内可直接引用；发布后才可用 `npm install @weisql/duckdb-adapter`）：

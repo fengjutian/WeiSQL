@@ -30,6 +30,7 @@
     "test:rust-golden": "node tools/bench/rust-golden.mjs",
     "build:wasm": "cargo build --locked --release --target wasm32-unknown-unknown --manifest-path crates/vector-wasm/Cargo.toml",
     "test:wasm-golden": "node tools/bench/wasm-baseline.mjs",
+    "test:wasm-adapter": "node tools/bench/wasm-adapter.mjs",
     "release:check": "node tools/release-check.mjs",
     "release:pack": "node tools/check-tarballs.mjs",
     "release:e2e": "node tools/pack-e2e.mjs",

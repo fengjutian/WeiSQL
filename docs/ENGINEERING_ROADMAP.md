@@ -266,6 +266,7 @@ DuckDB-Wasm 与浏览器 SQL 已验证、WASM 向量搜索仍待推进；CDN 按
 | SQL Adapter | 两个实现均已完成：Node.js DuckDB（语句级只读、原生取消）与浏览器 DuckDB-Wasm（tokenizer 判定的只读边界、`best-effort` 取消、两层字节预算） |
 | DuckDB-Wasm | 已实现并在 Chromium 中验证：自托管 parquet 扩展、只读 CTE、过滤检索、`probe:wasm` 断言通过；大表与冷启动未测 |
 | USearch ANN Adapter | 已实现；HNSW 内存索引、三种度量映射、`exact: false` 如实标注；召回与延迟对照见 `BENCHMARK_HARNESS.md` |
+| WASM 向量 Adapter | `createWasmVectorAdapter()` 已实现：整集合缓存 + `allowedRows` 压缩后精确扫描，三度量与零查询错误码均与 TypeScript 精确适配器逐字段对照 |
 | ANN 真实数据集召回 | 未评估；现有 Recall@K 均来自合成数据，不能外推 |
 | 全文检索 | 已实现；Manifest `textIndexes`、倒排索引读取器、BM25 排序与 Unicode 分词，`text.search()` 已接入 Runtime |
 | Rust 向量能力 | 精确 Cosine/L2/IP 搜索基线 + WASM 产物：38 个测试通过（含 9 个跨语言黄金用例与 WASM ABI）；单次扫描 + `f64` 累加 + 定容最大堆，CI 接入 `fmt`/`clippy`/`test`/release 烟测/WASM 黄金对照 |

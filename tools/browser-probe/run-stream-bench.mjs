@@ -89,7 +89,7 @@ try {
 
   // Larger sizes only measure `open()`: fetching a million rows with `db.sql`
   // would measure the array, not the materialization curve.
-  for (const rows of [200_000, 500_000, 1_000_000]) {
+  for (const rows of [200_000, 500_000, 1_000_000, 2_000_000]) {
     const directory = path.join(PACKAGE_DIR, `mat-${rows}`);
     await rm(directory, { recursive: true, force: true });
     await mkdir(directory, { recursive: true });

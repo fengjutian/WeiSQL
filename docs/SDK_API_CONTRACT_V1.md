@@ -15,7 +15,15 @@ export interface OpenOptions {
   resourceReader?: ResourceReader;
   sqlAdapter?: SqlAdapter;
   signal?: AbortSignal;
+  /** Per-resource L3 ceiling in declared bytes; defaults to 64 MiB. */
+  maxResourceBytes?: number;
+  /** Total declared-bytes L3 ceiling; defaults to 512 MiB. */
+  maxTotalBytes?: number;
 }
+
+`maxResourceBytes` / `maxTotalBytes` 只放宽 L3 校验的预算，不改变校验算法：超限还是
+`RESOURCE_INTEGRITY_FAILED`，只是阈值可调。提高预算意味着更大的单文件会被整块读入内存
+计算 SHA-256；200 万行的 75 MB Parquet 就属于这种情况。
 
 export interface WeiSQLDatabase {
   readonly manifest: Readonly<WeiSQLManifest>;

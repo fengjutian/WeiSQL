@@ -41,14 +41,17 @@
             mainWorker: "/vendor/@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js",
           },
           extensionRepository: `${location.origin}/extensions`,
+          maxTableBytes: 256 * 1024 * 1024,
+          maxTotalTableBytes: 512 * 1024 * 1024,
         });
         const before = heap();
         const started = performance.now();
         const db = await open({
           manifestUrl: new URL("manifest.json", base).href,
-          resourceReader: new HttpResourceReader({ baseUrl: base }),
+          resourceReader: new HttpResourceReader({ baseUrl: base, maxReadBytes: 256 * 1024 * 1024, maxRangeBytes: 256 * 1024 * 1024 }),
           sqlAdapter: adapter,
           verifyChecksums: "all",
+          maxResourceBytes: 256 * 1024 * 1024,
         });
         const openMs = Math.round(performance.now() - started);
         const after = heap();

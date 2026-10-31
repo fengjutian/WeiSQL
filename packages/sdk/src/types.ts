@@ -100,7 +100,16 @@ export interface WeiSQLManifest {
   metadata?: { title?: string; description?: string; createdAt?: string; builderVersion?: string };
 }
 export type SQLValue = string | number | bigint | boolean | null | Uint8Array | Date;
-export interface QueryOptions { signal?: AbortSignal }
+export interface QueryOptions {
+  signal?: AbortSignal;
+  /**
+   * Upper bound on returned rows. Adapters reject with `INVALID_ARGUMENT` once
+   * the result exceeds it instead of truncating silently. For plain SELECTs the
+   * engine is asked for at most `maxRows + 1` rows, so the extra row is the only
+   * one materialized beyond the budget.
+   */
+  maxRows?: number;
+}
 export interface VectorFirstOptions {
   /** Candidate window before the first expansion; defaults to `topK × 4`. */
   initialCandidates?: number;

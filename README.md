@@ -1,4 +1,4 @@
-# WeiSQL AI
+﻿# WeiSQL AI
 
 [![CI](https://github.com/fengjutian/WeiSQL/actions/workflows/ci.yml/badge.svg)](https://github.com/fengjutian/WeiSQL/actions/workflows/ci.yml)
 
@@ -54,7 +54,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 
 - 浏览器 SQL 的 `Date`/二进制参数（当前明确拒绝）；见 [DuckDB-Wasm Adapter](docs/DUCKDB_WASM_ADAPTER.md)
 - 浏览器端 OPFS 持久化、大表与 34 MB 首载的实测；多线程/COI 已试且不可用（见 ADR-063）
-- SQL 结果的行数上限或流式返回（当前一次性返回全部行）
+- SQL 结果的流式返回（`maxRows` 能拒绝超限，但仍一次性返回全部行）
 - ANN 在真实数据集上的 Recall@K 评估；ANN 后过滤的完整性保证
 - 时间戳与嵌套列的源数据推断（CSV/JSON 转换目前只覆盖标量）
 - WASM 构建与 TypeScript/Rust 自动黄金数据对照
@@ -374,6 +374,7 @@ const rows = await db.sql(
 
 - **只读由引擎的语句分类保证**：只执行 `SELECT` 与 `EXPLAIN` 预处理语句，`INSERT`/`UPDATE`/`DELETE`/`COPY`/`CREATE`/`ALTER`/`SET`/`CALL` 一律返回 `SQL_UNSUPPORTED`。不依赖关键字过滤，`WITH ... DELETE` 同样被拒绝。
 - **单语句**：`prepare()` 直接拒绝多语句输入，一次调用无法夹带第二条语句。
+- **结果行数预算 `maxRows`**：超过预算抛 `INVALID_ARGUMENT`（`details.maxRows`），不静默截断；普通 `SELECT`/`VALUES`/`TABLE` 会被改写为带 `LIMIT maxRows + 1` 的子查询，让引擎提前停止，元数据语句在返回后检查。
 - **外部文件访问关闭**：`open()` 最后设置 `enable_external_access=false` 与 `lock_configuration=true`，因此用户 SQL 里的 `read_parquet('/etc/passwd')` 会被拒绝。
 - **表会被物化进内存**：为满足上一条边界，Adapter 用 `CREATE TABLE ... AS SELECT` 把 Parquet 载入内存库，而不是保留需要查询期文件访问的视图。内存成本约等于表数据量，由两层声明字节预算兜底：单表 `maxTableBytes`（默认 256 MiB）与整包 `maxTotalTableBytes`（默认 512 MiB）；整包检查先于实例创建。
 - **L4 校验**：表载入后按 Manifest 的列名与类型比对 `DESCRIBE` 结果，不一致返回 `RESOURCE_INTEGRITY_FAILED`；可用 `verifyTableSchema: false` 关闭。
@@ -407,6 +408,7 @@ const db = await open({
 - **parquet 扩展必须同源托管**：`extensions.duckdb.org` 不返回 CORS 头，页面无法跨域下载；`npm run vendor:wasm-extension` 会按 WASM 核心版本缓存扩展，探针服务器把它挂在 `/extensions` 下。未配置时 `open()` 返回 `SQL_UNSUPPORTED`，不静默降级。
 - **只读用首关键字白名单**：`SELECT`/`EXPLAIN`/`DESCRIBE`/`SHOW`/`SUMMARIZE`/`PIVOT`/`UNPIVOT`/`TABLE`/`VALUES`；`WITH` 交给 DuckDB 自己的 tokenizer 跳过 CTE 列表后判定真实动词，所以只读 CTE 可用、`WITH ... DELETE` 仍被拒绝。tokenizer 不可用时退回严格白名单（`WITH` 拒绝，`supportedFeatures` 不含 `cte`）。
 - **参数受 JSON 限制**：只接受字符串、数字、布尔、`null` 与安全范围内的 `bigint`；`Date`、二进制与超范围整数返回 `INVALID_ARGUMENT`。
+- **结果行数预算 `maxRows`**：与 Node 适配器同一语义——超限抛 `INVALID_ARGUMENT`，不截断；可包装的语句由引擎提前停止，`DESCRIBE`/`SHOW`/`EXPLAIN` 在返回后检查。
 - **取消是 best-effort**，不是 `native`：查询中 abort 会立即返回 `QUERY_CANCELLED`（`details.engineMayStillRun: true`），但单线程 worker 里的查询不会被抢占——实测 202 ms 的查询在 50 ms abort 后 51 ms 返回，引擎仍会跑完。
 
 实测（Chromium 1248、fixture 3 行、扩展已缓存）：`open()` 1.37–1.70 s，查询 < 50 ms。完整边界见 [DuckDB-Wasm Adapter](docs/DUCKDB_WASM_ADAPTER.md)，决策见 [ADR-065 / ADR-066](docs/DECISION_LOG.md)。
@@ -565,7 +567,7 @@ tools/                     源 Parquet、ANN/全文索引生成、基准与浏�
 6. ~~DuckDB-Wasm（浏览器 SQL 引擎）~~（已完成，`packages/duckdb-wasm-adapter`：扩展自托管 + tokenizer 判定的只读边界，含只读 CTE）
 7. 真实 embedding 数据集的 Recall@K、多机基准复现与静态 CDN/CORS 验收
 8. ~~Playground 接入浏览器 SQL 与类别过滤~~（已完成，`probe:playground` 断言）
-9. SQL Adapter 共享契约测试、`db.sql()` 行数上限/流式返回、浏览器 OPFS 持久化
+9. `db.sql()` 的流式返回、浏览器 OPFS 持久化
 
 第 7 步是当前瓶颈：Node 端的性能结论不能外推到 WASM；性能与召回数字也不能从单机合成数据外推。
 

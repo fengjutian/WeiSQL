@@ -199,10 +199,18 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
     this.ensureReady();
     const signal = options?.signal;
     if (signal?.aborted) throw new WeiSQLError("QUERY_CANCELLED", "Query was cancelled before execution");
+    const maxRows = options?.maxRows;
+    if (maxRows !== undefined && (!Number.isSafeInteger(maxRows) || maxRows <= 0)) {
+      throw new WeiSQLError("INVALID_ARGUMENT", "maxRows must be a positive safe integer", { maxRows });
+    }
     const tokens = await this.tokenizeForGuard(statement);
-    assertReadOnlyStatement(statement, tokens);
+    const verb = assertReadOnlyStatement(statement, tokens);
     const connection = this.connection!;
-    const prepared = await connection.prepare(statement).catch((cause: unknown) => {
+    // Only a table expression can be wrapped. DESCRIBE/SHOW/SUMMARIZE/EXPLAIN
+    // return bounded metadata rows, so they are checked after execution.
+    const wrappable = verb === "SELECT" || verb === "VALUES" || verb === "TABLE";
+    const executable = maxRows !== undefined && wrappable ? withRowLimit(statement, maxRows) : statement;
+    const prepared = await connection.prepare(executable).catch((cause: unknown) => {
       throw mapEngineError(cause, "prepare");
     });
     let cancelled = false;
@@ -233,7 +241,14 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
         signal.addEventListener("abort", onAbort, { once: true });
         execution.then(resolve, reject);
       });
-      return normalizeRows(table.toArray()) as T[];
+      const rows = normalizeRows(table.toArray());
+      if (maxRows !== undefined && rows.length > maxRows) {
+        throw new WeiSQLError("INVALID_ARGUMENT", "Query returned more rows than maxRows", {
+          maxRows,
+          engine: "duckdb-wasm",
+        });
+      }
+      return rows as T[];
     } finally {
       detach();
       if (cancelled) {
@@ -404,6 +419,16 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
 
 export function createDuckDbWasmAdapter(options: DuckDbWasmAdapterOptions = {}): DuckDbWasmSqlAdapter {
   return new DuckDbWasmSqlAdapter(options);
+}
+
+/**
+ * Wraps a read-only statement so the engine stops at `maxRows + 1`. Kept in sync
+ * with the Node adapter; `maxRows` is a validated safe integer, so the
+ * interpolation cannot inject SQL.
+ */
+function withRowLimit(statement: string, maxRows: number): string {
+  const trimmed = statement.replace(/[;\s]+$/, "");
+  return `SELECT * FROM (${trimmed}) AS "weisql_row_limit" LIMIT ${maxRows + 1}`;
 }
 
 function assertHttpUrl(value: string, option: string): void {

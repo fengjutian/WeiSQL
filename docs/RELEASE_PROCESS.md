@@ -1,7 +1,7 @@
 # 发布流程
 
 - 状态：**尚未发布到任何 registry**；本文定义首次发布前必须满足的条件
-- 适用包：`@weisql/sdk`、`@weisql/duckdb-adapter`、`@weisql/usearch-adapter`、`@weisql/cli`
+- 适用包：`@weisql/sdk`、`@weisql/duckdb-adapter`、`@weisql/duckdb-wasm-adapter`、`@weisql/usearch-adapter`、`@weisql/cli`
 - 自动检查：`npm run release:check`
 
 ## 1. 包与依赖方向
@@ -9,13 +9,14 @@
 ```text
 @weisql/sdk              （无运行时依赖）
 ├── @weisql/duckdb-adapter
+├── @weisql/duckdb-wasm-adapter
 ├── @weisql/usearch-adapter
 └── @weisql/cli
 ```
 
-- 三个下游包都依赖 `@weisql/sdk`，方向单向，不允许反向依赖。
+- 四个下游包都依赖 `@weisql/sdk`，方向单向，不允许反向依赖。
 - 下游包对 SDK 使用 caret 范围（`^0.1.0`），由 `release:check` 校验：范围必须跟踪本地版本，禁止 `*`。
-- 0.x 阶段四个包**同步发版**。原因：0.x 的 minor 升级允许破坏性变更，跨包范围匹配过于脆弱，同步发版能避免「SDK 0.2 + adapter 0.1」的组合没人测过。
+- 0.x 阶段五个包**同步发版**。原因：0.x 的 minor 升级允许破坏性变更，跨包范围匹配过于脆弱，同步发版能避免「SDK 0.2 + adapter 0.1」的组合没人测过。
 
 ## 2. 版本规则（SemVer）
 

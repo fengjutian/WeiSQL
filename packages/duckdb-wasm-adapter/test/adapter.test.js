@@ -115,6 +115,30 @@ test("rejects parameter types DuckDB-Wasm cannot bind", async () => {
   });
 });
 
+test("maxRows bounds the result instead of truncating", async () => {
+  await withAdapter(async (adapter) => {
+    assert.equal((await adapter.query("SELECT id FROM documents ORDER BY id", [], { maxRows: 5 })).length, 3);
+    await assert.rejects(
+      adapter.query("SELECT id FROM documents ORDER BY id", [], { maxRows: 2 }),
+      (error) => error.code === "INVALID_ARGUMENT" && error.details?.maxRows === 2,
+    );
+    await assert.rejects(
+      adapter.query("WITH x AS (SELECT id FROM documents) SELECT id FROM x", [], { maxRows: 2 }),
+      (error) => error.code === "INVALID_ARGUMENT",
+    );
+    await assert.rejects(adapter.query("SELECT 1", [], { maxRows: 0 }), (error) => error.code === "INVALID_ARGUMENT");
+    // DESCRIBE is not wrappable but is still checked after execution.
+    await assert.rejects(
+      adapter.query("DESCRIBE documents", [], { maxRows: 1 }),
+      (error) => error.code === "INVALID_ARGUMENT",
+    );
+    await assert.rejects(
+      adapter.query("DELETE FROM documents", [], { maxRows: 5 }),
+      (error) => error.code === "SQL_UNSUPPORTED",
+    );
+  });
+});
+
 test("maps engine values onto the public SQLValue shapes", async () => {
   await withAdapter(async (adapter) => {
     const rows = await adapter.query("SELECT 42 AS i, 1.5 AS f, true AS b, 'x' AS s, NULL AS z, count(*) AS n FROM documents");

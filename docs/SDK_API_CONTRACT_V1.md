@@ -50,7 +50,7 @@ export interface WeiSQLDatabase {
 }
 
 export type SQLValue = string | number | bigint | boolean | null | Uint8Array | Date;
-export interface QueryOptions { signal?: AbortSignal; }
+export interface QueryOptions { signal?: AbortSignal; maxRows?: number; }
 export interface TextSearchOptions { topK?: number; signal?: AbortSignal; }
 export interface TextHit {
   row: number;
@@ -143,6 +143,8 @@ export interface VectorHit {
 ## 3. SQL adapter boundaries
 
 DuckDB is an adapter, not the public API contract. The public SDK should avoid leaking DuckDB-specific connection, relation or extension types. Browser and Node adapters may have different supported SQL functions; expose a capability report rather than promising complete parity.
+
+`db.sql()` 的 `maxRows` 是行数预算，不是分页：超过时抛 `INVALID_ARGUMENT`（`details.maxRows`），**不会静默截断**。普通 `SELECT`/`VALUES`/`TABLE` 会被改写为带 `LIMIT maxRows + 1` 的子查询，让引擎提前停止；`DESCRIBE`/`SHOW`/`SUMMARIZE`/`EXPLAIN` 这类元数据语句在返回后检查。
 
 ```ts
 // Actual V1 shape: booleans describing this instance's wiring. Engine details

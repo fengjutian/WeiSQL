@@ -179,6 +179,10 @@ export class DuckDbSqlAdapter implements SqlAdapter {
     }
     const signal = options?.signal;
     if (signal?.aborted) throw new WeiSQLError("QUERY_CANCELLED", "Query was cancelled before execution");
+    const maxRows = options?.maxRows;
+    if (maxRows !== undefined && (!Number.isSafeInteger(maxRows) || maxRows <= 0)) {
+      throw new WeiSQLError("INVALID_ARGUMENT", "maxRows must be a positive safe integer", { maxRows });
+    }
     const connection = this.connection!;
 
     // Fast, mode-independent rejection for obvious writes. This only stabilises
@@ -193,33 +197,57 @@ export class DuckDbSqlAdapter implements SqlAdapter {
       });
     }
 
-    const prepared = await connection.prepare(statement).catch((cause: unknown) => {
+    const original = await connection.prepare(statement).catch((cause: unknown) => {
       throw mapEngineError(cause, "prepare");
     });
+    let execution = original;
+    let originalDestroyed = false;
     try {
-      const typeName = statementTypeName(prepared.statementType);
-      if (prepared.statementType !== StatementType.SELECT && prepared.statementType !== StatementType.EXPLAIN) {
+      const typeName = statementTypeName(original.statementType);
+      if (original.statementType !== StatementType.SELECT && original.statementType !== StatementType.EXPLAIN) {
         throw new WeiSQLError("SQL_UNSUPPORTED", "Only read-only statements (SELECT/EXPLAIN) are allowed", {
           engine: "duckdb",
           statementType: typeName,
         });
       }
-      if (prepared.parameterCount !== parameters.length) {
+      if (original.parameterCount !== parameters.length) {
         throw new WeiSQLError("INVALID_ARGUMENT", "Parameter count does not match the statement", {
-          expected: prepared.parameterCount,
+          expected: original.parameterCount,
           actual: parameters.length,
         });
       }
-      if (parameters.length > 0) prepared.bind(toDuckDbValues(parameters));
+
+      if (maxRows !== undefined && original.statementType === StatementType.SELECT) {
+        // Ask the engine for one row past the budget: the engine stops early, so
+        // only that one extra row is ever materialized.
+        original.destroySync();
+        originalDestroyed = true;
+        execution = await connection.prepare(withRowLimit(statement, maxRows)).catch((cause: unknown) => {
+          throw mapEngineError(cause, "prepare");
+        });
+      }
+      if (execution.parameterCount !== parameters.length) {
+        throw new WeiSQLError("INVALID_ARGUMENT", "Parameter count does not match the statement", {
+          expected: execution.parameterCount,
+          actual: parameters.length,
+        });
+      }
+      if (parameters.length > 0) execution.bind(toDuckDbValues(parameters));
 
       const interrupt = (): void => { connection.interrupt(); };
       signal?.addEventListener("abort", interrupt, { once: true });
       try {
-        const result = await prepared.run().catch((cause: unknown) => {
+        const result = await execution.run().catch((cause: unknown) => {
           throw mapEngineError(cause, "execute");
         });
         try {
           const rows = await result.getRowObjectsJS();
+          if (maxRows !== undefined && rows.length > maxRows) {
+            throw new WeiSQLError("INVALID_ARGUMENT", "Query returned more rows than maxRows", {
+              maxRows,
+              engine: "duckdb",
+            });
+          }
           return rows.map(row => normalizeRow(row as Record<string, unknown>)) as T[];
         } finally {
           result.closeSync();
@@ -228,7 +256,8 @@ export class DuckDbSqlAdapter implements SqlAdapter {
         signal?.removeEventListener("abort", interrupt);
       }
     } finally {
-      prepared.destroySync();
+      if (execution !== original) execution.destroySync();
+      if (!originalDestroyed) original.destroySync();
     }
   }
 
@@ -335,6 +364,20 @@ export class DuckDbSqlAdapter implements SqlAdapter {
 
 export function createDuckDbAdapter(options: DuckDbAdapterOptions = {}): DuckDbSqlAdapter {
   return new DuckDbSqlAdapter(options);
+}
+
+/**
+ * Wraps a read-only statement so the engine itself stops at `maxRows + 1`.
+ *
+ * `maxRows` is validated as a safe positive integer before this is called, so
+ * interpolating it cannot inject SQL. Trailing semicolons are stripped because a
+ * subquery cannot contain them. Kept in sync with the DuckDB-Wasm adapter; the
+ * SQL is portable between the two engines, which is why the shared contract can
+ * assert the same behavior.
+ */
+function withRowLimit(statement: string, maxRows: number): string {
+  const trimmed = statement.replace(/[;\s]+$/, "");
+  return `SELECT * FROM (${trimmed}) AS "weisql_row_limit" LIMIT ${maxRows + 1}`;
 }
 
 function statementTypeName(type: number): string {

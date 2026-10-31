@@ -1,8 +1,8 @@
 name: CI
 
-# Behaviour gates only. Browser probes and the benchmark harness need Chromium,
-# a cached browser download and (for the fixture) Python, so they stay out of CI;
-# run them locally before claiming a browser or performance result.
+# Behaviour gates. The browser job runs the Chromium probes on the runner's
+# preinstalled Chrome (no download); the benchmark harness stays local because
+# its fixture generation needs Python and a stable machine.
 
 on:
   push:
@@ -64,6 +64,11 @@ jobs:
       - name: DuckDB-Wasm materialization smoke
         run: node --expose-gc tools/bench/wasm.mjs --smoke
 
+      # One SQL contract, both real adapters. Declared differences live in
+      # tools/sql-contract/cases.mjs; anything else fails here.
+      - name: SQL adapter contract
+        run: node tools/sql-contract/run.mjs
+
       # The committed fixture must be reproducible byte-for-byte; otherwise the
       # digests in the Manifest prove nothing about the generator.
       - name: Rebuild the fixture
@@ -118,3 +123,32 @@ jobs:
           node packages/cli/dist/bin.js validate "$RUNNER_TEMP/pkg-gzip.wsql"
           node packages/cli/dist/bin.js unpack "$RUNNER_TEMP/pkg-gzip.wsql" --output "$RUNNER_TEMP/unpacked-gzip"
           node packages/cli/dist/bin.js validate "$RUNNER_TEMP/unpacked-gzip"
+
+  browser:
+    name: browser probes (Chromium)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+      # The runner image ships Google Chrome at /usr/bin/google-chrome, which is
+      # exactly what the probes look for; no browser download is needed.
+      - name: Verify the browser is available
+        run: google-chrome --version
+
+      - name: SDK browser probe (Range, L3, exact search, cache)
+        run: npm run probe:browser
+
+      - name: DuckDB-Wasm browser SQL probe
+        run: npm run probe:wasm
+
+      - name: Playground probe (SQL, text, RAG, containers)
+        run: npm run probe:playground
+
+      - name: Node ↔ Chromium parity
+        run: npm run probe:parity

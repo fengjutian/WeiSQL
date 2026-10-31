@@ -57,7 +57,7 @@ best-effort).
 | CTEs | Read-only CTEs work when the engine tokenizer is available; write CTEs are `SQL_UNSUPPORTED` |
 | Parameters | `string`, `number`, `boolean`, `null`, and safe-range `bigint` only; `Date`/binary are rejected |
 | Cancellation | `best-effort`; the worker may finish the current task |
-| Memory | Parquet bytes plus a materialized table per Manifest table, bounded by `maxTableBytes` (default 256 MiB) |
+| Memory | ~4x the Parquet size in RAM; `maxTableBytes` (default 64 MiB) caps one table, `maxTotalTableBytes` (default 128 MiB) caps the whole package before WASM loads |
 | Extension | One network/CORS dependency unless self-hosted via `extensionRepository` |
 
 Apache-2.0.

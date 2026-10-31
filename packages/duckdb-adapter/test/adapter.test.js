@@ -228,6 +228,39 @@ test("declared byte length and budget are enforced before materialization", asyn
   assert.throws(() => createDuckDbAdapter({ maxTableBytes: 0 }), { code: "INVALID_ARGUMENT" });
 });
 
+test("package-wide budget is enforced before DuckDB is created", async t => {
+  const manifest = await fixtureManifest();
+  const reader = new NodeFileResourceReader({ rootDirectory: FIXTURE });
+  t.after(() => reader.close().catch(() => undefined));
+
+  const three = structuredClone(manifest);
+  for (const name of ["documents_b", "documents_c"]) {
+    three.tables.push({
+      ...structuredClone(manifest.tables[0]),
+      name,
+      file: { ...structuredClone(manifest.tables[0].file), path: `data/${name}.parquet`, bytes: 200 * 1024 * 1024 },
+    });
+  }
+  three.tables[0].file.bytes = 200 * 1024 * 1024;
+
+  const adapter = createDuckDbAdapter();
+  await assert.rejects(adapter.open({ manifest: three, reader }), (error) => {
+    assert.equal(error.code, "RESOURCE_INTEGRITY_FAILED");
+    assert.equal(error.details?.maxTotalTableBytes, 512 * 1024 * 1024);
+    assert.equal(error.details?.bytes, 600 * 1024 * 1024);
+    return true;
+  });
+  assert.equal(adapter.state, "FAILED");
+
+  const tight = createDuckDbAdapter({ maxTotalTableBytes: 100 });
+  await assert.rejects(tight.open({ manifest, reader }), (error) => {
+    assert.equal(error.code, "RESOURCE_INTEGRITY_FAILED");
+    assert.equal(error.details?.maxTotalTableBytes, 100);
+    return true;
+  });
+  assert.throws(() => createDuckDbAdapter({ maxTotalTableBytes: 0 }), { code: "INVALID_ARGUMENT" });
+});
+
 test("Runtime + DuckDB adapter run the documented SQL/vector end to end", async t => {
   const manifest = await fixtureManifest();
   const reader = new NodeFileResourceReader({ rootDirectory: FIXTURE });

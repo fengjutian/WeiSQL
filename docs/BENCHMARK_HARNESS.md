@@ -190,6 +190,7 @@ npm run bench                                   # 100k x 128, 20 条查询
 npm run bench -- --rows 20000 --dimension 64 --queries 10
 npm run bench -- --package ./bench/pkg-5000x32  # 复用已生成的包
 npm run bench:wasm                              # DuckDB-Wasm 物化与过滤
+npm run bench:wasm -- --smoke                   # 1k 行，CI 里跑冒烟
 ```
 
 生成的包写入 `bench/`（已加入 `.gitignore`）。合成包依赖 Python + pyarrow；测量本身只需要 Node。

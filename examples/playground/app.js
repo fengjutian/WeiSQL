@@ -67,7 +67,7 @@ async function ensureSqlDb() {
       mainModule: "/vendor/@duckdb/duckdb-wasm/dist/duckdb-eh.wasm",
       mainWorker: "/vendor/@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js",
     },
-    // Same origin: extensions.duckdb.org sends no CORS headers (ADR-058).
+    // Same origin: extensions.duckdb.org sends no CORS headers (ADR-065).
     extensionRepository: `${location.origin}/extensions`,
   });
   state.sqlDb = await open({ manifest: state.manifest, resourceReader: state.reader, sqlAdapter: adapter });

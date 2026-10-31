@@ -15,6 +15,11 @@ export type DuckDbAdapterState = "CREATED" | "OPENING" | "READY" | "CLOSING" | "
 export interface DuckDbAdapterOptions {
   /** Refuse to materialize a table larger than this many declared bytes. */
   maxTableBytes?: number;
+  /**
+   * Refuse to materialize a package whose tables add up to more than this many
+   * declared bytes. Checked before the DuckDB instance is created.
+   */
+  maxTotalTableBytes?: number;
   /** Compare the Parquet physical schema with the Manifest (L4). Defaults to true. */
   verifyTableSchema?: boolean;
   /**
@@ -34,6 +39,12 @@ export interface DuckDbAdapterOptions {
 }
 
 const DEFAULT_MAX_TABLE_BYTES = 256 * 1024 * 1024;
+/**
+ * Two tables' worth. A per-table limit alone would let a ten-table package ask
+ * for ten times the memory; this is still generous for Node, where the operator
+ * controls the host.
+ */
+const DEFAULT_MAX_TOTAL_TABLE_BYTES = 512 * 1024 * 1024;
 const SUPPORTED_FEATURES = [
   "select",
   "cte",
@@ -68,7 +79,7 @@ const SUPPORTED_FEATURES = [
  *   `native` rather than `best-effort`.
  */
 export class DuckDbSqlAdapter implements SqlAdapter {
-  private readonly options: Required<Pick<DuckDbAdapterOptions, "maxTableBytes" | "verifyTableSchema" | "tableLoading">> & Pick<DuckDbAdapterOptions, "config">;
+  private readonly options: Required<Pick<DuckDbAdapterOptions, "maxTableBytes" | "maxTotalTableBytes" | "verifyTableSchema" | "tableLoading">> & Pick<DuckDbAdapterOptions, "config">;
   private stateValue: DuckDbAdapterState = "CREATED";
   private instance: DuckDBInstance | undefined;
   private connection: DuckDBConnection | undefined;
@@ -91,8 +102,13 @@ export class DuckDbSqlAdapter implements SqlAdapter {
     if (tableLoading !== "memory" && tableLoading !== "lazy") {
       throw new WeiSQLError("INVALID_ARGUMENT", "tableLoading must be 'memory' or 'lazy'", { tableLoading });
     }
+    const maxTotalTableBytes = options.maxTotalTableBytes ?? DEFAULT_MAX_TOTAL_TABLE_BYTES;
+    if (!Number.isSafeInteger(maxTotalTableBytes) || maxTotalTableBytes <= 0) {
+      throw new WeiSQLError("INVALID_ARGUMENT", "maxTotalTableBytes must be a positive safe integer", { maxTotalTableBytes });
+    }
     this.options = {
       maxTableBytes,
+      maxTotalTableBytes,
       verifyTableSchema: options.verifyTableSchema !== false,
       tableLoading,
       ...(options.config === undefined ? {} : { config: options.config }),
@@ -118,6 +134,8 @@ export class DuckDbSqlAdapter implements SqlAdapter {
     }
     this.stateValue = "OPENING";
     try {
+      // Reject an oversized package before creating DuckDB and a temp directory.
+      this.assertTotalBudget(context.manifest.tables);
       this.instance = await DuckDBInstance.create(":memory:", this.options.config);
       this.connection = await this.instance.connect();
       this.workDirectory = await mkdtemp(path.join(tmpdir(), "weisql-duckdb-"));
@@ -225,6 +243,18 @@ export class DuckDbSqlAdapter implements SqlAdapter {
   private ensureReady(): void {
     if (this.stateValue !== "READY") {
       throw new WeiSQLError("DATABASE_CLOSED", "DuckDB adapter is not ready", { state: this.stateValue });
+    }
+  }
+
+  private assertTotalBudget(tables: SqlAdapterOpenContext["manifest"]["tables"]): void {
+    let total = 0;
+    for (const table of tables) total += table.file.bytes;
+    if (total > this.options.maxTotalTableBytes) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Package exceeds the total materialization budget", {
+        bytes: total,
+        maxTotalTableBytes: this.options.maxTotalTableBytes,
+        tables: tables.length,
+      });
     }
   }
 

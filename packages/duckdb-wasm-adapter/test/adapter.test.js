@@ -226,6 +226,80 @@ test("tables larger than maxTableBytes are rejected", async () => {
   }
 });
 
+test("the default browser budget is 64 MiB and is checked before reading", async () => {
+  const database = await createWasmTestDatabase();
+  const adapter = createDuckDbWasmAdapter({ database });
+  const oversized = structuredClone(manifest);
+  oversized.tables[0].file.bytes = 64 * 1024 * 1024 + 1;
+  let readCalls = 0;
+  const reader = {
+    read: async () => {
+      readCalls += 1;
+      return new Uint8Array();
+    },
+    readRange: async () => new Uint8Array(),
+  };
+  try {
+    await assert.rejects(adapter.open({ manifest: oversized, reader }), (error) => {
+      assert.equal(error.code, "RESOURCE_INTEGRITY_FAILED");
+      assert.equal(error.details?.maxTableBytes, 64 * 1024 * 1024);
+      return true;
+    });
+    assert.equal(readCalls, 0, "the budget must reject before downloading the table");
+  } finally {
+    await database.terminate();
+  }
+});
+
+test("a package that exceeds the total budget fails before the WASM module loads", async () => {
+  const three = structuredClone(manifest);
+  three.tables[0].file.bytes = 50 * 1024 * 1024;
+  for (const name of ["documents_b", "documents_c"]) {
+    three.tables.push({
+      ...structuredClone(manifest.tables[0]),
+      name,
+      file: { ...structuredClone(manifest.tables[0].file), path: `data/${name}.parquet`, bytes: 50 * 1024 * 1024 },
+    });
+  }
+  let readCalls = 0;
+  const reader = {
+    read: async () => {
+      readCalls += 1;
+      return new Uint8Array();
+    },
+    readRange: async () => new Uint8Array(),
+  };
+  // No injected database and a bogus worker URL: if the budget check did not
+  // run first, creating the Worker would fail with a different error.
+  const adapter = createDuckDbWasmAdapter({ bundles: { mainModule: "/nope.wasm", mainWorker: "/nope-worker.js" } });
+  await assert.rejects(adapter.open({ manifest: three, reader }), (error) => {
+    assert.equal(error.code, "RESOURCE_INTEGRITY_FAILED");
+    assert.equal(error.details?.maxTotalTableBytes, 128 * 1024 * 1024);
+    assert.equal(error.details?.bytes, 150 * 1024 * 1024);
+    return true;
+  });
+  assert.equal(readCalls, 0);
+});
+
+test("maxTotalTableBytes can be tightened per adapter", async () => {
+  const two = structuredClone(manifest);
+  two.tables.push({
+    ...structuredClone(manifest.tables[0]),
+    name: "documents_copy",
+    file: { ...structuredClone(manifest.tables[0].file), path: "data/documents-copy.parquet" },
+  });
+  const database = await createWasmTestDatabase();
+  const adapter = createDuckDbWasmAdapter({ database, maxTotalTableBytes: 1000 });
+  try {
+    await assert.rejects(
+      adapter.open({ manifest: two, reader: new NodeFileResourceReader({ rootDirectory: FIXTURE }) }),
+      (error) => error.code === "RESOURCE_INTEGRITY_FAILED" && error.details?.maxTotalTableBytes === 1000,
+    );
+  } finally {
+    await database.terminate();
+  }
+});
+
 test("requires bundles or an injected database", () => {
   assert.throws(() => createDuckDbWasmAdapter(), (error) => error.code === "INVALID_ARGUMENT");
   assert.throws(

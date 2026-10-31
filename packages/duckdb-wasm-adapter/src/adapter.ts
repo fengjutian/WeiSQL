@@ -5,7 +5,7 @@ import { quoteIdentifier, verifyTableSchema } from "./schema.js";
 import { assertReadOnlyStatement } from "./sql-guard.js";
 import type { SqlTokenStream } from "./sql-guard.js";
 import { normalizeRows, toWasmParameters } from "./values.js";
-import type { WasmDuckDb, WasmDuckDbConnection } from "./wasm-types.js";
+import type { WasmArrowTable, WasmDuckDb, WasmDuckDbConnection } from "./wasm-types.js";
 
 export type DuckDbWasmAdapterState = "CREATED" | "OPENING" | "READY" | "CLOSING" | "CLOSED" | "FAILED";
 
@@ -31,6 +31,12 @@ export interface DuckDbWasmAdapterOptions {
   database?: WasmDuckDb;
   /** Refuse to materialize a table larger than this many declared bytes. */
   maxTableBytes?: number;
+  /**
+   * Refuse to materialize a package whose tables add up to more than this many
+   * declared bytes. Checked before any table is read or materialized, so an
+   * oversized package does not even load the WASM module.
+   */
+  maxTotalTableBytes?: number;
   /** Compare the materialized schema with the Manifest (L4). Defaults to true. */
   verifyTableSchema?: boolean;
   /**
@@ -42,7 +48,19 @@ export interface DuckDbWasmAdapterOptions {
   logger?: "silent" | "console";
 }
 
-const DEFAULT_MAX_TABLE_BYTES = 256 * 1024 * 1024;
+/**
+ * Browser-specific budget. Materialization costs roughly four times the Parquet
+ * size (bytes in the WASM heap + the materialized table; measured at
+ * `bench:wasm`), so the Node default of 256 MiB would allow ~1 GiB of browser
+ * memory. 64 MiB keeps a single table near ~256 MiB and stays overridable.
+ */
+const DEFAULT_MAX_TABLE_BYTES = 64 * 1024 * 1024;
+/**
+ * Package-wide budget. The per-table limit alone would let a ten-table package
+ * ask for ten times the memory; two tables' worth keeps a package near
+ * ~512 MiB of browser memory while still allowing multi-table packages.
+ */
+const DEFAULT_MAX_TOTAL_TABLE_BYTES = 128 * 1024 * 1024;
 const SUPPORTED_FEATURES = [
   "select",
   "explain",
@@ -80,6 +98,7 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
     bundles?: DuckDbWasmBundleUrls;
     database?: WasmDuckDb;
     maxTableBytes: number;
+    maxTotalTableBytes: number;
     verifyTableSchema: boolean;
     extensionRepository?: string;
     logger: "silent" | "console";
@@ -106,8 +125,15 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
       throw new WeiSQLError("INVALID_ARGUMENT", "DuckDbWasmSqlAdapter requires either bundles or a database instance");
     }
     if (options.extensionRepository !== undefined) assertHttpUrl(options.extensionRepository, "extensionRepository");
+
+    const maxTotalTableBytes = options.maxTotalTableBytes ?? DEFAULT_MAX_TOTAL_TABLE_BYTES;
+    if (!Number.isSafeInteger(maxTotalTableBytes) || maxTotalTableBytes <= 0) {
+      throw new WeiSQLError("INVALID_ARGUMENT", "maxTotalTableBytes must be a positive safe integer", { maxTotalTableBytes });
+    }
+
     this.options = {
       maxTableBytes,
+      maxTotalTableBytes,
       verifyTableSchema: options.verifyTableSchema !== false,
       logger: options.logger ?? "silent",
       ...(options.bundles === undefined ? {} : { bundles: options.bundles }),
@@ -130,6 +156,9 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
     }
     this.stateValue = "OPENING";
     try {
+      // Reject an oversized package before loading 34 MB of WASM and the
+      // parquet extension: the budget is about declared bytes only.
+      this.assertTotalBudget(context.manifest.tables);
       await this.instantiate();
       this.connection = await this.database!.connect();
       await this.loadParquetExtension();
@@ -176,27 +205,44 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
     const prepared = await connection.prepare(statement).catch((cause: unknown) => {
       throw mapEngineError(cause, "prepare");
     });
+    let cancelled = false;
+    let detach = (): void => {};
     try {
       const values = toWasmParameters(parameters);
-      const interrupt = (): void => {
-        // DuckDB-Wasm can only ask the engine to cancel; the worker may still
-        // finish the current task, which is why the capability is best-effort.
-        void Promise.resolve(connection.cancelSent?.()).catch(() => undefined);
-      };
-      signal?.addEventListener("abort", interrupt, { once: true });
-      try {
-        const table = await prepared.query(...values).catch((cause: unknown) => {
-          throw mapEngineError(cause, "execute");
-        });
-        return normalizeRows(table.toArray()) as T[];
-      } catch (cause) {
-        if (signal?.aborted) throw new WeiSQLError("QUERY_CANCELLED", "DuckDB-Wasm query was cancelled", { engine: "duckdb-wasm" });
-        throw cause;
-      } finally {
-        signal?.removeEventListener("abort", interrupt);
-      }
+      const execution = prepared.query(...values).catch((cause: unknown) => {
+        throw mapEngineError(cause, "execute");
+      });
+      const table = await new Promise<WasmArrowTable>((resolve, reject) => {
+        if (signal === undefined) {
+          execution.then(resolve, reject);
+          return;
+        }
+        const onAbort = (): void => {
+          cancelled = true;
+          // A single-threaded DuckDB-Wasm cannot preempt CPU-bound work in the
+          // worker: `cancelSent()` returns false and the request is only
+          // processed once the query finishes. Ask anyway (it helps queued or
+          // threaded builds), then stop waiting and say so in the error.
+          void Promise.resolve(connection.cancelSent?.()).catch(() => undefined);
+          reject(new WeiSQLError("QUERY_CANCELLED", "DuckDB-Wasm query was cancelled; the engine may still be running", {
+            engine: "duckdb-wasm",
+            engineMayStillRun: true,
+          }));
+        };
+        detach = () => signal.removeEventListener("abort", onAbort);
+        signal.addEventListener("abort", onAbort, { once: true });
+        execution.then(resolve, reject);
+      });
+      return normalizeRows(table.toArray()) as T[];
     } finally {
-      await Promise.resolve(prepared.close?.()).catch(() => undefined);
+      detach();
+      if (cancelled) {
+        // Do not await: the worker is still busy, so close() would queue behind
+        // the query and make cancellation look much slower than it is.
+        void Promise.resolve(prepared.close?.()).catch(() => undefined);
+      } else {
+        await Promise.resolve(prepared.close?.()).catch(() => undefined);
+      }
     }
   }
 
@@ -210,6 +256,18 @@ export class DuckDbWasmSqlAdapter implements SqlAdapter {
   private ensureReady(): void {
     if (this.stateValue !== "READY") {
       throw new WeiSQLError("DATABASE_CLOSED", "DuckDB-Wasm adapter is not ready", { state: this.stateValue });
+    }
+  }
+
+  private assertTotalBudget(tables: SqlAdapterOpenContext["manifest"]["tables"]): void {
+    let total = 0;
+    for (const table of tables) total += table.file.bytes;
+    if (total > this.options.maxTotalTableBytes) {
+      throw new WeiSQLError("RESOURCE_INTEGRITY_FAILED", "Package exceeds the total materialization budget", {
+        bytes: total,
+        maxTotalTableBytes: this.options.maxTotalTableBytes,
+        tables: tables.length,
+      });
     }
   }
 

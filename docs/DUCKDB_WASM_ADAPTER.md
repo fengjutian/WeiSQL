@@ -1,6 +1,6 @@
-﻿# DuckDB-Wasm Adapter
+# DuckDB-Wasm Adapter
 
-- 状态：Accepted and implemented（`@weisql/duckdb-wasm-adapter` 0.1.0，29 个测试 + 真实 Chromium 探针）
+- 状态：Accepted and implemented（`@weisql/duckdb-wasm-adapter` 0.1.0，36 个测试 + 真实 Chromium 探针）
 - 适用：浏览器端只读 SQL；Node.js 请用 `@weisql/duckdb-adapter`
 - 契约：[SQL Adapter 契约](SQL_ADAPTER_CONTRACT.md)
 
@@ -35,7 +35,13 @@ Manifest
 - **DuckDB 不直接访问数据包 URL**。表数据来自 SDK Reader，Range、缓存、L3 摘要
   校验仍然只有一条路径；不会出现「SQL 绕过完整性校验」的缺口。
 - **表在 `open()` 时物化**（`CREATE TABLE ... AS SELECT`），与 Node 适配器一致。
-  峰值内存约为「Parquet 字节 + 表数据」，由 `maxTableBytes`（默认 256 MiB）兜底。
+  峰值内存约为「Parquet 字节 + 表数据」，实测约为 Parquet 的 **4 倍**（§8.1），因此浏览器端有两层预算：
+
+- `maxTableBytes`：单表上限，默认 **64 MiB**（Node 适配器是 256 MiB），一个表大致对应 256 MB 内存；
+- `maxTotalTableBytes`：整个包的合计上限，默认 **128 MiB**，在加载 WASM 之前就检查——否则 10 张
+  64 MiB 的表仍能申请 ~2.5 GB 内存。
+
+两层都可在构造适配器时覆盖。
 - 物化完成后立即 `dropFile`，VFS 里不长期保留 Parquet 副本。
 
 ## 3. 只读边界
@@ -101,10 +107,18 @@ DECIMAL 这一条不是可选项：不设置 `castDecimalToDouble` 时 Arrow 会
 `cancellation: "best-effort"`：
 
 - 查询前已 abort → `QUERY_CANCELLED`，不会发给引擎；
-- 查询中 abort → 调 `connection.cancelSent()`，DuckDB 可以把 pending query 取消，
-  但 worker 可能已经完成当前任务；错误只在确实因取消而失败时映射为 `QUERY_CANCELLED`。
+- 查询中 abort → **调用方立即收到** `QUERY_CANCELLED`（`details.engineMayStillRun: true`），
+  适配器不等待 worker；
+- 同时会 fire-and-forget 调用 `connection.cancelSent()`，但它**不能抢占**单线程 worker 里
+  正在执行的 CPU 密集查询。
 
-没有声明 `native`，因为这里没有像 `@duckdb/node-api` 的 `interrupt()` 那样的确定性中断证明。
+实测（Chromium 1248，`select sum(sqrt(range)) from range(50000000)`）：完整执行 202 ms，
+在第 50 ms abort，调用方 **51 ms** 就收到 `QUERY_CANCELLED`；同一时刻
+`cancelSent()` 返回 `false`（请求排在查询后面）。因此这不是 `native`：引擎侧的工作
+**没有**被终止，只是调用方不再等待。要真正抢占需要 pthreads/COI 多线程构建，尚未验证。
+
+如果调用方在 abort 后立刻 `close()`，关闭会排在仍在执行的查询之后；适配器在取消路径上
+不 `await` prepared statement 的关闭，避免把取消伪装成一次长等待。
 
 ## 7. 扩展自托管与部署
 
@@ -144,6 +158,7 @@ fixture 3 行、扩展已缓存。
 | 只读 CTE / 写 CTE | 前者返回结果、后者 `SQL_UNSUPPORTED` | probe 断言 |
 | 过滤检索 | `exact-filter-first`，`exact: true`，2 条命中 | probe 断言（`db.vector.search` + `filter`） |
 | Node ↔ Chromium SQL | 9 个查询 / 错误码全部一致 | `probe:parity` |
+| 查询中取消 | 202 ms 的查询在 50 ms abort 后 **51 ms** 返回 `QUERY_CANCELLED` | probe 断言；`cancelSent()` 返回 `false`，引擎未停 |
 | parquet 扩展 | 498,915 B（`wasm_eh`，v1.4.3） | 自托管文件 |
 
 这些数字只说明「能跑通、量级合理」，不构成性能承诺：数据只有 3 行，
@@ -165,9 +180,9 @@ fixture 3 行、扩展已缓存。
 
 ## 9. 测试
 
-- 单元：`sql-guard`（白名单、注释、字符串里的分号、CTE 分类、UTF-8 偏移、fail-closed）、`values`（参数与行归一化）。
+- 单元：`sql-guard`（白名单、注释、字符串里的分号、CTE 分类、UTF-8 偏移、fail-closed）、`values`（参数与行归一化）、`cancellation`（abort 竞速与引擎未停标记）、`error-contract`（扩展缺失与无 tokenizer 的退化路径）。
 - 集成：用 `@duckdb/duckdb-wasm/blocking` 在 Node 里跑**同一个 WASM 引擎**，
-  覆盖打开、参数绑定、注入、只读拒绝、只读/写/递归 CTE、中文 CTE、值映射、非法 SQL、预取消、多表、短读、外部访问、L4、预算、生命周期（14 个用例）。
+  覆盖打开、参数绑定、注入、只读拒绝、只读/写/递归 CTE、中文 CTE、值映射、非法 SQL、预取消、多表、短读、外部访问、L4、默认预算、生命周期（17 个用例）。
   测试需要网络下载一次 parquet 扩展（缓存在 `~/.duckdb`）。
 - 跨环境：`probe:parity` 把同一批 SQL 分别交给 Node DuckDB 与浏览器 DuckDB-Wasm，逐行比较并核对错误码。
 - 浏览器：`npm run probe:wasm` 在真实 Chromium 中断言 `db.sql()` 结果、参数绑定、只读 CTE、过滤检索与写入拒绝；
@@ -177,7 +192,10 @@ fixture 3 行、扩展已缓存。
 
 - 浏览器内的大表与冷启动：§8.1 只测了 Node 里的同一 WASM 构建，未测 500k 行以上的浏览器内存；
   `maxTableBytes` 只是拒绝阈值，不是内存保证。
-- OPFS 持久化、多线程（COI）与 `pthread` 路径。
+- **COI / 多线程**：试过，不可用。页面跨域隔离后 `duckdb-coi.wasm` 能跑（`threads=4`），但加载
+  `parquet` 扩展直接 `LinkError`：扩展声明非共享内存，COI 运行时是共享内存；`wasm_threads`
+  变体同样如此（v1.4.3）。见 ADR-063。
+- OPFS 持久化与 `pthread` 路径。
 - `date`/`timestamp`/二进制参数、结构化错误位置。
 - 非 `SELECT` 的只读 CTE 形态（如 CTE 后直接跟括号子查询）按 fail-closed 拒绝，未逐一支持。
 - CDN 上的扩展 CORS 配置（本实现要求同源自托管）。

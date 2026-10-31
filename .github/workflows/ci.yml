@@ -58,6 +58,12 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+      # Smoke the DuckDB-Wasm materialization path: it downloads the parquet
+      # extension once and materializes 1k rows, so broken adapter/extension
+      # wiring fails here instead of only in the local browser probes.
+      - name: DuckDB-Wasm materialization smoke
+        run: node --expose-gc tools/bench/wasm.mjs --smoke
+
       # The committed fixture must be reproducible byte-for-byte; otherwise the
       # digests in the Manifest prove nothing about the generator.
       - name: Rebuild the fixture

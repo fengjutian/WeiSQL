@@ -22,7 +22,12 @@ import { createDuckDbWasmAdapter } from "../../packages/duckdb-wasm-adapter/dist
 // the adapter uses in the browser, so the measured code path is not a copy.
 import { createWasmTestDatabase } from "../../packages/duckdb-wasm-adapter/test/helpers/wasm-database.mjs";
 
-const SIZES = process.argv.length > 2 ? process.argv.slice(2).map(Number) : [50_000, 200_000, 500_000];
+const SMOKE = process.argv.includes("--smoke");
+const SIZES = SMOKE
+  ? [1_000]
+  : process.argv.length > 2 && !process.argv[2].startsWith("--")
+    ? process.argv.slice(2).map(Number)
+    : [50_000, 200_000, 500_000];
 const CATEGORIES = ["genetics", "metabolism", "ecology", "other"];
 const HEX = "0123456789abcdef";
 
@@ -133,8 +138,9 @@ async function measure(size, { report = true } = {}) {
 }
 
 // Warm up the WASM module and the extension before measuring; otherwise the
-// first measured size absorbs all of the instantiation cost.
-if (process.env.WEISQL_WASM_BENCH_NO_WARMUP !== "1") {
+// first measured size absorbs all of the instantiation cost. The smoke run is
+// already tiny, so it skips the warmup pass.
+if (!SMOKE && process.env.WEISQL_WASM_BENCH_NO_WARMUP !== "1") {
   await measure(1_000, { report: false });
 }
 

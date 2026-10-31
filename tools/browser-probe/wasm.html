@@ -87,6 +87,24 @@
           writeCteError = error.code;
         }
 
+        // Cancellation: the worker cannot preempt a CPU-bound query on a single
+        // thread, so the contract is "stop waiting promptly, engine may still
+        // run". Measure that the caller is released long before the query ends.
+        const slow = "select sum(sqrt(range)) as n from range(50000000)";
+        const baselineStart = performance.now();
+        await db.sql(slow);
+        const baselineMs = Math.round(performance.now() - baselineStart);
+        const controller = new AbortController();
+        const abortStart = performance.now();
+        let cancelError;
+        setTimeout(() => controller.abort(), 50);
+        try {
+          await db.sql(slow, [], { signal: controller.signal });
+        } catch (error) {
+          cancelError = error;
+        }
+        const cancelMs = Math.round(performance.now() - abortStart);
+
         const result = {
           ok:
             capabilities.sql === true &&
@@ -103,7 +121,10 @@
             filteredHits[0].id === "doc-001" &&
             filteredHits[0].diagnostics.exact === true &&
             writeError === "SQL_UNSUPPORTED" &&
-            writeCteError === "SQL_UNSUPPORTED",
+            writeCteError === "SQL_UNSUPPORTED" &&
+            cancelError?.code === "QUERY_CANCELLED" &&
+            cancelError?.details?.engineMayStillRun === true &&
+            cancelMs < baselineMs,
           openMs,
           capabilities,
           rows,
@@ -113,6 +134,7 @@
           filteredHits: filteredHits.map((hit) => ({ id: hit.id, exact: hit.diagnostics.exact, strategy: hit.diagnostics.strategy })),
           writeError,
           writeCteError,
+          cancellation: { baselineMs, cancelMs, code: cancelError?.code, details: cancelError?.details },
         };
         log(JSON.stringify(result));
         window.__PROBE_RESULT = result;

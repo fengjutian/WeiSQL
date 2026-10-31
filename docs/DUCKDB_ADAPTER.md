@@ -23,6 +23,7 @@ const db = await open({
 
 `open()` 内部顺序：
 
+0. 先核对整包声明字节数是否超过 `maxTotalTableBytes`（默认 512 MiB）——超预算时 DuckDB 实例和临时目录都还没创建；
 1. 创建 `:memory:` 实例并建立连接；
 2. 逐表从 `ResourceReader` 读取字节，校验长度等于 Manifest 声明值；
 3. 写入临时目录后执行 `CREATE TABLE <name> AS SELECT * FROM read_parquet(?)`，随后立即删除临时文件；

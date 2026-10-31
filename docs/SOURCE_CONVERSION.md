@@ -47,6 +47,7 @@ node tools/source-to-parquet.mjs rows.json  --output source/documents.parquet   
 | JSON 原生带小数的数字 | `float64` |
 | `true` / `false` | `boolean` |
 | 字符串 | `string` |
+| JSON 对象 / 数组（可含 null 元素） | `json`（原样写入 Parquet JSON，Manifest 声明为 `json`） |
 | 空值（`null`、CSV 空字段） | 该列 `nullable: true` |
 
 CSV 的所有值先当字符串看，只有**无损**转换才收下：
@@ -63,7 +64,6 @@ CSV 的所有值先当字符串看，只有**无损**转换才收下：
 | 项 | 原因 |
 | --- | --- |
 | 时间戳类型推断 | 时区与精度语义需要显式声明；当前一律按字符串处理 |
-| 嵌套对象 / 数组列 | Manifest V1 的标量类型不覆盖，写入会失败 |
 | 增量追加 | 每次转换生成完整文件，符合「不可变输入」模型 |
 | 分片 / 多文件表 | 一个 CSV/JSON 对应一张表的一个 Parquet 文件 |
 

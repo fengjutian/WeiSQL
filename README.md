@@ -60,7 +60,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - 浏览器端 OPFS 持久化；多线程/COI 已试且不可用（见 ADR-063）；36.3 MB 首载已实测（`bench:wasm-cold`），CDN 下的冷启动仍未测
 - `db.sql()` 仍一次性返回全部行；需要增量消费时用 `db.sqlStream()`（流式 API 已提供）
 - ANN 在真实数据集上的 Recall@K 评估；ANN 后过滤的完整性保证
-- 时间戳与嵌套列的源数据推断（CSV/JSON 转换目前只覆盖标量）
+- 时间戳列的源数据推断（嵌套 JSON 列已支持，见 [源数据转换](docs/SOURCE_CONVERSION.md)）
 - WASM 构建与 TypeScript/Rust 自动黄金数据对照
 - 真实 CDN（CORS、Range、缓存）与多机/冷缓存验收
 - npm 发布（元数据与发布脚本已就绪，缺 npm 组织与访问令牌）

@@ -192,4 +192,5 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - Text index builder (`tools/build-text-index.mjs`) reading the Parquet column and
   updating the Manifest.
 - CSV/JSON to Parquet conversion (`tools/source-to-parquet.mjs`) with conservative
-  type inference and Manifest-ready column output.
+  type inference and Manifest-ready column output; nested JSON objects/arrays
+  become `json` columns, while mixing them with scalars stays an error.

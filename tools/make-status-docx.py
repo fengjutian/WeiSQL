@@ -187,7 +187,7 @@ def build(target: Path):
     document.add_heading("1. 一句话状态", level=1)
     paragraph = document.add_paragraph()
     run = paragraph.add_run(
-        "工程原型。Manifest V1 与数据包格式稳定，五个包共 273 个自动化测试，CI 覆盖构建、类型、测试与发布元数据；"
+        "工程原型。Manifest V1 与数据包格式稳定，五个包共 284 个自动化测试，CI 覆盖构建、类型、测试与发布元数据；"
         "精确检索、ANN、全文、融合、RAG 与单文件容器均有实现与实测数字。尚未发布 npm 包，也没有任何未经测量的性能承诺。"
     )
     style_run(run, size=10.5)
@@ -196,7 +196,7 @@ def build(target: Path):
         document,
         ["维度", "状态"],
         [
-            ["测试", "273 个全绿（SDK 187 / DuckDB 20 / WASM 19 / USearch 13 / CLI 34）"],
+            ["测试", "284 个全绿（SDK 190 / DuckDB 20 / WASM 27 / USearch 13 / CLI 34）"],
             ["CI", "GitHub Actions：Ubuntu + Windows 行为闸门，另有派生索引与容器作业"],
             ["许可证", "Apache-2.0（根目录与每个包内各一份）"],
             ["发布", "未发布 npm 包（缺组织与访问令牌）"],
@@ -254,12 +254,12 @@ def build(target: Path):
         document,
         ["包", "测试数", "覆盖重点"],
         [
-            ["@weisql/sdk", "187", "校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约"],
+            ["@weisql/sdk", "190", "校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约"],
             ["@weisql/duckdb-adapter", "20", "只读边界、参数绑定、两种表加载、取消"],
-            ["@weisql/duckdb-wasm-adapter", "19", "关键字白名单、参数类型收窄、真实 WASM 引擎集成"],
+            ["@weisql/duckdb-wasm-adapter", "27", "关键字白名单、参数类型收窄、真实 WASM 引擎集成"],
             ["@weisql/usearch-adapter", "13", "度量映射、持久化索引、后过滤、生命周期"],
             ["@weisql/cli", "34", "校验退出码、--json、pack、unpack、容器校验、--l4"],
-            ["合计", "273", ""],
+            ["合计", "284", ""],
         ],
         widths=[4.6, 1.8, 9.4],
     )
@@ -282,7 +282,7 @@ def build(target: Path):
             ["ANN 加速", "≈9.5×", "100k × 128，expansionSearch=512", "合成数据"],
             ["ANN Recall@10", "0.385–0.740", "均匀 0.735；紧聚类 0.385", "强依赖数据分布"],
             ["ANN 索引构建", "2.7–15.2 s", "同上", "构建时间随分布变化"],
-            ["过滤查询向量读取", "51.2 → 0.51 MB", "100k 行，窄过滤", "端到端仍 327 ms：SQL + ID Map 固定成本"],
+            ["过滤查询（窄过滤）", "p50 17.1 ms", "100k 行，尾部 1000 行", "反向索引把 ID Map 读取从 4.0 MB 降到 480 B"],
             ["全文索引体积", "74.2 MB", "100k 文档、5000 词项、50 tokens/文档", "其中正文 33.1 MB"],
             ["全文查询 p50", "10.2–10.8 ms", "同上", "固定开销 ≈8 ms + 每命中随机读"],
             ["全文索引构建", "4.5 s", "同上", "含读取 Parquet 文本列"],
@@ -371,7 +371,7 @@ def build(target: Path):
         document,
         ["检查项", "状态"],
         [
-            ["测试 / 类型 / 构建", "✓ 273 测试，typecheck 通过"],
+            ["测试 / 类型 / 构建", "✓ 284 测试，typecheck 通过"],
             ["打包内容", "✓ 仅 dist/ + README + LICENSE，无 src/test 泄漏"],
             ["依赖范围", "✓ caret 且跟踪本地版本"],
             ["许可证", "✓ Apache-2.0（根 + 每包）"],

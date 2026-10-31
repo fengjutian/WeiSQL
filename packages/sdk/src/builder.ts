@@ -7,6 +7,7 @@ import { verifyManifestResources } from "./integrity.js";
 import type { IntegrityReport } from "./integrity.js";
 import { validateManifest } from "./manifest.js";
 import { signManifest } from "./signing.js";
+import { compareIds } from "./sorted-id-index.js";
 import { NodeFileResourceReader } from "./node-file-resource-reader.js";
 import { Sha256, toHex } from "./sha256.js";
 import type { ColumnDescriptor, FileDescriptor, VectorMetric, WeiSQLManifest } from "./types.js";
@@ -289,7 +290,7 @@ async function assertPublishTarget(outputDirectory: string, overwrite: boolean):
 
 interface WrittenDescriptors {
   tables: Map<string, FileDescriptor>;
-  vectors: Map<string, { data: FileDescriptor; idMapData: FileDescriptor & { format: "jsonl" }; idMapOffsets: FileDescriptor & { format: "uint64-le" } }>;
+  vectors: Map<string, { data: FileDescriptor; idMapData: FileDescriptor & { format: "jsonl" }; idMapOffsets: FileDescriptor & { format: "uint64-le" }; idIndexData?: FileDescriptor & { format: "jsonl" }; idIndexOffsets?: FileDescriptor & { format: "uint64-le" } }>;
 }
 
 async function writePackage(stagingDirectory: string, config: NormalizedConfig): Promise<WrittenDescriptors> {
@@ -304,7 +305,7 @@ async function writePackage(stagingDirectory: string, config: NormalizedConfig):
     tables.set(table.name, await describeFile(stagingDirectory, relative));
   }
 
-  const vectors = new Map<string, { data: FileDescriptor; idMapData: FileDescriptor & { format: "jsonl" }; idMapOffsets: FileDescriptor & { format: "uint64-le" } }>();
+  const vectors = new Map<string, { data: FileDescriptor; idMapData: FileDescriptor & { format: "jsonl" }; idMapOffsets: FileDescriptor & { format: "uint64-le" }; idIndexData?: FileDescriptor & { format: "jsonl" }; idIndexOffsets?: FileDescriptor & { format: "uint64-le" } }>();
   for (const collection of config.vectors) {
     const dataPath = `vectors/${collection.name}.f32`;
     const idMapPath = `vectors/${collection.name}.id-map.jsonl`;
@@ -314,7 +315,19 @@ async function writePackage(stagingDirectory: string, config: NormalizedConfig):
     const data = await describeFile(stagingDirectory, dataPath);
     const idMapData = await describeFile(stagingDirectory, idMapPath);
     const idMapOffsets = await describeFile(stagingDirectory, offsetsPath);
-    vectors.set(collection.name, { data, idMapData: { ...idMapData, format: "jsonl" }, idMapOffsets: { ...idMapOffsets, format: "uint64-le" } });
+    const entry: { data: FileDescriptor; idMapData: FileDescriptor & { format: "jsonl" }; idMapOffsets: FileDescriptor & { format: "uint64-le" }; idIndexData?: FileDescriptor & { format: "jsonl" }; idIndexOffsets?: FileDescriptor & { format: "uint64-le" } } = {
+      data,
+      idMapData: { ...idMapData, format: "jsonl" },
+      idMapOffsets: { ...idMapOffsets, format: "uint64-le" },
+    };
+    if (collection.uniqueIds && collection.count > 0) {
+      const indexPath = `vectors/${collection.name}.id-index.jsonl`;
+      const indexOffsetsPath = `vectors/${collection.name}.id-index.offsets`;
+      await writeIdIndexFiles(path.join(stagingDirectory, ...indexPath.split("/")), path.join(stagingDirectory, ...indexOffsetsPath.split("/")), collection);
+      entry.idIndexData = { ...(await describeFile(stagingDirectory, indexPath)), format: "jsonl" };
+      entry.idIndexOffsets = { ...(await describeFile(stagingDirectory, indexOffsetsPath)), format: "uint64-le" };
+    }
+    vectors.set(collection.name, entry);
   }
   return { tables, vectors };
 }
@@ -388,6 +401,33 @@ async function writeIdMapFiles(dataFilename: string, offsetsFilename: string, co
   }
 }
 
+async function writeIdIndexFiles(dataFilename: string, offsetsFilename: string, collection: NormalizedVector): Promise<void> {
+  const pairs = collection.ids.map((id, row) => ({ id, row })).sort((left, right) => compareIds(left.id, right.id));
+  const encoder = new TextEncoder();
+  const starts: bigint[] = [];
+  let offset = 0n;
+  const dataHandle = await open(dataFilename, "w");
+  try {
+    for (const pair of pairs) {
+      starts.push(offset);
+      const line = encoder.encode(`${JSON.stringify({ id: pair.id, row: pair.row })}\n`);
+      await dataHandle.write(line);
+      offset += BigInt(line.byteLength);
+    }
+  } finally {
+    await dataHandle.close();
+  }
+  const offsetsHandle = await open(offsetsFilename, "w");
+  try {
+    const offsets = new Uint8Array(starts.length * 8);
+    const view = new DataView(offsets.buffer);
+    starts.forEach((start, index) => view.setBigUint64(index * 8, start, true));
+    await offsetsHandle.write(offsets);
+  } finally {
+    await offsetsHandle.close();
+  }
+}
+
 function buildManifest(config: NormalizedConfig, written: WrittenDescriptors): WeiSQLManifest {
   const manifest: WeiSQLManifest = {
     format: "weisql",
@@ -417,6 +457,15 @@ function buildManifest(config: NormalizedConfig, written: WrittenDescriptors): W
           count: collection.count,
           uniqueIds: collection.uniqueIds,
         },
+        ...(files.idIndexData === undefined || files.idIndexOffsets === undefined ? {} : {
+          idIndex: {
+            data: files.idIndexData,
+            offsets: files.idIndexOffsets,
+            count: collection.count,
+            idType: typeof collection.ids[0] === "number" ? "integer" as const : "string" as const,
+            uniqueIds: true,
+          },
+        }),
       };
     }),
   };

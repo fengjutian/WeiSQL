@@ -108,6 +108,18 @@ def main() -> None:
             handle.write(line)
     np.asarray(offsets, dtype="<u8").tofile(root / "vectors" / "id-map.offsets")
 
+    # Sorted id -> row index, so filtered queries can binary-search instead of
+    # inverting the whole ID Map.
+    index_offsets = []
+    position = 0
+    with (root / "vectors" / "id-index.jsonl").open("wb") as handle:
+        for row, identifier in sorted(enumerate(ids), key=lambda item: item[1]):
+            line = json.dumps({"id": identifier, "row": row}, separators=(",", ":")).encode("utf-8") + b"\n"
+            index_offsets.append(position)
+            position += len(line)
+            handle.write(line)
+    np.asarray(index_offsets, dtype="<u8").tofile(root / "vectors" / "id-index.offsets")
+
     manifest = {
         "format": "weisql",
         "formatVersion": "1.0.0",
@@ -140,6 +152,13 @@ def main() -> None:
                     "data": {**descriptor(root, "vectors/id-map.jsonl"), "format": "jsonl"},
                     "offsets": {**descriptor(root, "vectors/id-map.offsets"), "format": "uint64-le"},
                     "count": rows,
+                    "uniqueIds": True,
+                },
+                "idIndex": {
+                    "data": {**descriptor(root, "vectors/id-index.jsonl"), "format": "jsonl"},
+                    "offsets": {**descriptor(root, "vectors/id-index.offsets"), "format": "uint64-le"},
+                    "count": rows,
+                    "idType": "string",
                     "uniqueIds": True,
                 },
             }

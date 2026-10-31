@@ -2,7 +2,9 @@ import { WeiSQLError } from "./errors.js";
 import type { IdMapReader } from "./vector-core-types.js";
 import type { SqlAdapter } from "./sql-adapter.js";
 import type { FilterExpression, HybridStrategy, VectorCollectionDescriptor, WeiSQLManifest } from "./types.js";
+import type { ResourceReader } from "./resource-reader.js";
 import { businessIdKey, buildIdRowIndex, compileFilter, normalizeBusinessId } from "./vector-filter.js";
+import type { SortedIdIndexReader } from "./sorted-id-index.js";
 
 export type { FilterExpression } from "./types.js";
 
@@ -16,6 +18,11 @@ interface FilterQueryInput {
 
 export interface HybridFilterInput extends FilterQueryInput {
   idMap: IdMapReader;
+  /**
+   * Cached sorted index owned by the Runtime. When absent, the filter falls back
+   * to one full ID Map scan.
+   */
+  idIndex?: SortedIdIndexReader;
 }
 
 export interface HybridFilterResult {
@@ -40,6 +47,14 @@ export async function exactFilterFirst(input: HybridFilterInput): Promise<Hybrid
   const ids = await queryFilteredIds(input);
   const allowedRows = new Set<number>();
   if (ids.length === 0 || vector.count === 0) return { allowedRows, strategy: "exact-filter-first" };
+
+  // A sorted id index turns each lookup into a binary search; for large ID sets
+  // one sequential scan still wins, because it is a single pass over the file.
+  const idIndex = input.idIndex;
+  if (vector.idIndex !== undefined && idIndex !== undefined) {
+    for (const row of await idIndex.rowsOf(ids, signal)) allowedRows.add(row);
+    return { allowedRows, strategy: "exact-filter-first" };
+  }
 
   const index = await buildIdRowIndex(idMap, vector.count, signal === undefined ? undefined : { signal });
   for (const id of ids) {

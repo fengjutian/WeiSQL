@@ -32,6 +32,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   values; `json` equality is still rejected explicitly.
 - Exact filtered search reads only the allowed vector rows when the filter is
   narrow (≤ 1/8 of the collection), merging contiguous rows into one read.
+- Vector collections carry an optional sorted `id → row` index; filtered search
+  loads it once and binary-searches instead of scanning the whole ID Map.
 - Manifest signing: Ed25519 over canonical JSON, `signManifest()` /
   `verifyManifestSignature()` with optional pinned key ids; `buildPackage()`
   signs during the build when a key pair is supplied.
@@ -68,10 +70,17 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 
 - Read-only DuckDB-Wasm `SqlAdapter` for browsers: worker-based `AsyncDuckDB`,
   tables materialized from `ResourceReader` bytes, L4 schema verification.
-- Read-only enforced with a leading-keyword allow-list and an explicit `WITH`
-  rejection, because DuckDB-Wasm exposes no prepared-statement classification.
+- Read-only enforced with a leading-keyword allow-list; `WITH` is classified with
+  DuckDB's tokenizer, so read-only CTEs (including recursive ones) work while
+  `WITH ... DELETE/INSERT/UPDATE` is rejected. Without a tokenizer the stricter
+  allow-list applies and `WITH` is refused (`supportedFeatures` omits `cte`).
+- Tokenizer offsets are UTF-8 bytes, not JavaScript indices; they are translated
+  before slicing so Chinese literals cannot shift a keyword classification.
 - Parameter binding via prepared statements, limited to values the JSON binding
   can carry; `Date`, binary and out-of-range `bigint` are rejected.
+- `DECIMAL` is cast to `DOUBLE` (`castDecimalToDouble`) so results are numbers,
+  matching the Node adapter instead of leaking Arrow's unscaled words; `BIGINT`
+  stays a `bigint`.
 - Self-hosted parquet extension (`extensionRepository`); `extensions.duckdb.org`
   sends no CORS headers, so cross-origin loading fails by design.
 - `capabilities()` reports `engine: "duckdb-wasm"` and `cancellation: "best-effort"`.
@@ -98,12 +107,14 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   without pulling the Node-only resource readers into a bundle.
 - `npm run probe:wasm` runs the DuckDB-Wasm probe in Chromium; `npm run
   vendor:wasm-extension` caches the parquet extension matching the WASM core.
+- Browser probes now also cover read-only CTEs and browser-side filtered vector
+  search (`exact-filter-first`); the playground gained SQL and category filters.
 - Browser probe, playground example, cross-environment parity check.
 - Playground now demonstrates full-text search and RAG evidence against a package
   it builds at start-up, and can switch between directory, `.wsql` and streaming
   `.wsql` loading; the probe asserts all three.
-- Parity probe extended to full-text, RAG evidence and the `.wsql` container,
-  against a package it builds at run time.
+- Parity probe extended to full-text, RAG evidence, SQL (rows and error codes) and
+  the `.wsql` container, against a package it builds at run time.
 - Benchmark harness with exact and ANN (`--ann`) modes.
 - Clustered vector distributions (`--clusters/--cluster-spread`) showing that ANN
   recall depends on data geometry, not only on `expansion_search`.

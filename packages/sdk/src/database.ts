@@ -6,7 +6,7 @@ import { IndexedIdMapReader } from "./indexed-id-map-reader.js";
 import { validateManifest } from "./manifest.js";
 import type { ResourceReader } from "./resource-reader.js";
 import type { SqlAdapter } from "./sql-adapter.js";
-import type { HybridFusionHit, HybridSearchOptions, HybridStrategy, OpenOptions, QueryOptions, RagResult, RagSearchOptions, RuntimeState, SQLValue, VectorHit, VectorSearchOptions, WeiSQLCapabilities, WeiSQLManifest } from "./types.js";
+import type { HybridFusionHit, HybridSearchOptions, HybridStrategy, OpenOptions, QueryOptions, RagResult, RagSearchOptions, RuntimeState, SQLValue, VectorCollectionDescriptor, VectorHit, VectorSearchOptions, WeiSQLCapabilities, WeiSQLManifest } from "./types.js";
 import type { TextHit, TextSearchOptions } from "./text-index-reader.js";
 import { TextIndexReader } from "./text-index-reader.js";
 import { reciprocalRankFusion } from "./fusion.js";
@@ -14,6 +14,7 @@ import { businessIdKey } from "./vector-filter.js";
 import type { VectorAdapter } from "./vector-adapter.js";
 import { VectorBlockReader } from "./vector-block-reader.js";
 import { candidateCapFor, exactFilterFirst, vectorFirst } from "./hybrid-executor.js";
+import { SortedIdIndexReader, shouldUseIdIndex } from "./sorted-id-index.js";
 
 export interface WeiSQLDatabase {
   readonly manifest: Readonly<WeiSQLManifest>;
@@ -36,6 +37,7 @@ class Database implements WeiSQLDatabase {
   readonly hybrid;
   readonly rag;
   private readonly textReaders = new Map<string, TextIndexReader>();
+  private readonly idIndexes = new Map<string, SortedIdIndexReader>();
   private constructor(
     manifest: WeiSQLManifest,
     private readonly reader?: ResourceReader,
@@ -260,6 +262,8 @@ class Database implements WeiSQLDatabase {
         manifest: this.manifest,
         sqlAdapter: this.sqlAdapter!,
         idMap,
+        ...(this.reader === undefined ? {} : { reader: this.reader }),
+        ...(this.idIndexOf(vector) === undefined ? {} : { idIndex: this.idIndexOf(vector)! }),
         vector,
         filter,
         ...signalOption,
@@ -404,6 +408,8 @@ class Database implements WeiSQLDatabase {
         manifest: this.manifest,
         sqlAdapter: this.sqlAdapter!,
         idMap,
+        ...(this.reader === undefined ? {} : { reader: this.reader }),
+        ...(this.idIndexOf(vector) === undefined ? {} : { idIndex: this.idIndexOf(vector)! }),
         vector,
         filter,
         ...(signal === undefined ? {} : { signal }),
@@ -436,10 +442,22 @@ class Database implements WeiSQLDatabase {
     return this.closePromise;
   }
   private async finishClose(): Promise<void> { try { await this.releaseResources(); } finally { this.runtimeState = "CLOSED"; } }
+  /** Cached per collection: loading the index once is what makes filtering cheap. */
+  private idIndexOf(vector: VectorCollectionDescriptor): SortedIdIndexReader | undefined {
+    if (vector.idIndex === undefined || this.reader === undefined || !shouldUseIdIndex(vector.idIndex, vector.idMap)) return undefined;
+    const existing = this.idIndexes.get(vector.name);
+    if (existing !== undefined) return existing;
+    const created = new SortedIdIndexReader(this.reader, vector.idIndex);
+    this.idIndexes.set(vector.name, created);
+    return created;
+  }
+
   private async releaseResources(): Promise<void> {
     const pending: Promise<void>[] = [];
     for (const index of this.textReaders.values()) pending.push(index.close());
     this.textReaders.clear();
+    for (const index of this.idIndexes.values()) pending.push(index.close());
+    this.idIndexes.clear();
     if (this.vectorAdapter) pending.push(this.vectorAdapter.close());
     if (this.sqlAdapter) pending.push(this.sqlAdapter.close());
     if (this.reader) pending.push(this.reader.close());

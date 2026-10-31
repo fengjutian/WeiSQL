@@ -139,6 +139,23 @@ interface TextIndexDescriptor {
 - 三个文件都参与 L3 校验，路径与其他资源一样必须全局唯一；
 - 格式与评分语义见 `FULL_TEXT_SEARCH.md`。
 
+## 4.1.1 向量集合的 ID 反向索引（可选）
+
+```ts
+idIndex?: {
+  data: FileDescriptor & { format: "jsonl" };      // 按 id 排序的 {"id": ..., "row": ...}
+  offsets: FileDescriptor & { format: "uint64-le" }; // 每条记录的起始偏移
+  count: number;                                    // 必须等于集合 count
+  idType: "string" | "integer";                     // 必须与 idColumn 类型一致
+  uniqueIds: boolean;                               // 只有唯一 ID 才生成
+};
+```
+
+- 存在时，过滤查询不再整份扫描 ID Map，而是加载索引一次后在内存里二分；
+- 排序规则与 Builder 一致：数字按数值、字符串按码元；
+- 运行时只读 `data`，`offsets` 用于将来的流式实现与完整性校验；
+- 索引文件略小于 ID Map，因此运行时选择加载它；两者大小关系由 `shouldUseIdIndex` 判断。
+
 ## 4.2 Manifest 签名（可选）
 
 ```ts

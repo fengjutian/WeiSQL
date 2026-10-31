@@ -57,6 +57,7 @@ export function validateManifest(input: unknown): WeiSQLManifest {
   vectors.forEach((item, index) => {
     const path = `$.vectorCollections[${index}]`;
     register(item.data, `${path}.data`); register(item.idMap.data, `${path}.idMap.data`); register(item.idMap.offsets, `${path}.idMap.offsets`);
+    if (item.idIndex) { register(item.idIndex.data, `${path}.idIndex.data`); register(item.idIndex.offsets, `${path}.idIndex.offsets`); }
     if (item.index) register(item.index.file, `${path}.index.file`);
   });
   texts.forEach((item, index) => {
@@ -89,6 +90,14 @@ export function validateManifest(input: unknown): WeiSQLManifest {
     if (collection.idMap.offsets.format !== "uint64-le") issue(issues, `${path}.idMap.offsets.format`, "must equal 'uint64-le'");
     const offsetBytes = BigInt(collection.idMap.count) * 8n;
     if (BigInt(collection.idMap.offsets.bytes) !== offsetBytes) issue(issues, `${path}.idMap.offsets.bytes`, `must equal idMap.count × 8 (${offsetBytes})`);
+    if (collection.idIndex) {
+      const idType = tableByName.get(collection.tableName)?.columns.find(column => column.name === collection.idColumn)?.type;
+      const expectedType = idType === "int32" || idType === "int64" ? "integer" : "string";
+      if (collection.idIndex.idType !== expectedType) issue(issues, `${path}.idIndex.idType`, `must match the id column type ('${expectedType}')`);
+      if (collection.idIndex.count !== collection.count) issue(issues, `${path}.idIndex.count`, "must equal vector collection count");
+      const idOffsetBytes = BigInt(collection.idIndex.count) * 8n;
+      if (BigInt(collection.idIndex.offsets.bytes) !== idOffsetBytes) issue(issues, `${path}.idIndex.offsets.bytes`, `must equal idIndex.count × 8 (${idOffsetBytes})`);
+    }
   });
 
   texts.forEach((entry, position) => {
@@ -169,7 +178,7 @@ function column(value: unknown, path: string, issues: Issue[]): ColumnDescriptor
 
 function vector(value: unknown, path: string, issues: Issue[]): VectorCollectionDescriptor | undefined {
   if (!record(value)) { issue(issues, path, "must be an object"); return; }
-  allowed(value, ["name", "tableName", "idColumn", "count", "dimension", "metric", "encoding", "data", "idMap", "index"], path, issues);
+  allowed(value, ["name", "tableName", "idColumn", "count", "dimension", "metric", "encoding", "data", "idMap", "idIndex", "index"], path, issues);
   name(value.name, `${path}.name`, issues); name(value.tableName, `${path}.tableName`, issues); name(value.idColumn, `${path}.idColumn`, issues);
   integer(value.count, `${path}.count`, issues, 0); integer(value.dimension, `${path}.dimension`, issues, 1);
   if (typeof value.dimension === "number" && value.dimension > 65_536) issue(issues, `${path}.dimension`, "must be <= 65536");
@@ -177,12 +186,38 @@ function vector(value: unknown, path: string, issues: Issue[]): VectorCollection
   if (value.encoding !== "f32-le-row-major") issue(issues, `${path}.encoding`, "must equal 'f32-le-row-major'");
   const data = file(value.data, `${path}.data`, issues);
   const idMap = idMapValue(value.idMap, `${path}.idMap`, issues);
+  let idIndex: VectorCollectionDescriptor["idIndex"];
+  if (value.idIndex !== undefined) idIndex = idIndexValue(value.idIndex, `${path}.idIndex`, issues);
   let index: VectorCollectionDescriptor["index"];
   if (value.index !== undefined) index = indexValue(value.index, `${path}.index`, issues);
   if (typeof value.name !== "string" || typeof value.tableName !== "string" || typeof value.idColumn !== "string" || !Number.isSafeInteger(value.count) || (value.count as number) < 0 || !Number.isSafeInteger(value.dimension) || (value.dimension as number) < 1 || typeof value.metric !== "string" || !metrics.has(value.metric) || !data || !idMap) return;
   const result: VectorCollectionDescriptor = { name: value.name, tableName: value.tableName, idColumn: value.idColumn, count: value.count as number, dimension: value.dimension as number, metric: value.metric as VectorCollectionDescriptor["metric"], encoding: "f32-le-row-major", data, idMap };
+  if (idIndex) result.idIndex = idIndex;
   if (index) result.index = index;
   return result;
+}
+
+function idIndexValue(value: unknown, path: string, issues: Issue[]): NonNullable<VectorCollectionDescriptor["idIndex"]> | undefined {
+  if (!record(value)) { issue(issues, path, "must be an object"); return; }
+  allowed(value, ["data", "offsets", "count", "idType", "uniqueIds"], path, issues);
+  const data = formattedFile(value.data, `${path}.data`, issues);
+  const offsets = formattedFile(value.offsets, `${path}.offsets`, issues);
+  integer(value.count, `${path}.count`, issues, 0);
+  if (value.idType !== "string" && value.idType !== "integer") issue(issues, `${path}.idType`, "must be 'string' or 'integer'");
+  if (typeof value.uniqueIds !== "boolean") issue(issues, `${path}.uniqueIds`, "must be a boolean");
+  if (!data || !offsets || !Number.isSafeInteger(value.count) || (value.count as number) < 0) return;
+  if (data.format !== "jsonl") issue(issues, `${path}.data.format`, "must equal 'jsonl'");
+  if (offsets.format !== "uint64-le") issue(issues, `${path}.offsets.format`, "must equal 'uint64-le'");
+  if (data.format !== "jsonl" || offsets.format !== "uint64-le") return;
+  if (value.idType !== "string" && value.idType !== "integer") return;
+  if (typeof value.uniqueIds !== "boolean") return;
+  return {
+    data: data as NonNullable<VectorCollectionDescriptor["idIndex"]>["data"],
+    offsets: offsets as NonNullable<VectorCollectionDescriptor["idIndex"]>["offsets"],
+    count: value.count as number,
+    idType: value.idType,
+    uniqueIds: value.uniqueIds,
+  };
 }
 
 function idMapValue(value: unknown, path: string, issues: Issue[]): VectorCollectionDescriptor["idMap"] | undefined {

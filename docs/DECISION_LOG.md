@@ -508,18 +508,6 @@
 - 后果：窄过滤的读取量随允许行数而不是集合大小增长；行为与阈值写入文档，测试覆盖两条路径。
 - 实测（`npm run bench -- --filter`，100k × 128）：选择性过滤把向量读取从 51.2 MB 降到 0.51 MB、请求数 98 → 1，但 p50 从 135 ms 升到 327 ms——SQL 解析与全量 ID Map 扫描（4.0 MB/查询）是固定成本。**读取量下降不等于查询变快**；要兑现收益需要持久化反向索引。
 
-## ADR-057：浏览器 SQL 走 DuckDB-Wasm，扩展自托管而不是跨域下载
-
-- 状态：Accepted and implemented
-- 背景：ADR-020 把 DuckDB-Wasm 记为「parquet 扩展需从 extensions.duckdb.org 下载，当前不可达」。复测发现主机本身可达，**真正的阻塞是 CORS**：Node 能下载是因为 Node 不执行 CORS，页面里的 `XMLHttpRequest` 一定失败；同时 DuckDB-Wasm 的 JS API 不暴露 prepared statement 的 `StatementType`，Node 适配器的引擎级只读分类不可复用。
-- 决策一：新增独立包 `@weisql/duckdb-wasm-adapter`，不把 WASM 塞进 SDK。SDK 仍然零引擎依赖，浏览器与 Node 各带各的引擎，能力差异可以分别声明。
-- 决策二：表数据只从 `ResourceReader` 读取，再 `registerFileBuffer` + `CREATE TABLE ... AS SELECT`。DuckDB 不直接访问数据包 URL，Range、缓存、L3 校验不会因为走 SQL 被绕过。
-- 决策三：parquet 扩展由部署方自托管（`npm run vendor:wasm-extension` 按 WASM 核心版本下载），适配器用 `extensionRepository` 指向同源目录；不设置时 `open()` 明确失败为 `SQL_UNSUPPORTED`（`phase: "extension"`），不静默降级。
-- 决策四：只读用**首关键字白名单**，并**显式拒绝 `WITH`**。没有 `StatementType` 时，放行 `WITH` 等于把 `WITH ... DELETE` 交给引擎；宁可少支持一个语法，也不宣称一个挡不住的边界。白名单另加单语句扫描（识别字符串、标识符、注释、dollar-quoted）。
-- 决策五：参数绑定保留，但如实收窄类型：DuckDB-Wasm 用 JSON 传参，`Date`、二进制与超范围 `bigint` 直接 `INVALID_ARGUMENT`，不做静默转换；取消声明为 `best-effort`。
-- 决策六：L4（`DESCRIBE` 与 Manifest 比对）默认开启，规则与 Node 适配器一致，但代码不跨包复用——浏览器包不能依赖 `@duckdb/node-api`，复制比引入 Node 依赖更安全。
-- 后果：浏览器 SQL 可用（Chromium 探针：`open()` 1.37–1.70 s，查询 < 50 ms，写操作 `SQL_UNSUPPORTED`）；代价是 CTE 不可用、扩展必须同源托管、首次加载 34 MB WASM。README 与状态报告已按此更新，不再保留「浏览器 SQL 未实现」的说法。
-
 ## ADR-057：Builder 在构建时签名，而不是事后补签
 
 - 状态：Accepted and implemented
@@ -529,6 +517,39 @@
 - 决策三：没有密钥时不签名、也不报错。Builder 不得替调用方决定信任模型；`validate --signature` 才是要求签名的闸门。
 - 决策四：签名后仍走 `validateManifest`（含签名结构校验），避免写出解析器无法接受的 Manifest。
 - 后果：发布链路简化为 `buildPackage({ signing })` → `weisql validate --signature`。密钥管理（轮换、多签）仍不在范围内。
+
+## ADR-058：浏览器 SQL 走 DuckDB-Wasm，扩展自托管而不是跨域下载
+
+- 状态：Accepted and implemented
+- 背景：ADR-020 把 DuckDB-Wasm 记为「parquet 扩展需从 extensions.duckdb.org 下载，当前不可达」。复测发现主机本身可达，**真正的阻塞是 CORS**：Node 能下载是因为 Node 不执行 CORS，页面里的 `XMLHttpRequest` 一定失败；同时 DuckDB-Wasm 的 JS API 不暴露 prepared statement 的 `StatementType`，Node 适配器的引擎级只读分类不可复用。
+- 决策一：新增独立包 `@weisql/duckdb-wasm-adapter`，不把 WASM 塞进 SDK。SDK 仍然零引擎依赖，浏览器与 Node 各带各的引擎，能力差异可以分别声明。
+- 决策二：表数据只从 `ResourceReader` 读取，再 `registerFileBuffer` + `CREATE TABLE ... AS SELECT`。DuckDB 不直接访问数据包 URL，Range、缓存、L3 校验不会因为走 SQL 被绕过。
+- 决策三：parquet 扩展由部署方自托管（`npm run vendor:wasm-extension` 按 WASM 核心版本下载），适配器用 `extensionRepository` 指向同源目录；不设置时 `open()` 明确失败为 `SQL_UNSUPPORTED`（`phase: "extension"`），不静默降级。
+- 决策四：只读用**首关键字白名单**，并**显式拒绝 `WITH`**。没有 `StatementType` 时，放行 `WITH` 等于把 `WITH ... DELETE` 交给引擎；宁可少支持一个语法，也不宣称一个挡不住的边界。白名单另加单语句扫描（识别字符串、标识符、注释、dollar-quoted）。（`WITH` 的这一条已被 ADR-059 取代。）
+- 决策五：参数绑定保留，但如实收窄类型：DuckDB-Wasm 用 JSON 传参，`Date`、二进制与超范围 `bigint` 直接 `INVALID_ARGUMENT`，不做静默转换；取消声明为 `best-effort`。
+- 决策六：L4（`DESCRIBE` 与 Manifest 比对）默认开启，规则与 Node 适配器一致，但代码不跨包复用——浏览器包不能依赖 `@duckdb/node-api`，复制比引入 Node 依赖更安全。
+- 后果：浏览器 SQL 可用（Chromium 探针：`open()` 1.37–1.70 s，查询 < 50 ms，写操作 `SQL_UNSUPPORTED`）；扩展必须同源托管、首次加载 34 MB WASM。README 与状态报告已按此更新，不再保留「浏览器 SQL 未实现」的说法。
+
+## ADR-059：用 DuckDB 自己的 tokenizer 支持只读 CTE，写 CTE 仍然拒绝
+
+- 状态：Accepted and implemented（取代 ADR-058 决策四中「显式拒绝 `WITH`」的部分）
+- 背景：ADR-058 为了不误放写语句，直接拒绝 `WITH`。这挡住了 `WITH ... DELETE`，也挡住了合法的只读 CTE，是能力上的净损失。
+- 决策一：`AsyncDuckDB.tokenize()` 返回 `{ offsets, types }`，是引擎自己的词法结果；据此跳过 `[RECURSIVE] name [(cols)] [MATERIALIZED] AS (...) {, ...}`，再判定 CTE 之后的真实动词。正则或自写解析器都不如引擎词法可靠。
+- 决策二：只读动词集合不变（`SELECT`/`VALUES`/`TABLE` 等），`WITH ... DELETE/INSERT/UPDATE` 仍然 `SQL_UNSUPPORTED`；白名单仍是主边界，CTE 只是把「首关键字」换成「CTE 之后的关键字」。
+- 决策三：结构无法识别时 **fail closed**：括号不闭合、缺 `AS`、CTE 后直接跟 `(` 都拒绝，不猜测。
+- 决策四：tokenizer 不可用（注入的 database 没实现 `tokenize`，或词法报错）时退回 ADR-058 的严格白名单，`supportedFeatures` 不含 `cte`。能力声明必须反映实际可用的边界。
+- 后果：浏览器端 `WITH ... SELECT` 与递归 CTE 可用并有测试；`probe:wasm` 同时断言只读 CTE 返回结果、写 CTE 被拒绝。代价是分类逻辑依赖 tokenizer 的存在。
+
+## ADR-058：ID 反向索引整份载入内存，而不是逐条二分
+
+- 状态：Accepted and implemented
+- 背景：ADR-056 的实测表明过滤查询的固定成本是全量 ID Map 扫描（100k 行每查询 4.0 MB）。Builder 生成排序索引后，问题变成「怎么读它」。
+- 决策一：索引文件格式为排序后的 `{"id","row"}` JSONL 加 uint64 偏移；`idType` 必须与 idColumn 类型一致，避免字符串/数字混排。
+- 决策二：运行时**整份载入**（100k 行约 3.2 MB，小于 ID Map 的 4.0 MB），在内存里二分；不逐条 range 读取。
+- 决策三（被实测推翻又修正）：最初按记录二分读取，1000 次查询发出约 17,000 次 range 请求，p50 5.4 s——比原方案更糟。字节数下降不等于延迟下降，这条教训与 ADR-056 相同。
+- 决策四：索引按集合缓存在 Runtime 内，`close()` 时释放；首次查询承担加载成本，后续查询只做内存二分。基准的 p50（10 次采样）如实包含首次加载。
+- 决策五：只有唯一 ID 才生成索引；没有索引或索引更大时回退到全量扫描，行为与旧包一致。
+- 后果：100k 窄过滤 p50 327 ms → 17 ms，ID Map 读取 4.0 MB → 480 B；宽过滤 526 ms → 175 ms（向量 51.2 MB 仍是瓶颈）。代价是每个向量集合最多多占约 3.2 MB 内存（100k 行）。
 
 ## 明确禁止的未经验证声明
 

@@ -17,6 +17,17 @@ export interface VectorCollectionDescriptor {
   name: string; tableName: string; idColumn: string;
   count: number; dimension: number; metric: VectorMetric;
   encoding: "f32-le-row-major"; data: FileDescriptor; idMap: IdMapDescriptor;
+  /**
+   * Optional sorted `id → row` index. Without it, filtering scans the whole ID
+   * Map per query to invert IDs; with it, each lookup is a binary search.
+   */
+  idIndex?: {
+    data: FileDescriptor & { format: "jsonl" };
+    offsets: FileDescriptor & { format: "uint64-le" };
+    count: number;
+    idType: "string" | "integer";
+    uniqueIds: boolean;
+  };
   index?: { engine: string; version: string; file: FileDescriptor; params?: Readonly<Record<string, number>> };
 }
 /**

@@ -409,6 +409,9 @@
               }
             }
           }
+        },
+        "idIndex": {
+          "$ref": "#/$defs/idIndex"
         }
       }
     },
@@ -436,6 +439,38 @@
         "value": {
           "type": "string",
           "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+        }
+      }
+    },
+    "idIndex": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "data",
+        "offsets",
+        "count",
+        "idType",
+        "uniqueIds"
+      ],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/file"
+        },
+        "offsets": {
+          "$ref": "#/$defs/file"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "idType": {
+          "enum": [
+            "string",
+            "integer"
+          ]
+        },
+        "uniqueIds": {
+          "type": "boolean"
         }
       }
     }

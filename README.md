@@ -4,9 +4,9 @@
 
 WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行时实验项目。数据集可以随应用发布到静态托管或 CDN，由浏览器或 Node.js 按需读取，无需单独部署数据库服务。
 
-项目采用 TypeScript + Rust：TypeScript 提供公开 SDK、Manifest 校验、资源读取、Runtime 编排、精确向量检索与 Adapter 注入；Rust 提供用于对照的精确 Cosine 基线。DuckDB（Node.js）与 USearch 已作为 Adapter 实现并接入，DuckDB-Wasm 尚未验证。
+项目采用 TypeScript + Rust：TypeScript 提供公开 SDK、Manifest 校验、资源读取、Runtime 编排、精确向量检索与 Adapter 注入；Rust 提供用于对照的精确 Cosine 基线。DuckDB（Node.js）、DuckDB-Wasm（浏览器）与 USearch 均已作为 Adapter 实现并接入。
 
-> 当前状态：工程原型。Manifest V1 基础结构已冻结；L1/L2 校验、L3 资源完整性（尺寸 + SHA-256）、HTTP 与 Node 文件 Reader、Runtime 生命周期、TypeScript 精确向量检索、全文检索与 RRF 融合、生成真实数据包的 Builder 首版、Node.js DuckDB 只读 SQL Adapter，以及 USearch ANN Adapter 均已实现并有自动化测试。DuckDB-Wasm、ANN 在真实数据集上的召回评估、真实 CDN 部署与 CI 自动化仍未完成。项目尚未发布 npm 包，也没有未经实测的性能承诺。
+> 当前状态：工程原型。Manifest V1 基础结构已冻结；L1/L2 校验、L3 资源完整性（尺寸 + SHA-256）、HTTP 与 Node 文件 Reader、Runtime 生命周期、TypeScript 精确向量检索、全文检索与 RRF 融合、生成真实数据包的 Builder 首版、Node.js DuckDB 只读 SQL Adapter、DuckDB-Wasm 浏览器 SQL Adapter（parquet 扩展自托管）以及 USearch ANN Adapter 均已实现并有自动化测试。浏览器 SQL 不支持 `Date`/二进制参数、ANN 在真实数据集上的召回评估、真实 CDN 部署与 CI 中的浏览器探针仍未完成。项目尚未发布 npm 包，也没有未经实测的性能承诺。
 
 ## 已实现
 
@@ -24,11 +24,13 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - 零依赖增量 SHA-256，浏览器与 Node.js 同一实现
 - `buildPackage()` Builder：接收已有 Parquet，生成 Float32、ID Map、真实摘要与 Manifest，暂存区自检后原子发布
 - Node.js DuckDB 只读 SQL Adapter（`@weisql/duckdb-adapter`）：真实 SQL 查询、参数绑定、语句级只读边界、L4 Parquet 模式校验与原生取消
+- DuckDB-Wasm 浏览器 SQL Adapter（`@weisql/duckdb-wasm-adapter`）：Worker 内真实 DuckDB、表从 `ResourceReader` 字节物化、parquet 扩展同源自托管、tokenizer 判定的只读边界（含只读 CTE）、L4 校验；限制见 [DuckDB-Wasm Adapter](docs/DUCKDB_WASM_ADAPTER.md)
 - 混合检索两策略：`exact-filter-first`（过滤先于 Top-K，结果严格）与 `vector-first`（有界候选窗口，诊断标注 `exact` 是否成立）
 - `VectorAdapter` 注入契约（`open({ vectorAdapter })`）与精确搜索参考实现；ANN 实现必须如实声明 `exactSearch: false`
 - USearch ANN Adapter（`@weisql/usearch-adapter`）：HNSW 索引（可持久化或现场构建）、三种度量映射、`diagnostics.exact: false` 如实标注、可选的后过滤模式（`diagnostics.postFiltered` 自曝不完整）
 - 真实浏览器验收探针（`npm run probe:browser`）：Chromium 中验证 HTTP Range、L3 校验、精确搜索与缓存命中
-- 跨环境对照（`npm run probe:parity`）：同一进程驱动 Node 与 Chromium，逐字段比较向量检索、全文检索、RAG 证据、`.wsql` 容器与错误码
+- 浏览器 SQL 验收探针（`npm run probe:wasm`）：Chromium 中验证 DuckDB-Wasm 物化、参数绑定、只读拒绝与 `capabilities().sql`
+- 跨环境对照（`npm run probe:parity`）：同一进程驱动 Node 与 Chromium，逐字段比较向量检索、全文检索、RAG 证据、SQL（含只读 CTE）、`.wsql` 容器与错误码
 - 可复现的基准装置（`npm run bench`）：合成数据包 + 完整性闸门 + p50/p95、I/O 字节与峰值内存；`--ann` 给出 Recall@K 对照，`--text` 测量 BM25 构建、体积与延迟，`--fusion` 测量 RRF `k` 的稳定性，结果见 [基准测量装置](docs/BENCHMARK_HARNESS.md)
 - `weisql validate` 校验命令（`@weisql/cli`）：L1/L2/L3 逐级校验、`--l4` 额外核对 Parquet 内容（需 `@weisql/duckdb-adapter`）、`--json` 输出与 CI 友好退出码
 - `.wsql` 单文件容器：`weisql pack` 打包（`--compress` 走 gzip 的 1.1.0 格式、`--only-declared` 只打声明资源并报告被跳过的文件）、`weisql validate <file>.wsql` 校验、`weisql unpack` 解包（先验摘要再写盘、拒绝路径穿越），SDK 提供 `ContainerReader` 与流式 `StreamingContainerReader` 直接作为 `resourceReader`，详见 [容器格式](docs/WSQL_CONTAINER.md)
@@ -48,7 +50,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 
 ## 尚未实现
 
-- DuckDB-Wasm（浏览器）SQL Adapter（Node.js 端已实现）
+- 浏览器 SQL 的 `Date`/二进制参数；见 [DuckDB-Wasm Adapter](docs/DUCKDB_WASM_ADAPTER.md)
 - ANN 在真实数据集上的 Recall@K 评估；ANN 后过滤的完整性保证
 - 时间戳与嵌套列的源数据推断（CSV/JSON 转换目前只覆盖标量）
 - Parquet 内容级校验（L4，需要 SQL 引擎）
@@ -86,6 +88,7 @@ npm run fixture
 
 ```bash
 npm run probe:browser
+npm run probe:wasm         # 浏览器 SQL（DuckDB-Wasm），首次会下载 parquet 扩展
 npm run probe:playground   # 打开 Playground 并断言交互结果
 npm run probe:parity       # Node 与 Chromium 结果对照（见 docs/ENVIRONMENT_PARITY.md）
 npm run playground         # 手动浏览 http://127.0.0.1:8099/playground/
@@ -236,6 +239,8 @@ const report = await buildPackage({
 
 未提供 `rowIds` 时，Builder 不会假装完成主键交叉校验，而是在 `report.warnings` 中报告 `id-membership-unverified`。
 
+构建时即可签名：传入 `signing: { privateKeyPem, publicKeyPem }`，Manifest 在写入前完成 Ed25519 签名，`report.signature.keyId` 给出指纹。这样包从落盘那一刻起就是签名的，不依赖发布脚本事后补签。
+
 ### 从 CSV / JSON 生成 Parquet
 
 Builder 不负责从 CSV/JSON 推断类型。这一步由工具完成，`hyparquet-writer` 只作为根目录的 devDependency，不进入任何发布包：
@@ -297,9 +302,12 @@ npm run playground     # http://127.0.0.1:8099/playground/
 - **全文检索**：输入 `dna` 或 `细胞` 即可看到 BM25 排序与分数（分数越大越相关）；
 - **RAG 证据**：一次点击在字符预算内组装证据，展示 id、名次、字符数与是否截断；
 - 启动时会把 fixture 复制到临时目录并生成文本索引，仓库里不保留派生文件；
-- SQL 与混合过滤在此不可用，因为浏览器端需要 DuckDB-Wasm（扩展下载受阻，见 [ADR-020](docs/DECISION_LOG.md)）。
+- **浏览器 SQL**：搜索框里可改 SQL，第一次点「运行」会加载 DuckDB-Wasm（约 34 MB）与同源 parquet 扩展，随后返回真实结果；写语句会以 `SQL_UNSUPPORTED` 拒绝，只读 CTE 可用。
+- **浏览器过滤检索**：在「类别」里选 `genetics` 会走 `exact-filter-first`（先 SQL 过滤再精确比较），诊断显示 `backend=typescript-exact+sql-filter`、`exact=true`。
 
-自动化验收：`npm run probe:playground` 在真实 Chromium 中打开页面，断言初始结果为 `doc-001..doc-003`，点击第三个预设后 `doc-003` 排到第一，再断言全文检索命中 `doc-001`、RAG 证据包含正文，最后依次切换到整包与流式 `.wsql` 模式并断言结果一致。
+`npm run playground` 会自动把匹配的 parquet 扩展缓存到 `.cache/` 并由同一静态服务提供，因此浏览器无需跨域下载扩展。
+
+自动化验收：`npm run probe:playground` 在真实 Chromium 中打开页面，断言初始结果为 `doc-001..doc-003`，点击第三个预设后 `doc-003` 排到第一，再断言全文检索命中 `doc-001`、RAG 证据包含正文，依次切换到整包与流式 `.wsql` 模式断言结果一致，最后点「运行」用 DuckDB-Wasm 查出同样的三行。
 
 ![WeiSQL Playground](docs/assets/playground.png)
 
@@ -371,6 +379,34 @@ const rows = await db.sql(
 
 详见 [DuckDB Adapter](docs/DUCKDB_ADAPTER.md)。
 
+### 浏览器端（DuckDB-Wasm）
+
+`@weisql/duckdb-wasm-adapter` 把同一个 `SqlAdapter` 接口接到 DuckDB-Wasm 的 Worker 上：
+
+```ts
+import { createDuckDbWasmAdapter } from "@weisql/duckdb-wasm-adapter";
+
+const db = await open({
+  manifestUrl: "/datasets/demo/manifest.json",
+  resourceReader: new HttpResourceReader({ baseUrl: "/datasets/demo/" }),
+  sqlAdapter: createDuckDbWasmAdapter({
+    bundles: {
+      mainModule: "/vendor/duckdb/duckdb-eh.wasm",
+      mainWorker: "/vendor/duckdb/duckdb-browser-eh.worker.js",
+    },
+    extensionRepository: `${location.origin}/extensions`,
+  }),
+});
+```
+
+- **表来自 SDK 的字节**：`ResourceReader.read()` 拿到 Parquet 后 `registerFileBuffer`，再 `CREATE TABLE ... AS SELECT`；DuckDB 不直接访问数据包 URL，L3 校验不会被绕过。
+- **parquet 扩展必须同源托管**：`extensions.duckdb.org` 不返回 CORS 头，页面无法跨域下载；`npm run vendor:wasm-extension` 会按 WASM 核心版本缓存扩展，探针服务器把它挂在 `/extensions` 下。未配置时 `open()` 返回 `SQL_UNSUPPORTED`，不静默降级。
+- **只读用首关键字白名单**：`SELECT`/`EXPLAIN`/`DESCRIBE`/`SHOW`/`SUMMARIZE`/`PIVOT`/`UNPIVOT`/`TABLE`/`VALUES`；`WITH` 交给 DuckDB 自己的 tokenizer 跳过 CTE 列表后判定真实动词，所以只读 CTE 可用、`WITH ... DELETE` 仍被拒绝。tokenizer 不可用时退回严格白名单（`WITH` 拒绝，`supportedFeatures` 不含 `cte`）。
+- **参数受 JSON 限制**：只接受字符串、数字、布尔、`null` 与安全范围内的 `bigint`；`Date`、二进制与超范围整数返回 `INVALID_ARGUMENT`。
+- **取消是 best-effort**，不是 `native`。
+
+实测（Chromium 1248、fixture 3 行、扩展已缓存）：`open()` 1.37–1.70 s，查询 < 50 ms。完整边界见 [DuckDB-Wasm Adapter](docs/DUCKDB_WASM_ADAPTER.md)，决策见 [ADR-058 / ADR-059](docs/DECISION_LOG.md)。
+
 ## 过滤与混合检索
 
 `vector.search()` 接受 `filter`，条件是 AND 组合，支持等值、成员与范围：
@@ -400,6 +436,7 @@ const hits = await db.vector.search("document_embeddings", [1, 0], {
 - 反过来（先取 Top-K 再丢弃不匹配项）会少返回结果，也不能声明 `exact`，因此没有采用。
 - 每次查询要付一次 SQL + 一次完整 ID Map 扫描（业务 ID → 向量行）。V1 没有持久化反向索引。
 - **窄过滤只读取允许行**：允许行不超过集合的 1/8 时，按连续段合并读取向量，而不是整份扫描；超过阈值仍走顺序扫描（块读摊薄更好）。两条路径有测试分别验证读取量。
+- **持久化 `id → row` 反向索引**（Builder 生成）：过滤查询不再整份扫描 ID Map，而是加载索引一次后在内存二分。实测窄过滤 p50 从 327 ms 降到 17 ms，ID Map 读取从 4.0 MB/查询降到 480 B。
 
 **`vector-first`** —— 先取有界候选窗口，再用 SQL 过滤：
 
@@ -419,7 +456,7 @@ const hits = await db.vector.search("document_embeddings", [1, 0], {
 
 **共同约束**：
 
-- 需要 `sqlAdapter`；未注入时返回 `SQL_UNSUPPORTED`，不会静默忽略过滤条件。
+- 需要 `sqlAdapter`；未注入时返回 `SQL_UNSUPPORTED`，不会静默忽略过滤条件。浏览器端注入 `@weisql/duckdb-wasm-adapter` 后同样可用（`probe:wasm` 断言 `exact-filter-first` 与 `exact: true`）。
 - 字段必须在 Manifest 中声明（未知列 → `INVALID_ARGUMENT`），值按列类型校验并全部参数绑定，`null` 编译为 `IS NULL`。
 - `date`/`timestamp` 接受 `Date` 或 ISO 字符串并按列类型校验；`json` 的等值过滤仍然明确报错——JSON 相等需要规范化形式，猜测会静默匹配不到。
 - 成员条件上限 1000 个值；`in` 不接受 `null`，范围不接受空条件或同时给 `gt` 与 `gte`。
@@ -435,6 +472,7 @@ examples/source/           Builder 的不可变 Parquet 输入
 examples/fixture/          Builder 生成的真实数据包示例
 packages/sdk/              TypeScript SDK、资源层、Builder 和向量基线
 packages/duckdb-adapter/   Node.js DuckDB 只读 SQL Adapter
+packages/duckdb-wasm-adapter/ 浏览器 DuckDB-Wasm 只读 SQL Adapter
 packages/usearch-adapter/  USearch ANN VectorAdapter（内存索引）
 packages/cli/              `weisql validate` 数据包校验命令
 examples/playground/       浏览器端示例应用（向量、全文与 RAG 演示）
@@ -454,6 +492,7 @@ tools/                     源 Parquet、ANN/全文索引生成、基准与浏�
 - [V1 公共类型与错误契约](docs/PUBLIC_TYPES_AND_ERRORS_V1.md)
 - [SQL Adapter 契约](docs/SQL_ADAPTER_CONTRACT.md)
 - [DuckDB Adapter](docs/DUCKDB_ADAPTER.md)
+- [DuckDB-Wasm Adapter](docs/DUCKDB_WASM_ADAPTER.md)
 - [表加载模式对比](docs/TABLE_LOADING_OPTIONS.md)
 - [跨环境兼容性对照](docs/ENVIRONMENT_PARITY.md)
 - [Vector Adapter 契约](docs/VECTOR_ADAPTER_CONTRACT.md)
@@ -518,13 +557,14 @@ tools/                     源 Parquet、ANN/全文索引生成、基准与浏�
 3. ~~接入 Node.js DuckDB Adapter~~（已完成，`packages/duckdb-adapter`）
 4. ~~完成 SQL + 精确向量搜索端到端测试~~（已完成，见适配器测试）
 5. ~~接入 ANN 并测量召回与延迟~~（已完成，见 `docs/BENCHMARK_HARNESS.md`）
-6. DuckDB-Wasm（浏览器 SQL 引擎）：仍受阻，Parquet 扩展需从外部下载且当前不可达
+6. ~~DuckDB-Wasm（浏览器 SQL 引擎）~~（已完成，`packages/duckdb-wasm-adapter`：扩展自托管 + 关键字白名单；CTE 仍不支持）
 7. 真实 embedding 数据集的 Recall@K、多机基准复现与静态 CDN/CORS 验收
+8. Playground 接入浏览器 SQL 与混合过滤
 
-第 6、7 步是当前瓶颈：浏览器侧没有已验证的 SQL 引擎路径，Node 端的结论不能外推到 WASM；性能与召回数字也不能从单机合成数据外推。
+第 7 步是当前瓶颈：Node 端的性能结论不能外推到 WASM；性能与召回数字也不能从单机合成数据外推。
 
 在真实测试报告完成前，不对百万级向量延迟、浏览器内存、ANN 召回率或 CDN 随机访问效率作产品承诺。
 
 ## 许可证
 
-[Apache-2.0](LICENSE)。四个发布包的目录内各带一份许可证副本，`npm pack --dry-run` 可确认它进入了 tarball。
+[Apache-2.0](LICENSE)。五个发布包的目录内各带一份许可证副本，`npm pack --dry-run` 可确认它进入了 tarball。

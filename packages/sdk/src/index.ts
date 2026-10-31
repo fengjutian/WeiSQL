@@ -42,6 +42,7 @@ export type { Bm25Input, Bm25Options, Bm25TermStat, TokenizeOptions } from "./te
 export { TextIndexReader } from "./text-index-reader.js";
 export type { TextHit, TextSearchOptions } from "./text-index-reader.js";
 export { reciprocalRankFusion } from "./fusion.js";
+export { compareIds, shouldUseIdIndex, SortedIdIndexReader } from "./sorted-id-index.js";
 export type { FusedHit, FusionOptions, Ranking } from "./fusion.js";
 export { base64ToBytes, bytesToBase64, canonicalJson, generateSigningKeyPair, keyIdOf, manifestSigningPayload, signManifest, verifyManifestSignature } from "./signing.js";
 export type { SigningKeyPair, SignManifestOptions, VerifyManifestSignatureOptions, VerifyManifestSignatureResult } from "./signing.js";

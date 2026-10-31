@@ -69,17 +69,22 @@ async function collect(packageDirectory, pathname, timeout = 180_000) {
 const fixture = path.resolve(HERE, "..", "..", "examples", "fixture");
 
 let rangeResult;
-let parquetResult;
+const parquetResults = [];
 try {
   rangeResult = await collect(fixture, "/wasm-stream-bench");
   if (rangeResult?.ok !== true) throw new Error(`range benchmark failed: ${JSON.stringify(rangeResult)}`);
 
-  await rm(PACKAGE_DIR, { recursive: true, force: true });
-  await mkdir(PACKAGE_DIR, { recursive: true });
-  const pkg = await writeBenchPackage(PACKAGE_DIR, 200_000);
-  parquetResult = await collect(PACKAGE_DIR, "/wasm-parquet-bench");
-  if (parquetResult?.ok !== true) throw new Error(`parquet benchmark failed: ${JSON.stringify(parquetResult)}`);
-  parquetResult.parquetMB = Number((pkg.parquetBytes / (1024 * 1024)).toFixed(1));
+  for (const rows of [200_000, 500_000]) {
+    const directory = path.join(PACKAGE_DIR, String(rows));
+    await rm(directory, { recursive: true, force: true });
+    await mkdir(directory, { recursive: true });
+    const pkg = await writeBenchPackage(directory, rows);
+    const result = await collect(directory, "/wasm-parquet-bench");
+    if (result?.ok !== true) throw new Error(`parquet benchmark (${rows}) failed: ${JSON.stringify(result)}`);
+    result.rows = rows;
+    result.parquetMB = Number((pkg.parquetBytes / (1024 * 1024)).toFixed(1));
+    parquetResults.push(result);
+  }
 } catch (error) {
   console.error(String(error).slice(0, 1200));
   await browser.close();
@@ -97,12 +102,12 @@ for (const row of rangeResult.materialized) {
 }
 
 console.log("");
-console.log(`Real Parquet package (${parquetResult.parquetMB} MB, 200k rows, HTTP Range + L3 + materialize):`);
-console.log("| step | result |");
-console.log("| --- | --- |");
-console.log(`| open() (materialize + L4) | ${parquetResult.openMs} ms, heap +${parquetResult.openHeapDeltaMB ?? "-"} MB |`);
-console.log(`| sqlStream rows | ${parquetResult.stream.rows} rows, first row ${parquetResult.stream.firstRowMs} ms, ${parquetResult.stream.totalMs} ms total, ${parquetResult.stream.rowsPerSecond} rows/s, heap +${parquetResult.stream.heapDeltaMB ?? "-"} MB |`);
-console.log(`| db.sql rows | ${parquetResult.materialized.rows} rows, ${parquetResult.materialized.totalMs} ms, heap +${parquetResult.materialized.heapDeltaMB ?? "-"} MB |`);
+console.log("Real Parquet packages (HTTP Range + L3 + materialize):");
+console.log("| rows | parquet | open() | open heap | sqlStream | first row | stream heap | db.sql | db.sql heap |");
+console.log("| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
+for (const result of parquetResults) {
+  console.log(`| ${result.rows} | ${result.parquetMB} MB | ${result.openMs} ms | +${result.openHeapDeltaMB ?? "-"} MB | ${result.stream.totalMs} ms (${result.stream.rowsPerSecond} rows/s) | ${result.stream.firstRowMs} ms | +${result.stream.heapDeltaMB ?? "-"} MB | ${result.materialized.totalMs} ms | +${result.materialized.heapDeltaMB ?? "-"} MB |`);
+}
 
 await browser.close();
 process.exit(0);

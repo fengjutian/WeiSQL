@@ -86,8 +86,8 @@ CI（`.github/workflows/ci.yml`）：
 | DuckDB-Wasm 物化 500k 行 | 298 ms，RSS ~+76 MB | 同上，18.8 MB Parquet | 约 4×Parquet；浏览器未测 |
 | DuckDB-Wasm 过滤查询 | 5.9–12.9 ms | 同上，等值过滤 | 冷/热缓存未区分 |
 | 物化默认预算 | 浏览器 64/128 MiB；Node 256/512 MiB（单表/整包） | 实测物化约 4× Parquet | 声明字节，不是内存承诺 |
-| 浏览器流式读取 | 100k/1M/5M 行：135/685/5,158 ms，首行 3–23 ms | Chromium 1248，`sqlStream(range())` | 单次运行、合成数据，堆增量 ~27 MB @5M |
-| 浏览器 Parquet 流式 | 20 万行：`open()` 1,716 ms；流式 595 ms、堆 +20.5 MB；`db.sql` 434 ms、堆 +40.5 MB | 7.5 MB Parquet，HTTP Range + L3 + 物化 | 单次运行 |
+| 浏览器流式读取 | 100k/1M/5M 行：126/871/4,542 ms，首行 5–16 ms | Chromium 1248，`sqlStream(range())` | 单次运行、合成数据，堆增量 ~14 MB @5M |
+| 浏览器 Parquet 流式 | 20 万/50 万行：`open()` 1,963/2,430 ms；流式 430/2,165 ms；`db.sql` 堆 +40.6/+95.4 MB | 7.5/18.8 MB Parquet，HTTP Range + L3 + 物化 | 单次运行；50 万行吞吐降到 231k 行/s |
 | parquet 扩展体积 | 498,915 B（`wasm_eh`，v1.4.3） | 自托管 | 版本必须与 WASM 核心一致 |
 
 ### 5.1 ANN 召回与分布（100k × 128，Top-10，`expansionSearch=512`）

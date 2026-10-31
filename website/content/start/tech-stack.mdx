@@ -2,7 +2,18 @@
 title: 技术栈
 description: WeiSQL 的语言、引擎、数据格式与工具链选型，以及每一项选择换来的能力和代价。
 sidebar_position: 14
+hide_title: true
 ---
+
+import { PageHero } from "@site/src/components/docs/DocsUI";
+
+<PageHero
+  kicker="技术栈"
+  title="TypeScript 编排，引擎按需注入"
+  lead="SDK 保持零引擎依赖：语言、格式与协议由 TypeScript 定义，DuckDB、DuckDB-Wasm 与 USearch 通过 Adapter 接入。"
+  chips={["TypeScript", "DuckDB", "DuckDB-Wasm", "USearch", "Rust"]}
+/>
+
 
 WeiSQL 的选型围绕一个目标：**让数据包在浏览器和 Node.js 之间保持同一套语义，同时不把任何数据库引擎焊进 SDK**。下面按层列出选择、版本与边界。
 

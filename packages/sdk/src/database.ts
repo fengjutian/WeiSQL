@@ -275,7 +275,7 @@ class Database implements WeiSQLDatabase {
           topK,
           metric: vector.metric,
           ...signalOption,
-          ...(allowed === undefined ? {} : { isAllowed: (row: number) => allowed.has(row) }),
+          ...(allowed === undefined ? {} : { isAllowed: (row: number) => allowed.has(row), allowedRows: allowed }),
         },
       });
       const elapsedMs = performance.now() - started;

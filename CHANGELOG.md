@@ -30,6 +30,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   Reciprocal Rank Fusion, reporting per-source ranks and raw values.
 - Filters support membership (`IN`), ranges and `ne`, plus `date`/`timestamp`
   values; `json` equality is still rejected explicitly.
+- Exact filtered search reads only the allowed vector rows when the filter is
+  narrow (≤ 1/8 of the collection), merging contiguous rows into one read.
 - Manifest signing: Ed25519 over canonical JSON, `signManifest()` /
   `verifyManifestSignature()` with optional pinned key ids.
 - RAG retrieval: `db.rag.search()` assembling budgeted evidence with provenance;

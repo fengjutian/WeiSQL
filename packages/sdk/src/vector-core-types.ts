@@ -34,6 +34,12 @@ export interface ExactSearchOptions {
    * without changing this contract.
    */
   isAllowed?: (row: number) => boolean;
+  /**
+   * The same restriction as a set. When present, the scan may read only the
+   * allowed rows instead of streaming the whole file — worthwhile for selective
+   * filters, ignored for broad ones.
+   */
+  allowedRows?: ReadonlySet<number>;
 }
 
 export interface IdMapReader {

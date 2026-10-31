@@ -1,0 +1,144 @@
+# DuckDB-Wasm Adapter
+
+- 状态：Accepted and implemented（`@weisql/duckdb-wasm-adapter` 0.1.0，19 个测试 + 真实 Chromium 探针）
+- 适用：浏览器端只读 SQL；Node.js 请用 `@weisql/duckdb-adapter`
+- 契约：[SQL Adapter 契约](SQL_ADAPTER_CONTRACT.md)
+
+## 1. 结论先说
+
+浏览器端 SQL 已可用，但**不是**「装个包就完事」。三个事实决定了实现形状：
+
+1. DuckDB-Wasm 的 `parquet` 扩展**不在** npm 包的 WASM 里，运行时才加载；
+2. `extensions.duckdb.org` **不返回 CORS 头**，页面跨域 `XMLHttpRequest` 一定失败
+   （ADR-020 当年观察到的「不可达」实际是这个现象，Node 端能下载是因为 Node 不执行 CORS）；
+3. DuckDB-Wasm 的 JS API **不暴露** prepared statement 的 `StatementType`，
+   Node 适配器那套「引擎级只读分类」在浏览器里拿不到。
+
+因此本适配器的做法是：**扩展自托管 + 关键字白名单 + 关闭外部文件访问**，
+并且把这三条限制写进文档和测试，而不是用「浏览器也支持 SQL」一句话盖过去。
+
+## 2. 数据路径
+
+```text
+Manifest
+  → Runtime（L1/L2，可选 L3 校验）
+  → ResourceReader.read(table.file.path)        ← 与向量检索同一条读取路径
+  → registerFileBuffer('weisql-<i>-<table>.parquet')
+  → CREATE TABLE "<table>" AS SELECT * FROM read_parquet(?)
+  → dropFile(...)                               ← 字节与表都已就位，立即释放 VFS 条目
+  → SET enable_external_access=false
+  → SET lock_configuration=true
+```
+
+要点：
+
+- **DuckDB 不直接访问数据包 URL**。表数据来自 SDK Reader，Range、缓存、L3 摘要
+  校验仍然只有一条路径；不会出现「SQL 绕过完整性校验」的缺口。
+- **表在 `open()` 时物化**（`CREATE TABLE ... AS SELECT`），与 Node 适配器一致。
+  峰值内存约为「Parquet 字节 + 表数据」，由 `maxTableBytes`（默认 256 MiB）兜底。
+- 物化完成后立即 `dropFile`，VFS 里不长期保留 Parquet 副本。
+
+## 3. 只读边界
+
+| 层 | 做法 | 能挡住什么 |
+| --- | --- | --- |
+| 关键字白名单 | 只放行 `SELECT` / `EXPLAIN` / `DESCRIBE` / `SHOW` / `SUMMARIZE` / `PIVOT` / `UNPIVOT` / `TABLE` / `VALUES` | 写入、DDL、`SET`、`ATTACH`、`LOAD`、`INSTALL`、`COPY`、事务 |
+| 单语句扫描 | 识别字符串、标识符、注释与 dollar-quoted 文本后的 `;` | `select 1; delete from t` |
+| 外部访问 | `enable_external_access=false` | 用户 SQL 里的 `read_parquet('/etc/passwd')` |
+| 配置锁 | `lock_configuration=true` | 查询期再把外部访问打开 |
+
+**`WITH` 被显式拒绝**（`SQL_UNSUPPORTED`），不是遗漏：
+
+- 白名单只看首个关键字，`WITH x AS (SELECT 1) DELETE FROM documents` 的首关键字是 `WITH`；
+- 放行 `WITH` 就必须自己解析 CTE 之后真正的语句类型，正则做不到可靠；
+- DuckDB-Wasm 没有 `StatementType` 可依赖，Node 适配器的做法在浏览器不可用。
+
+代价是浏览器端不能用 CTE。这是**能力差异**，已在 `capabilities().supportedFeatures`
+与本文档中声明，不假装两端一致。
+
+## 4. 参数绑定
+
+绑定走 `AsyncPreparedStatement.query(...values)`，但 DuckDB-Wasm 会用
+`JSON.stringify` 把参数送进 worker，因此：
+
+| 参数 | 行为 |
+| --- | --- |
+| `string` / `number` / `boolean` / `null` | 支持 |
+| 安全范围内的 `bigint` | 收窄为 `number` |
+| 超出安全整数的 `bigint` | `INVALID_ARGUMENT`（不允许静默丢精度） |
+| `Date` / `Uint8Array` / 对象 | `INVALID_ARGUMENT`，提示改传 ISO 字符串 |
+
+参数值不会被拼进 SQL；`select ? is null`、`where id = ?` 都有测试覆盖。
+
+## 5. L4 与版本
+
+- 默认开启 L4：对每张已物化的表执行 `DESCRIBE`，列名缺失或类型不匹配返回
+  `RESOURCE_INTEGRITY_FAILED`。规则与 Node 适配器一致（`string/VARCHAR`、
+  `json/JSON|VARCHAR` 等）。
+- `capabilities().engineVersion` 来自 `select version()`，不是从包名推断。
+
+## 6. 取消
+
+`cancellation: "best-effort"`：
+
+- 查询前已 abort → `QUERY_CANCELLED`，不会发给引擎；
+- 查询中 abort → 调 `connection.cancelSent()`，DuckDB 可以把 pending query 取消，
+  但 worker 可能已经完成当前任务；错误只在确实因取消而失败时映射为 `QUERY_CANCELLED`。
+
+没有声明 `native`，因为这里没有像 `@duckdb/node-api` 的 `interrupt()` 那样的确定性中断证明。
+
+## 7. 扩展自托管与部署
+
+`npm run vendor:wasm-extension` 会把与 WASM 核心版本匹配的 `parquet` 扩展下载到
+`.cache/duckdb-wasm-extensions/<version>/wasm_eh/`（已 git-ignore）。部署时：
+
+```text
+/extensions/v1.4.3/wasm_eh/parquet.duckdb_extension.wasm
+```
+
+并把 `extensionRepository` 设为 `https://<你的站点>/extensions`。
+不设置时 DuckDB 会尝试 `extensions.duckdb.org`，在浏览器里会因 CORS 失败，
+`open()` 返回 `SQL_UNSUPPORTED`（`phase: "extension"`），不会静默降级。
+
+WASM 与 worker 文件同样需要自托管：
+
+```html
+<script type="importmap">
+  { "imports": { "@duckdb/duckdb-wasm": "/vendor/duckdb/duckdb-browser.mjs" } }
+</script>
+```
+
+真实打包器会处理 `apache-arrow` / `flatbuffers` / `tslib`；裸 ESM 演示需要 import map
+（见 `tools/browser-probe/wasm.html`）。
+
+## 8. 实测
+
+环境：Chromium 1248（Playwright）、`@duckdb/duckdb-wasm` 1.32.0、DuckDB core `v1.4.3`、
+fixture 3 行、扩展已缓存。
+
+| 指标 | 数值 | 条件 |
+| --- | --- | --- |
+| `open()`（实例化 + 扩展 + 物化 + L4） | 1.37–1.70 s | 本地静态服务，扩展同源 |
+| 参数化查询 | < 50 ms | 3 行表 |
+| 浏览器 SQL 能力 | `capabilities().sql === true` | probe 断言 |
+| 写入拒绝 | `SQL_UNSUPPORTED` | probe 断言 |
+| parquet 扩展 | 498,915 B（`wasm_eh`，v1.4.3） | 自托管文件 |
+
+这些数字只说明「能跑通、量级合理」，不构成性能承诺：数据只有 3 行，
+首次加载还要拉 34 MB WASM。大表与冷启动未测量。
+
+## 9. 测试
+
+- 单元：`sql-guard`（白名单、注释、字符串里的分号）、`values`（参数与行归一化）。
+- 集成：用 `@duckdb/duckdb-wasm/blocking` 在 Node 里跑**同一个 WASM 引擎**，
+  覆盖打开、参数绑定、注入、只读拒绝、外部访问、L4、预算、生命周期（9 个用例）。
+  测试需要网络下载一次 parquet 扩展（缓存在 `~/.duckdb`）。
+- 浏览器：`npm run probe:wasm` 在真实 Chromium 中断言 `db.sql()` 结果、参数绑定与写入拒绝。
+
+## 10. 未验证 / 明确不做
+
+- 大表（> 100 MB）的物化时间与内存上限；`maxTableBytes` 只是拒绝阈值。
+- OPFS 持久化、多线程（COI）与 `pthread` 路径。
+- 浏览器端 `WITH`、`date`/`timestamp`/二进制参数、结构化错误位置。
+- CDN 上的扩展 CORS 配置（本实现要求同源自托管）。
+- 与 Node 适配器的 SQL 方言一致性承诺：两端都叫 DuckDB，但能力边界不同，见 §3–§4。

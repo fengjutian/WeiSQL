@@ -121,7 +121,7 @@ export function createExactVectorAdapter(options: ExactVectorAdapterOptions = {}
             metric: vector.metric,
             blockSize,
             ...(signal === undefined ? {} : { signal }),
-            ...(allowedRows === undefined ? {} : { isAllowed: (row: number) => allowedRows.has(row) }),
+            ...(allowedRows === undefined ? {} : { isAllowed: (row: number) => allowedRows.has(row), allowedRows }),
           },
         });
         const elapsedMs = typeof performance === "undefined" ? undefined : performance.now() - started;

@@ -1,11 +1,11 @@
-﻿# 项目状态报告
+# 项目状态报告
 
 > 生成于 2026-10-31。所有数字来自本仓库的测试与基准装置，环境为单机：Intel Core Ultra 7 155H · 22 核 · 32 GiB · Windows 10.0.26200 x64 · Node v24.14.1。
 > 本报告只陈述**已验证**的内容；未验证项在 §6 单独列出。
 
 ## 1. 一句话状态
 
-工程原型：Manifest V1 与数据包格式稳定，五个包共 **294 个自动化测试**，CI 覆盖构建/类型/测试/发布元数据，精确检索、ANN、全文、融合、RAG、单文件容器与浏览器 SQL 均有实现与实测数字；**尚未发布 npm 包**，也没有任何未经测量的性能承诺。
+工程原型：Manifest V1 与数据包格式稳定，五个包共 **300 个自动化测试**，CI 覆盖构建/类型/测试/发布元数据，精确检索、ANN、全文、融合、RAG、单文件容器与浏览器 SQL 均有实现与实测数字；**尚未发布 npm 包**，也没有任何未经测量的性能承诺。
 
 ## 2. 能力矩阵
 
@@ -48,12 +48,12 @@
 
 | 包 | 测试数 | 覆盖重点 |
 | --- | --- | --- |
-| `@weisql/sdk` | 197 | 校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约 |
+| `@weisql/sdk` | 203 | 校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约 |
 | `@weisql/duckdb-adapter` | 20 | 只读边界、参数绑定、两种表加载、取消 |
-| `@weisql/duckdb-wasm-adapter` | 31 | 关键字白名单、CTE 分类与 fail-closed、参数类型收窄、值映射、真实 WASM 引擎集成（打开/绑定/L4/生命周期/取消） |
+| `@weisql/duckdb-wasm-adapter` | 29 | 关键字白名单、CTE 分类与 fail-closed、参数类型收窄、值映射、真实 WASM 引擎集成（打开/绑定/L4/生命周期/取消） |
 | `@weisql/usearch-adapter` | 13 | 度量映射、持久化索引、后过滤、生命周期 |
 | `@weisql/cli` | 35 | 校验退出码、`--json`、`pack`/`--compress`、`unpack`、容器校验、`--l4` |
-| **合计** | **294** | |
+| **合计** | **300** | |
 
 CI（`.github/workflows/ci.yml`）：
 
@@ -78,6 +78,7 @@ CI（`.github/workflows/ci.yml`）：
 | 浏览器一致性 | 8 向量 + 5 文本 + 9 SQL + RAG + 容器 | Chromium 1248 vs Node 24 | 3 条记录、2 维，不能外推 |
 | 浏览器 SQL `open()` | 1.37–1.70 s | Chromium 1248，扩展同源且已缓存 | 3 行表；首次加载另有 34 MB WASM |
 | 浏览器 SQL 查询 | < 50 ms | 同上 | 3 行表，不含首次加载 |
+| 浏览器 SQL 取消 | 202 ms 查询在 50 ms abort 后 51 ms 返回 `QUERY_CANCELLED` | Chromium 1248 | 引擎未停；`cancelSent()` 返回 false |
 | DuckDB-Wasm 物化 50k 行 | 160 ms，RSS ~+24 MB | Node 内的同一 WASM 构建，1.9 MB Parquet | 浏览器未测 |
 | DuckDB-Wasm 物化 200k 行 | 192 ms，RSS ~+43 MB | 同上，7.5 MB Parquet | 浏览器未测 |
 | DuckDB-Wasm 物化 500k 行 | 298 ms，RSS ~+76 MB | 同上，18.8 MB Parquet | 约 4×Parquet；浏览器未测 |
@@ -149,7 +150,7 @@ CI（`.github/workflows/ci.yml`）：
 
 | 检查项 | 状态 |
 | --- | --- |
-| 测试 / 类型 / 构建 | ✅ 281 测试，typecheck 通过 |
+| 测试 / 类型 / 构建 | ✅ 296 测试，typecheck 通过 |
 | 打包内容 | ✅ 仅 `dist/` + README + LICENSE，无 src/test 泄漏 |
 | 依赖范围 | ✅ caret 且跟踪本地版本 |
 | 许可证 | ✅ Apache-2.0（根 + 每包） |

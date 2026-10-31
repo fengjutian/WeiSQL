@@ -40,7 +40,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - Manifest 签名：Ed25519（WebCrypto），`weisql keygen/sign/verify-signature`，`validate --signature --trusted <keyId>` 可固定发布者；`sign --add` 追加协同签名，用于密钥轮换
 - 全文检索：Manifest `textIndexes`、倒排索引读取器（二分定位 + BM25）、生成工具，以及公开 `db.text.search()`；Unicode 分词（CJK 按字），详见 [全文检索设计](docs/FULL_TEXT_SEARCH.md)
 - RRF 融合检索：`db.hybrid.search()` 按排名融合向量与全文结果，返回两路名次与原始分数
-- RAG 证据组装：`db.rag.search()` 在字符预算内返回带来源与名次的证据片段（不调用模型、不拼 prompt）
+- RAG 证据组装：`db.rag.search()` 在字符预算内返回带来源与名次的证据片段（不调用模型、不拼 prompt）；截断优先落在句末，其次词边界，`boundary` 标注实际切点
 - 已接入公开 `vector.search()` 的端到端精确搜索
 - Float32 little-endian 向量分块读取
 - Cosine、L2、IP 统一距离语义
@@ -404,7 +404,7 @@ const db = await open({
 - **parquet 扩展必须同源托管**：`extensions.duckdb.org` 不返回 CORS 头，页面无法跨域下载；`npm run vendor:wasm-extension` 会按 WASM 核心版本缓存扩展，探针服务器把它挂在 `/extensions` 下。未配置时 `open()` 返回 `SQL_UNSUPPORTED`，不静默降级。
 - **只读用首关键字白名单**：`SELECT`/`EXPLAIN`/`DESCRIBE`/`SHOW`/`SUMMARIZE`/`PIVOT`/`UNPIVOT`/`TABLE`/`VALUES`；`WITH` 交给 DuckDB 自己的 tokenizer 跳过 CTE 列表后判定真实动词，所以只读 CTE 可用、`WITH ... DELETE` 仍被拒绝。tokenizer 不可用时退回严格白名单（`WITH` 拒绝，`supportedFeatures` 不含 `cte`）。
 - **参数受 JSON 限制**：只接受字符串、数字、布尔、`null` 与安全范围内的 `bigint`；`Date`、二进制与超范围整数返回 `INVALID_ARGUMENT`。
-- **取消是 best-effort**，不是 `native`。
+- **取消是 best-effort**，不是 `native`：查询中 abort 会立即返回 `QUERY_CANCELLED`（`details.engineMayStillRun: true`），但单线程 worker 里的查询不会被抢占——实测 202 ms 的查询在 50 ms abort 后 51 ms 返回，引擎仍会跑完。
 
 实测（Chromium 1248、fixture 3 行、扩展已缓存）：`open()` 1.37–1.70 s，查询 < 50 ms。完整边界见 [DuckDB-Wasm Adapter](docs/DUCKDB_WASM_ADAPTER.md)，决策见 [ADR-058 / ADR-059](docs/DECISION_LOG.md)。
 

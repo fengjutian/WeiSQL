@@ -10,6 +10,7 @@ import type { HybridFusionHit, HybridSearchOptions, HybridStrategy, OpenOptions,
 import type { TextHit, TextSearchOptions } from "./text-index-reader.js";
 import { TextIndexReader } from "./text-index-reader.js";
 import { reciprocalRankFusion } from "./fusion.js";
+import { truncateToBudget } from "./text-truncate.js";
 import { businessIdKey } from "./vector-filter.js";
 import type { VectorAdapter } from "./vector-adapter.js";
 import { VectorBlockReader } from "./vector-block-reader.js";
@@ -185,16 +186,16 @@ class Database implements WeiSQLDatabase {
         continue;
       }
       const remaining = maxCharacters - usedCharacters;
-      const fragment = text.length > remaining ? text.slice(0, remaining) : text;
-      const cut = fragment.length !== text.length;
-      if (cut) truncated = true;
-      usedCharacters += fragment.length;
+      const fragment = truncateToBudget(text, remaining);
+      if (fragment.truncated) truncated = true;
+      usedCharacters += fragment.text.length;
       evidences.push({
         id: hit.id,
-        text: fragment,
+        text: fragment.text,
         rank: index + 1,
-        characters: fragment.length,
-        truncated: cut,
+        characters: fragment.text.length,
+        truncated: fragment.truncated,
+        boundary: fragment.boundary,
         ranks: hit.ranks,
       });
     }

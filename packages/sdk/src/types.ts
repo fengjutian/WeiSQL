@@ -202,6 +202,8 @@ export interface RagEvidence {
   characters: number;
   /** True when this fragment was cut to fit the character budget. */
   truncated: boolean;
+  /** Where the cut happened: a sentence, a word, or mid-character. */
+  boundary: "none" | "sentence" | "word" | "character";
   ranks: Readonly<Record<string, number>>;
 }
 export interface RagResult {

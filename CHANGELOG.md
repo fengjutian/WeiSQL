@@ -88,6 +88,10 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - Self-hosted parquet extension (`extensionRepository`); `extensions.duckdb.org`
   sends no CORS headers, so cross-origin loading fails by design.
 - `capabilities()` reports `engine: "duckdb-wasm"` and `cancellation: "best-effort"`.
+  Aborting a running query rejects the caller immediately with
+  `QUERY_CANCELLED` and `details.engineMayStillRun: true`; `cancelSent()` cannot
+  preempt CPU-bound work in the single-threaded worker (measured), so the engine
+  may still finish the query.
 
 ### `@weisql/usearch-adapter` 0.1.0
 
@@ -126,6 +130,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   recall depends on data geometry, not only on `expansion_search`.
 - Full-text benchmark mode (`--text`): synthetic Zipf corpus, index build time,
   index size breakdown and BM25 query latency.
+- RAG evidence is cut at a sentence boundary, then a word boundary, then a hard
+  cut; each evidence reports where the cut happened via `boundary`.
 - Fusion stability study (`--fusion`): measures how RRF `k` changes the ranking,
   and states that this is not a relevance-quality measurement.
 - Filtered benchmark mode (`--filter`): reports vector bytes, ID Map bytes and

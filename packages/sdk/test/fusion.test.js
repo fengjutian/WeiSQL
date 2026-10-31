@@ -207,6 +207,7 @@ test("rag assembles evidence with provenance and a character budget", async () =
   const tight = await db.rag.search({ text: { name: "documents_text", query: "dna" }, topK: 3, maxCharacters: 3 });
   assert.equal(tight.evidences[0].text, "DNA");
   assert.equal(tight.evidences[0].truncated, true);
+  assert.equal(tight.evidences[0].boundary, "character");
   assert.equal(tight.truncated, true);
   assert.equal(tight.evidences.length, 1);
 

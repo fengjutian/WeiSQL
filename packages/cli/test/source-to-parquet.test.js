@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -9,6 +10,7 @@ import { promisify } from "node:util";
 
 import { parquetReadObjects } from "hyparquet";
 
+import { validatePackage } from "../dist/index.js";
 import { convertSource } from "../../../tools/source-to-parquet.mjs";
 
 const run = promisify(execFile);
@@ -89,6 +91,39 @@ test("rejects mixing nested JSON with scalar values", () => {
     () => convertSource(JSON.stringify([{ meta: { a: 1 } }, { meta: "text" }]), "json"),
     /mixes incompatible types/,
   );
+});
+
+test("a nested JSON column survives Builder-style Manifest and L4 validation", async (t) => {
+  const directory = await mkdtemp(path.join(tmpdir(), "weisql-json-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  await mkdir(path.join(directory, "data"), { recursive: true });
+  const converted = convertSource(JSON.stringify([
+    { id: "a", meta: { tags: ["x"] } },
+    { id: "b", meta: { tags: [] } },
+  ]), "json");
+  await writeFile(path.join(directory, "data", "documents.parquet"), converted.parquet);
+  const manifest = {
+    format: "weisql",
+    formatVersion: "1.0.0",
+    datasetId: "nested-json",
+    tables: [{
+      name: "documents",
+      file: {
+        path: "data/documents.parquet",
+        bytes: converted.parquet.byteLength,
+        sha256: createHash("sha256").update(converted.parquet).digest("hex"),
+      },
+      format: "parquet",
+      columns: converted.columns,
+      primaryKey: ["id"],
+    }],
+    vectorCollections: [],
+  };
+  await writeFile(path.join(directory, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+
+  const result = await validatePackage({ directory, l4: true });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.l4, { ok: true, tables: 1 });
 });
 
 test("rejects mixed-type columns and bad input", () => {

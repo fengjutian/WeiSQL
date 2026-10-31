@@ -76,4 +76,4 @@ npm run fixture            # 或直接调用 buildPackage()
 npx weisql validate ./fixture --l4
 ```
 
-`--l4` 会通过 DuckDB 读一遍 Parquet，确认列名/类型与 Manifest 一致——这是唯一能发现「Manifest 写错类型但哈希仍然对得上」的检查。
+`--l4` 会通过 DuckDB 读一遍 Parquet，确认列名/类型与 Manifest 一致——这是唯一能发现「Manifest 写错类型但哈希仍然对得上」的检查。转换工具产出的 `json` 列也有端到端用例：生成 Parquet + Manifest 后由 `validatePackage({ l4: true })` 检查通过。

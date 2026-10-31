@@ -5,7 +5,7 @@
 
 ## 1. 一句话状态
 
-工程原型：Manifest V1 与数据包格式稳定，五个包共 **325 个自动化测试**，CI 覆盖构建/类型/测试/发布元数据，精确检索、ANN、全文、融合、RAG、单文件容器与浏览器 SQL 均有实现与实测数字；**尚未发布 npm 包**，也没有任何未经测量的性能承诺。
+工程原型：Manifest V1 与数据包格式稳定，五个包共 **326 个自动化测试**，CI 覆盖构建/类型/测试/发布元数据，精确检索、ANN、全文、融合、RAG、单文件容器与浏览器 SQL 均有实现与实测数字；**尚未发布 npm 包**，也没有任何未经测量的性能承诺。
 
 ## 2. 能力矩阵
 
@@ -52,8 +52,8 @@
 | `@weisql/duckdb-adapter` | 25 | 只读边界、参数绑定、两种表加载、两层字节预算、取消 |
 | `@weisql/duckdb-wasm-adapter` | 38 | 关键字白名单、CTE 分类与 fail-closed、参数类型收窄、值映射、两层预算、取消、错误契约、真实 WASM 引擎集成 |
 | `@weisql/usearch-adapter` | 13 | 度量映射、持久化索引、后过滤、生命周期 |
-| `@weisql/cli` | 40 | 校验退出码、`--json`、`pack`/`--compress`、`unpack`、容器校验、`--l4` |
-| **合计** | **325** | |
+| `@weisql/cli` | 41 | 校验退出码、`--json`、`pack`/`--compress`、`unpack`、容器校验、`--l4` |
+| **合计** | **326** | |
 
 CI（`.github/workflows/ci.yml`）：
 
@@ -167,7 +167,7 @@ CI（`.github/workflows/ci.yml`）：
 
 | 检查项 | 状态 |
 | --- | --- |
-| 测试 / 类型 / 构建 | ✅ 325 测试，typecheck 通过 |
+| 测试 / 类型 / 构建 | ✅ 326 测试，typecheck 通过 |
 | 打包内容 | ✅ 仅 `dist/` + README + LICENSE，无 src/test 泄漏 |
 | 依赖范围 | ✅ caret 且跟踪本地版本 |
 | 许可证 | ✅ Apache-2.0（根 + 每包） |

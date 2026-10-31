@@ -136,6 +136,29 @@ npm run bench -- --filter
 2. **宽过滤也受益**：向量仍要读 51.2 MB，但省掉 ID Map 扫描后从 526 ms 降到 175 ms，已接近无过滤基线。
 3. **实现方式比结构更重要**：最初逐条二分读取索引，1000 次查询发出约 17,000 次 range 请求，延迟反而升到 5.4 s。整份索引一次载入（3.2 MB，小于被替代的 ID Map）再在内存二分，才得到上面的数字。
 
+## 3.3 DuckDB-Wasm 物化与过滤（`bench:wasm`）
+
+```bash
+npm run bench:wasm                          # 50k / 200k / 500k 行
+npm run bench:wasm -- 50000 200000 500000
+```
+
+它用 `@duckdb/duckdb-wasm/blocking` 在 Node 里跑**与浏览器相同的 WASM 构建与适配器代码**，
+先生成低压缩率的 Parquet（32 字符随机 id、随机 score），再测量 `open()`（扩展 + 物化 + L4）
+与一次等值过滤查询的时间，以及显式 GC 后的 RSS/`external` 增量。
+
+| 行数 | Parquet | `open()` | 过滤查询 | RSS 增量 | external 增量 |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 50,000 | 1.9 MB | 160 ms | 5.9 ms | ~24 MB | ~9 MB |
+| 200,000 | 7.5 MB | 192 ms | 7.9 ms | ~43 MB | ~30 MB |
+| 500,000 | 18.8 MB | 298 ms | 12.9 ms | ~76 MB | ~73 MB |
+
+读法：物化耗时约 0.6 ms / 1000 行；RSS 增量约为 Parquet 的 4 倍（Parquet 字节 +
+WASM 堆里的 VFS 副本 + 物化表）。`maxTableBytes`（默认 256 MiB）是拒绝阈值，不是内存保证。
+
+**边界**：这是 Node 里的 WASM 测量，不是浏览器测量；没有 DOM/Worker 开销，
+也没有跨网络加载 34 MB WASM 的冷启动。浏览器侧只有 `probe:wasm` 的 3 行数据。
+
 ## 4. 记录结果（2026-10-30，单机）
 
 环境：Intel Core Ultra 7 155H · 22 核 · 32 GiB · Windows 10.0.26200 x64 · Node v24.14.1
@@ -155,10 +178,10 @@ npm run bench -- --filter
 ## 5. 明确不作数的部分
 
 - **不是性能承诺**：单机、单次运行、热页缓存（校验已经读过全部文件）。没有多机复现，也没有冷缓存对照。
-- **不含浏览器**：浏览器端没有端到端耗时数据；DuckDB-Wasm 仍受阻。
+- **不含浏览器**：浏览器端没有端到端耗时数据；`bench:wasm` 是 Node 里的 WASM 测量。
 - **不含 ANN**：只有精确扫描基线，不能据此推断近似索引的延迟或召回。
 - **不含百万级**：100 万 × 768 约 3 GB，本机未跑；`BENCHMARK_PROTOCOL_V1.md` 要求同时报告内存与下载量，单机也不足以代表 CDN 场景。
-- **不含 SQL**：没有 DuckDB 参与，测的是 SDK 自身的扫描与解码。
+- **不含 SQL 引擎对比**：`bench:wasm` 只测 DuckDB-Wasm 自己的物化与查询，不与 Node DuckDB 比较吞吐。
 
 ## 6. 复现
 
@@ -166,6 +189,7 @@ npm run bench -- --filter
 npm run bench                                   # 100k x 128, 20 条查询
 npm run bench -- --rows 20000 --dimension 64 --queries 10
 npm run bench -- --package ./bench/pkg-5000x32  # 复用已生成的包
+npm run bench:wasm                              # DuckDB-Wasm 物化与过滤
 ```
 
 生成的包写入 `bench/`（已加入 `.gitignore`）。合成包依赖 Python + pyarrow；测量本身只需要 Node。

@@ -1,6 +1,6 @@
 ﻿# DuckDB-Wasm Adapter
 
-- 状态：Accepted and implemented（`@weisql/duckdb-wasm-adapter` 0.1.0，27 个测试 + 真实 Chromium 探针）
+- 状态：Accepted and implemented（`@weisql/duckdb-wasm-adapter` 0.1.0，29 个测试 + 真实 Chromium 探针）
 - 适用：浏览器端只读 SQL；Node.js 请用 `@weisql/duckdb-adapter`
 - 契约：[SQL Adapter 契约](SQL_ADAPTER_CONTRACT.md)
 
@@ -147,13 +147,27 @@ fixture 3 行、扩展已缓存。
 | parquet 扩展 | 498,915 B（`wasm_eh`，v1.4.3） | 自托管文件 |
 
 这些数字只说明「能跑通、量级合理」，不构成性能承诺：数据只有 3 行，
-首次加载还要拉 34 MB WASM。大表与冷启动未测量。
+首次加载还要拉 34 MB WASM。浏览器内的冷启动与真实大表未测量。
+
+### 8.1 大表物化（`npm run bench:wasm`，Node 里的同一 WASM 构建）
+
+合成数据（32 字符随机 id、随机 score，刻意低压缩），本机 Node 24、`--expose-gc`：
+
+| 行数 | Parquet | `open()` | 过滤查询 | RSS 增量 |
+| ---: | ---: | ---: | ---: | ---: |
+| 50,000 | 1.9 MB | 160 ms | 5.9 ms | ~24 MB |
+| 200,000 | 7.5 MB | 192 ms | 7.9 ms | ~43 MB |
+| 500,000 | 18.8 MB | 298 ms | 12.9 ms | ~76 MB |
+
+观察：物化耗时随行数线性增长（≈0.6 ms / 1000 行），RSS 增量约为 Parquet 的 **4 倍**
+（Parquet 字节 + WASM 堆里的 VFS 副本 + 物化表）。这是**Node 里的 WASM 测量**，
+浏览器还要加上 Worker/DOM 开销；不要把它当成浏览器内存承诺。
 
 ## 9. 测试
 
 - 单元：`sql-guard`（白名单、注释、字符串里的分号、CTE 分类、UTF-8 偏移、fail-closed）、`values`（参数与行归一化）。
 - 集成：用 `@duckdb/duckdb-wasm/blocking` 在 Node 里跑**同一个 WASM 引擎**，
-  覆盖打开、参数绑定、注入、只读拒绝、只读/写/递归 CTE、中文 CTE、值映射、非法 SQL、预取消、外部访问、L4、预算、生命周期（12 个用例）。
+  覆盖打开、参数绑定、注入、只读拒绝、只读/写/递归 CTE、中文 CTE、值映射、非法 SQL、预取消、多表、短读、外部访问、L4、预算、生命周期（14 个用例）。
   测试需要网络下载一次 parquet 扩展（缓存在 `~/.duckdb`）。
 - 跨环境：`probe:parity` 把同一批 SQL 分别交给 Node DuckDB 与浏览器 DuckDB-Wasm，逐行比较并核对错误码。
 - 浏览器：`npm run probe:wasm` 在真实 Chromium 中断言 `db.sql()` 结果、参数绑定、只读 CTE、过滤检索与写入拒绝；
@@ -161,7 +175,8 @@ fixture 3 行、扩展已缓存。
 
 ## 10. 未验证 / 明确不做
 
-- 大表（> 100 MB）的物化时间与内存上限；`maxTableBytes` 只是拒绝阈值。
+- 浏览器内的大表与冷启动：§8.1 只测了 Node 里的同一 WASM 构建，未测 500k 行以上的浏览器内存；
+  `maxTableBytes` 只是拒绝阈值，不是内存保证。
 - OPFS 持久化、多线程（COI）与 `pthread` 路径。
 - `date`/`timestamp`/二进制参数、结构化错误位置。
 - 非 `SELECT` 的只读 CTE 形态（如 CTE 后直接跟括号子查询）按 fail-closed 拒绝，未逐一支持。

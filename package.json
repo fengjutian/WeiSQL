@@ -18,6 +18,7 @@
     "probe:playground": "node tools/browser-probe/run-playground.mjs",
     "probe:parity": "node tools/browser-probe/parity.mjs",
     "bench": "node tools/bench/run.mjs",
+    "bench:wasm": "node --expose-gc tools/bench/wasm.mjs",
     "release:check": "node tools/release-check.mjs"
   },
   "devDependencies": {

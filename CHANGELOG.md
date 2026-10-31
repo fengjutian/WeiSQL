@@ -107,7 +107,9 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - `@weisql/sdk` exports `./errors` so browser adapters can import `WeiSQLError`
   without pulling the Node-only resource readers into a bundle.
 - `npm run probe:wasm` runs the DuckDB-Wasm probe in Chromium; `npm run
-  vendor:wasm-extension` caches the parquet extension matching the WASM core.
+  vendor:wasm-extension` caches the parquet extension matching the WASM core;
+  `npm run bench:wasm` measures materialization and filtered queries at 50k–500k
+  rows (Node WASM; time and RSS, not a performance promise).
 - Browser probes now also cover read-only CTEs and browser-side filtered vector
   search (`exact-filter-first`); the playground gained SQL and category filters.
 - Browser probe, playground example, cross-environment parity check.

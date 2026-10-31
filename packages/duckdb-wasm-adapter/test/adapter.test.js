@@ -144,6 +144,48 @@ test("rejects invalid SQL and pre-aborted queries with stable codes", async () =
   });
 });
 
+test("materializes every table in a multi-table Manifest", async () => {
+  const bytes = new Uint8Array(readFileSync(path.join(FIXTURE, "data", "documents.parquet")));
+  const two = structuredClone(manifest);
+  two.tables.push({
+    ...structuredClone(manifest.tables[0]),
+    name: "documents_copy",
+    file: { ...structuredClone(manifest.tables[0].file), path: "data/documents-copy.parquet" },
+  });
+  const reader = {
+    read: async () => bytes,
+    readRange: async (_path, range) => bytes.subarray(range.start, range.end),
+  };
+  const database = await createWasmTestDatabase();
+  const adapter = createDuckDbWasmAdapter({ database });
+  try {
+    await adapter.open({ manifest: two, reader });
+    assert.deepEqual(await adapter.query("SELECT count(*) AS n FROM documents"), [{ n: 3n }]);
+    assert.deepEqual(await adapter.query("SELECT count(*) AS n FROM documents_copy"), [{ n: 3n }]);
+  } finally {
+    await adapter.close();
+    await database.terminate();
+  }
+});
+
+test("rejects a short read whose length disagrees with the Manifest", async () => {
+  const bytes = new Uint8Array(readFileSync(path.join(FIXTURE, "data", "documents.parquet"))).subarray(0, 64);
+  const reader = {
+    read: async () => bytes,
+    readRange: async (_path, range) => bytes.subarray(range.start, range.end),
+  };
+  const database = await createWasmTestDatabase();
+  const adapter = createDuckDbWasmAdapter({ database });
+  try {
+    await assert.rejects(
+      adapter.open({ manifest, reader }),
+      (error) => error.code === "RESOURCE_INTEGRITY_FAILED" && error.details?.actual === 64,
+    );
+  } finally {
+    await database.terminate();
+  }
+});
+
 test("close() is idempotent and query() fails afterwards", async () => {
   const database = await createWasmTestDatabase();
   const adapter = createDuckDbWasmAdapter({ database });

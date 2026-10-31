@@ -53,5 +53,5 @@ COUNT=100000 DIMS=128 QUERIES=10 EXPANSION_SEARCH=512 node tools/ann-probe.mjs
 
 - 记录为「可行且已接入」（`@weisql/usearch-adapter`），但默认仍走精确扫描：必须显式注入 Adapter 才会使用 ANN。
 - 精确扫描仍是唯一保证正确的路径；ANN 结果的 `diagnostics.exact` 恒为 `false`。
-- 召回与延迟的对照已可通过 `npm run bench -- --ann` 复现（见 `BENCHMARK_HARNESS.md` §2）：100k × 128 上 ANN 比精确快约 9.5 倍，但 Recall@10 均值 0.735、最低 0.400。
+- 召回与延迟的对照已可通过 `npm run bench -- --ann` 复现（见 `BENCHMARK_HARNESS.md` §2）：100k × 128 上 ANN 比精确快约 9.5 倍，但 Recall@10 在 0.385–0.740 之间随数据分布变化（均匀 0.735、紧聚类 0.385），提高 `expansionSearch` 只部分恢复。**数据分布必须与召回一起报告。**
 - 若要对外承诺性能或召回，前提是：真实 embedding 数据集、多机复现、冷缓存对照，以及按数据集报告 Recall@K。当前一条都不满足。

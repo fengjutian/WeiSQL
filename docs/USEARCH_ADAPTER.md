@@ -50,7 +50,7 @@ USearch 的原始距离与公共契约不一致，Adapter 在边界处转换：
 | 索引构建 | 优先加载 Manifest 声明的索引；未声明时**首次检索现场构建**（100k × 128 合成数据约 10 秒） |
 | 持久化 | 已实现：`index.params` 提供 connectivity / expansion，缺失时拒绝加载而不是回退默认值 |
 | 过滤 | 默认**不支持**（`filtering: "reject"`）：Runtime 在调用前就拒绝带 `filter` 的查询，Adapter 也会拒绝 `allowedRows`。可显式开启 `filtering: "post-filter"`：扩大候选窗口直到凑够允许行，结果**不保证完整**并带 `diagnostics.postFiltered = true` |
-| 召回 | **不保证**。`expansionSearch` 默认 512：100k × 128 合成数据上 Recall@10 均值 0.735、最低 0.400（`npm run bench -- --ann` 实测）；2048 可达 1.0 但更慢。必须按真实数据集测 |
+| 召回 | **不保证，且强依赖数据分布。** `expansionSearch` 默认 512。100k × 128 合成数据实测：均匀 0.735、重叠聚类 0.740、紧聚类低至 **0.385**（最低 0），提高 `expansionSearch` 到 2048 只恢复到 0.76。必须用目标数据测 |
 | 取消 | `unsupported`。构建阶段只在批次之间检查 `AbortSignal`；检索本身无法中断 |
 | 内存 | 索引常驻内存（100k × 128 约 66 MB，比原始向量 51 MB 更大） |
 

@@ -6,7 +6,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 
 项目采用 TypeScript + Rust：TypeScript 提供公开 SDK、Manifest 校验、资源读取、Runtime 编排、精确向量检索与 Adapter 注入；Rust 提供用于对照的精确 Cosine 基线。DuckDB（Node.js）、DuckDB-Wasm（浏览器）与 USearch 均已作为 Adapter 实现并接入。
 
-> 当前状态：工程原型。Manifest V1 基础结构已冻结；L1/L2 校验、L3 资源完整性（尺寸 + SHA-256）、HTTP 与 Node 文件 Reader、Runtime 生命周期、TypeScript 精确向量检索、全文检索与 RRF 融合、生成真实数据包的 Builder 首版、Node.js DuckDB 只读 SQL Adapter、DuckDB-Wasm 浏览器 SQL Adapter（parquet 扩展自托管）以及 USearch ANN Adapter 均已实现并有自动化测试。浏览器 SQL 不支持 `Date`/二进制参数、ANN 在真实数据集上的召回评估、真实 CDN 部署与 CI 中的浏览器探针仍未完成。项目尚未发布 npm 包，也没有未经实测的性能承诺。
+> 当前状态：工程原型。Manifest V1 基础结构已冻结；L1/L2 校验、L3 资源完整性（尺寸 + SHA-256）、HTTP 与 Node 文件 Reader、Runtime 生命周期、TypeScript 精确向量检索、全文检索与 RRF 融合、生成真实数据包的 Builder 首版、Node.js DuckDB 只读 SQL Adapter、DuckDB-Wasm 浏览器 SQL Adapter（parquet 扩展自托管）以及 USearch ANN Adapter 均已实现并有自动化测试。浏览器 SQL 不支持 `Date`/二进制参数、ANN 在真实数据集上的召回评估与真实 CDN 部署仍未完成。项目尚未发布 npm 包，也没有未经实测的性能承诺。
 
 ## 已实现
 
@@ -31,6 +31,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - 真实浏览器验收探针（`npm run probe:browser`）：Chromium 中验证 HTTP Range、L3 校验、精确搜索与缓存命中
 - 浏览器 SQL 验收探针（`npm run probe:wasm`）：Chromium 中验证 DuckDB-Wasm 物化、参数绑定、只读拒绝与 `capabilities().sql`
 - 跨环境对照（`npm run probe:parity`）：同一进程驱动 Node 与 Chromium，逐字段比较向量检索、全文检索、RAG 证据、SQL（含只读 CTE）、`.wsql` 容器与错误码
+- SQL Adapter 共享契约（`npm run test:contract`）：同一组 SQL 用例同时跑 Node DuckDB 与 DuckDB-Wasm，差异必须在用例表里显式声明
 - 可复现的基准装置（`npm run bench`）：合成数据包 + 完整性闸门 + p50/p95、I/O 字节与峰值内存；`--ann` 给出 Recall@K 对照，`--text` 测量 BM25 构建、体积与延迟，`--fusion` 测量 RRF `k` 的稳定性，结果见 [基准测量装置](docs/BENCHMARK_HARNESS.md)
 - DuckDB-Wasm 物化基准（`npm run bench:wasm`）：5 万–50 万行合成 Parquet 的 `open()`、过滤查询与 RSS 增量，结果见 [基准测量装置](docs/BENCHMARK_HARNESS.md)
 - `weisql validate` 校验命令（`@weisql/cli`）：L1/L2/L3 逐级校验、`--l4` 额外核对 Parquet 内容（需 `@weisql/duckdb-adapter`）、`--json` 输出与 CI 友好退出码
@@ -49,15 +50,16 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 - 流式 TypeScript 精确搜索正确性基线
 - Rust 精确 Cosine 搜索基线
 
-## 尚未实现
+## 尚未实现 / 未验证
 
-- 浏览器 SQL 的 `Date`/二进制参数；见 [DuckDB-Wasm Adapter](docs/DUCKDB_WASM_ADAPTER.md)
+- 浏览器 SQL 的 `Date`/二进制参数（当前明确拒绝）；见 [DuckDB-Wasm Adapter](docs/DUCKDB_WASM_ADAPTER.md)
+- 浏览器端 OPFS 持久化、大表与 34 MB 首载的实测；多线程/COI 已试且不可用（见 ADR-063）
+- SQL 结果的行数上限或流式返回（当前一次性返回全部行）
 - ANN 在真实数据集上的 Recall@K 评估；ANN 后过滤的完整性保证
 - 时间戳与嵌套列的源数据推断（CSV/JSON 转换目前只覆盖标量）
-- Parquet 内容级校验（L4，需要 SQL 引擎）
 - WASM 构建与 TypeScript/Rust 自动黄金数据对照
-- Netlify/CDN 的真实 CORS、Range 和缓存验收
-- `.wsql` 容器的压缩与流式读取
+- 真实 CDN（CORS、Range、缓存）与多机/冷缓存验收
+- npm 发布（缺组织与访问令牌）
 
 ## 快速开始
 
@@ -73,6 +75,7 @@ WeiSQL AI 是一个面向静态网站和嵌入式 AI 应用的只读数据运行
 ```bash
 npm install
 npm test
+npm run test:contract   # 同一套 SQL 契约跑 Node 与 DuckDB-Wasm 两个适配器
 npm run typecheck
 npm run build
 ```
@@ -85,7 +88,7 @@ npm run fixture
 
 该命令调用 Builder，从 `examples/source/documents.parquet` 生成完整数据包并在发布前自检。源 Parquet 由 `python tools/make-source-parquet.py`（依赖 pyarrow）生成，属于不可变输入。
 
-在真实浏览器中验证 SDK（需要 Chromium 或 Chrome/Edge）：
+在真实浏览器中验证 SDK（需要 Chromium 或 Chrome/Edge；CI 的 `browser` 作业会在 Ubuntu runner 自带的 Chrome 上跑这四条探针）：
 
 ```bash
 npm run probe:browser
@@ -460,6 +463,7 @@ const hits = await db.vector.search("document_embeddings", [1, 0], {
 - 需要 `sqlAdapter`；未注入时返回 `SQL_UNSUPPORTED`，不会静默忽略过滤条件。浏览器端注入 `@weisql/duckdb-wasm-adapter` 后同样可用（`probe:wasm` 断言 `exact-filter-first` 与 `exact: true`）。
 - 字段必须在 Manifest 中声明（未知列 → `INVALID_ARGUMENT`），值按列类型校验并全部参数绑定，`null` 编译为 `IS NULL`。
 - `date`/`timestamp` 接受 `Date` 或 ISO 字符串并按列类型校验；`json` 的等值过滤仍然明确报错——JSON 相等需要规范化形式，猜测会静默匹配不到。
+- `json` 列是不透明文本：需要 JSON 谓词时用 `db.sql()` 里的 `json_extract`（有测试覆盖），过滤 DSL 只给出带提示的拒绝；相等语义请在入库前生成规范化文本列并声明为 `string`（见 [ADR-064](docs/DECISION_LOG.md)）。
 - 成员条件上限 1000 个值；`in` 不接受 `null`，范围不接受空条件或同时给 `gt` 与 `gte`。
 - 只传 `strategy` 不传 `filter` 会返回 `INVALID_ARGUMENT`。
 
@@ -558,9 +562,10 @@ tools/                     源 Parquet、ANN/全文索引生成、基准与浏�
 3. ~~接入 Node.js DuckDB Adapter~~（已完成，`packages/duckdb-adapter`）
 4. ~~完成 SQL + 精确向量搜索端到端测试~~（已完成，见适配器测试）
 5. ~~接入 ANN 并测量召回与延迟~~（已完成，见 `docs/BENCHMARK_HARNESS.md`）
-6. ~~DuckDB-Wasm（浏览器 SQL 引擎）~~（已完成，`packages/duckdb-wasm-adapter`：扩展自托管 + 关键字白名单；CTE 仍不支持）
+6. ~~DuckDB-Wasm（浏览器 SQL 引擎）~~（已完成，`packages/duckdb-wasm-adapter`：扩展自托管 + tokenizer 判定的只读边界，含只读 CTE）
 7. 真实 embedding 数据集的 Recall@K、多机基准复现与静态 CDN/CORS 验收
-8. Playground 接入浏览器 SQL 与混合过滤
+8. ~~Playground 接入浏览器 SQL 与类别过滤~~（已完成，`probe:playground` 断言）
+9. SQL Adapter 共享契约测试、`db.sql()` 行数上限/流式返回、浏览器 OPFS 持久化
 
 第 7 步是当前瓶颈：Node 端的性能结论不能外推到 WASM；性能与召回数字也不能从单机合成数据外推。
 

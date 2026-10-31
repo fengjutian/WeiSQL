@@ -125,7 +125,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   Windows, plus fixture reproducibility, derived indexes and container packing.
   The `derived` job also runs `bench:wasm --smoke` to catch broken
   adapter/extension wiring, and `npm run test:contract` to hold both SQL
-  adapters to one declared contract.
+  adapters to one declared contract. A `browser` job runs `probe:browser`,
+  `probe:wasm`, `probe:playground` and `probe:parity` on the runner's Chrome.
 - `@weisql/sdk` exports `./errors` so browser adapters can import `WeiSQLError`
   without pulling the Node-only resource readers into a bundle.
 - `npm run probe:wasm` runs the DuckDB-Wasm probe in Chromium; `npm run
@@ -155,6 +156,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   fails on leaked source/test files, missing LICENSE/README, or dead exports.
 - `bench:quantization` measures f32/f16/i8 index size against Recall@K on the same
   synthetic vectors; quantization is deliberately not part of the package format.
+- `bench:recall` measures ANN Recall@K on real embeddings from a `.npy` or raw
+  `.f32` file, keeping exact search as ground truth.
 - ANN index builder and release checks.
 - Text index builder (`tools/build-text-index.mjs`) reading the Parquet column and
   updating the Manifest.

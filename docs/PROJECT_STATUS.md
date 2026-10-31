@@ -5,7 +5,7 @@
 
 ## 1. 一句话状态
 
-工程原型：Manifest V1 与数据包格式稳定，五个包共 **315 个自动化测试**，CI 覆盖构建/类型/测试/发布元数据，精确检索、ANN、全文、融合、RAG、单文件容器与浏览器 SQL 均有实现与实测数字；**尚未发布 npm 包**，也没有任何未经测量的性能承诺。
+工程原型：Manifest V1 与数据包格式稳定，五个包共 **316 个自动化测试**，CI 覆盖构建/类型/测试/发布元数据，精确检索、ANN、全文、融合、RAG、单文件容器与浏览器 SQL 均有实现与实测数字；**尚未发布 npm 包**，也没有任何未经测量的性能承诺。
 
 ## 2. 能力矩阵
 
@@ -49,18 +49,19 @@
 | 包 | 测试数 | 覆盖重点 |
 | --- | --- | --- |
 | `@weisql/sdk` | 207 | 校验、Reader、缓存、Builder、精确/融合/RAG、容器、随机输入错误契约、Adapter 契约 |
-| `@weisql/duckdb-adapter` | 21 | 只读边界、参数绑定、两种表加载、两层字节预算、取消 |
+| `@weisql/duckdb-adapter` | 22 | 只读边界、参数绑定、两种表加载、两层字节预算、取消 |
 | `@weisql/duckdb-wasm-adapter` | 36 | 关键字白名单、CTE 分类与 fail-closed、参数类型收窄、值映射、两层预算、取消、错误契约、真实 WASM 引擎集成 |
 | `@weisql/usearch-adapter` | 13 | 度量映射、持久化索引、后过滤、生命周期 |
 | `@weisql/cli` | 38 | 校验退出码、`--json`、`pack`/`--compress`、`unpack`、容器校验、`--l4` |
-| **合计** | **315** | |
+| **合计** | **316** | |
 
 CI（`.github/workflows/ci.yml`）：
 
 - `verify`：Ubuntu + Windows 矩阵，`npm ci` → build → typecheck → test → release:check → 示例包校验；
-- `derived`：fixture 可复现性（重生成后 `git status` 必须为空）→ 构建文本/ANN 索引并校验 → 打包容器并校验 → `bench:wasm` 冒烟 → SQL Adapter 共享契约（`test:contract`）。
+- `derived`：fixture 可复现性（重生成后 `git status` 必须为空）→ 构建文本/ANN 索引并校验 → 打包容器并校验 → `bench:wasm` 冒烟 → SQL Adapter 共享契约（`test:contract`）；
+- `browser`：Ubuntu 上复用 runner 自带的 Chrome，依次跑 `probe:browser`、`probe:wasm`、`probe:playground`、`probe:parity`。
 
-`probe:*` 与完整的 `bench` / `bench:wasm` **不在 CI 内**（需要 Chromium / Python / 稳定机器）；`bench:wasm --smoke` 会在 `derived` 任务里物化 1k 行，作为扩展与适配器接线的冒烟检查。浏览器与性能结论仍需本地复现并注明环境。
+完整的 `bench` / `bench:wasm` 仍**不在 CI 内**（需要 Python 与稳定机器）；`bench:wasm --smoke` 在 `derived` 任务里物化 1k 行。浏览器结论由 `browser` 作业验证，但性能数字仍需本地复现并注明环境。
 
 ## 5. 全部实测数字
 

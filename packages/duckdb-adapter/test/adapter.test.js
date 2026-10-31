@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { NodeFileResourceReader, open } from "@weisql/sdk";
+import { DuckDBInstance } from "@duckdb/node-api";
+
+import { NodeFileResourceReader, buildPackage, open } from "@weisql/sdk";
 import { createDuckDbAdapter } from "@weisql/duckdb-adapter";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
@@ -111,6 +113,28 @@ test("maps DuckDB result types to the documented JavaScript types", async t => {
   assert.equal(new TextDecoder().decode(row.blob), "abc");
   assert.equal(row.dec, 3.25);
   assert.equal(row.flag, true);
+});
+
+test("maxRows bounds the result instead of truncating", async t => {
+  const { adapter } = await openAdapter(t);
+  assert.equal((await adapter.query("SELECT id FROM documents ORDER BY id")).length, 3);
+  assert.equal((await adapter.query("SELECT id FROM documents ORDER BY id", [], { maxRows: 5 })).length, 3);
+
+  await assert.rejects(
+    adapter.query("SELECT id FROM documents ORDER BY id", [], { maxRows: 2 }),
+    (error) => error.code === "INVALID_ARGUMENT" && error.details?.maxRows === 2,
+  );
+  // A CTE is still a SELECT, so it is wrapped and bounded by the engine.
+  await assert.rejects(
+    adapter.query("WITH x AS (SELECT id FROM documents) SELECT id FROM x", [], { maxRows: 2 }),
+    (error) => error.code === "INVALID_ARGUMENT",
+  );
+  await assert.rejects(adapter.query("SELECT 1", [], { maxRows: 0 }), (error) => error.code === "INVALID_ARGUMENT");
+  // The read-only boundary keeps precedence over the row budget.
+  await assert.rejects(
+    adapter.query("DELETE FROM documents", [], { maxRows: 5 }),
+    (error) => error.code === "SQL_UNSUPPORTED",
+  );
 });
 
 test("write, DDL, config and CALL statements are rejected as SQL_UNSUPPORTED", async t => {
@@ -419,3 +443,57 @@ test("exact-filter-first filters through real SQL before Top-K", async t => {
   await assert.rejects(db.vector.search("document_embeddings", [1, 0], { filter: { id: 3 } }), { code: "INVALID_ARGUMENT" });
 });
 
+
+
+test("json columns work through SQL while the filter DSL rejects them", async (t) => {
+  const directory = await mkdtemp(path.join(tmpdir(), "weisql-json-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const parquet = path.join(directory, "documents.parquet");
+  const instance = await DuckDBInstance.create(":memory:");
+  const connection = await instance.connect();
+  await connection.run(
+    `COPY (SELECT 'doc-001' AS id, '{"a":1,"b":[2]}' AS meta UNION ALL SELECT 'doc-002', '{"a":2}') ` +
+    `TO '${parquet.replace(/\\/g, "/")}' (FORMAT PARQUET)`,
+  );
+  connection.closeSync?.();
+  instance.closeSync?.();
+
+  const report = await buildPackage({
+    outputDirectory: path.join(directory, "package"),
+    datasetId: "json-demo",
+    tables: [{
+      name: "documents",
+      parquetPath: parquet,
+      columns: [
+        { name: "id", type: "string", nullable: false },
+        { name: "meta", type: "json", nullable: false },
+      ],
+      primaryKey: ["id"],
+      rowIds: ["doc-001", "doc-002"],
+    }],
+    vectorCollections: [{
+      name: "document_embeddings",
+      tableName: "documents",
+      idColumn: "id",
+      metric: "cosine",
+      vectors: [[1, 0], [0, 1]],
+      ids: ["doc-001", "doc-002"],
+    }],
+  });
+
+  const reader = new NodeFileResourceReader({ rootDirectory: report.outputDirectory });
+  const db = await open({ manifest: report.manifest, resourceReader: reader, sqlAdapter: createDuckDbAdapter() });
+  t.after(() => db.close().catch(() => undefined));
+
+  const rows = await db.sql("SELECT id FROM documents WHERE json_extract(meta, '$.a') = 1");
+  assert.deepEqual(rows, [{ id: "doc-001" }]);
+
+  await assert.rejects(
+    db.vector.search("document_embeddings", [1, 0], { filter: { meta: "{}" } }),
+    error => {
+      assert.equal(error.code, "INVALID_ARGUMENT");
+      assert.match(String(error.details?.hint), /db\.sql/);
+      return true;
+    },
+  );
+});

@@ -201,6 +201,7 @@ function normalizeFilterValue(type: WeiSQLScalarType, field: string, value: Filt
       columnType: type,
       valueType: typeof value,
       supported: type === "json" ? "unsupported (JSON equality needs a canonical form)" : "scalar, membership or range",
+      ...(type === "json" ? { hint: "JSON columns are not normalized; query them with db.sql() and json_extract instead" } : {}),
     });
   }
   return value as SQLValue;

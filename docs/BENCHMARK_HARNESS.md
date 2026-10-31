@@ -184,6 +184,22 @@ npm run bench:quantization -- --rows 50000 --dimension 128 --queries 20
 
 因此：**不把量化写进格式**。先要真实语料与可复现的构建时间，再决定是否值得增加 `encoding` 分支。
 
+## 3.4 真实语料的召回（`bench:recall`）
+
+```bash
+# NumPy float32 矩阵（<f4, C order）
+npm run bench:recall -- --embeddings vectors.npy --queries 200 --top-k 10
+
+# 原始 float32，行主序
+npm run bench:recall -- --embeddings vectors.f32 --dimension 768
+```
+
+- 查询 = 从语料中采样的行；精确余弦检索是 ground truth；默认排除自身命中；
+- 报告 Recall@K、p50/p95、构建时间与索引体积，同时输出 JSON；
+- `npm run bench:recall -- --self-test` 用内存生成的 256×16 矩阵验证解析与计算路径（当前 recall=1.0）。
+
+**仓库里没有真实语料，因此这一段没有数字。** 工具存在的意义是：拿到语料后一条命令就能产出可复现的结论，而不是把「未测量」写成「良好」。
+
 ## 4. 记录结果（2026-10-30，单机）
 
 环境：Intel Core Ultra 7 155H · 22 核 · 32 GiB · Windows 10.0.26200 x64 · Node v24.14.1

@@ -77,6 +77,10 @@ interface TableDescriptor {
 - 主键成员唯一且必须引用已声明列；
 - V1 表文件格式固定为 Parquet。
 
+## 3.1 JSON 列
+
+`json` 类型的列是**不透明文本**：Manifest 不声明、也不校验其规范化形式。`vector.search()` 的过滤 DSL 拒绝 JSON 等值（错误详情带有 `hint`），需要 JSON 谓词时走 `db.sql()` 的 `json_extract`。若业务需要相等语义，请在入库前生成规范化文本列并声明为 `string`。
+
 ## 4. 向量集合
 
 ```ts

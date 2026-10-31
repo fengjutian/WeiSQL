@@ -141,7 +141,9 @@ npm run build:hnsw-wasm
 npm run test:hnsw-wasm
 ```
 
-`examples/recall.rs` 在 2000×32 的确定性聚类数据上打印建图耗时、p50 查询延迟与 Recall@10；`test:hnsw-wasm` 则在 1000×16 数据上验证同一引擎编译到 WASM 后仍能建图并以 Recall@10 ≥ 0.9 检索。该索引只作为 USearch 之外的备选实现，`search()` 返回近似结果，调用方必须如实标注 `exact: false`。
+`examples/recall.rs` 在 2000×32 的确定性聚类数据上打印建图耗时、p50 查询延迟与 Recall@10；`test:hnsw-wasm` 则在 1000×16 数据上验证同一引擎编译到 WASM 后仍能建图并以 Recall@10 ≥ 0.9 检索，并把图导出后导入一个**全新的模块实例**，确认同一查询的行号与距离逐位相同。该索引只作为 USearch 之外的备选实现，`search()` 返回近似结果，调用方必须如实标注 `exact: false`。
+
+索引用 `to_bytes()` / `from_bytes()` 持久化：自定义格式带 magic、版本、稠密邻接表、原始向量和 FNV-1a 校验；加载时逐字段校验（层级、邻居上限、ID 越界、非有限值、尾部多余字节），损坏的 buffer 直接拒绝而不是载入成一张坏图。WASM ABI 另外暴露 `weisql_hnsw_serialized_len` / `weisql_hnsw_save` / `weisql_hnsw_load`，浏览器侧因此可以缓存预建索引、跳过冷启动重建。
 
 跨语言黄金对照：`tools/bench/rust-golden.mjs` 用 SDK 的 `exactVectorSearch` 把 6 个固定数据集写入 `crates/vector-benchmark/tests/fixtures/exact_cosine_golden.txt`，Rust 的 `golden_tests.rs` 在 1e-6 容差内断言相同排名与距离。修改任一侧语义都会让 `npm run test:rust-golden` 或 `cargo test` 失败；需要更新基线时运行 `node tools/bench/rust-golden.mjs --write`。
 

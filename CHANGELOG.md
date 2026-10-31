@@ -249,6 +249,15 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   equal to `vectorDistance`, filtered rows inside `allowedRows`).
 - The WASM adapters now share `wasm-vector-support.ts` for materialisation,
   business-ID resolution and cancellation instead of duplicating it.
+- HNSW persistence: `HnswIndex::to_bytes()` / `from_bytes()` with a versioned,
+  checksummed format. Loading validates the header, layer counts, neighbour
+  capacities, id ranges, vector finiteness and the trailing FNV-1a checksum, so
+  a truncated or tampered buffer fails instead of becoming a broken graph; six
+  tests cover round trips and corruption cases.
+- HNSW WASM ABI v2 exposes `weisql_hnsw_serialized_len` / `weisql_hnsw_save` /
+  `weisql_hnsw_load`. The WASM probe now builds a graph, exports it, imports it
+  into a second freshly instantiated module and asserts the same query returns
+  bit-identical ids and distances (122 KB for 1000×16).
 - `createWasmVectorAdapter()`: a `VectorAdapter` over that artifact. It caches
   one materialised `Float32Array` per collection, compacts `allowedRows` before
   the scan so filtered results stay exact, and maps rows back to business IDs

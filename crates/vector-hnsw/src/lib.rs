@@ -32,6 +32,8 @@ pub const MAX_LEVEL: usize = 32;
 pub enum HnswError {
     InvalidConfig(&'static str),
     InvalidQuery(&'static str),
+    /// A serialized index failed validation.
+    Corrupt(&'static str),
     Build(SearchError),
 }
 
@@ -41,6 +43,7 @@ impl HnswError {
         match self {
             Self::InvalidConfig(_) => "INVALID_ARGUMENT",
             Self::InvalidQuery(_) => "VECTOR_INVALID_VALUE",
+            Self::Corrupt(_) => "RESOURCE_INTEGRITY_FAILED",
             Self::Build(_) => "VECTOR_INVALID_VALUE",
         }
     }
@@ -51,6 +54,7 @@ impl fmt::Display for HnswError {
         match self {
             Self::InvalidConfig(message) => write!(f, "invalid HNSW configuration: {message}"),
             Self::InvalidQuery(message) => write!(f, "invalid HNSW query: {message}"),
+            Self::Corrupt(message) => write!(f, "corrupt HNSW index: {message}"),
             Self::Build(error) => write!(f, "invalid HNSW dataset: {error}"),
         }
     }
@@ -443,6 +447,9 @@ fn validate_dataset(vectors: &[Vec<f32>], metric: Metric) -> Result<usize, HnswE
     if dimension == 0 {
         return Err(HnswError::InvalidConfig("vectors must have a non-zero dimension"));
     }
+    if dimension > u32::MAX as usize {
+        return Err(HnswError::InvalidConfig("dimension exceeds the 32-bit index format"));
+    }
     for (row, vector) in vectors.iter().enumerate() {
         if vector.len() != dimension {
             return Err(HnswError::Build(SearchError::DimensionMismatch { expected: dimension, actual: vector.len() }));
@@ -457,4 +464,217 @@ fn validate_dataset(vectors: &[Vec<f32>], metric: Metric) -> Result<usize, HnswE
         }
     }
     Ok(dimension)
+}
+
+/// Serialized format marker; also carries the format revision.
+const MAGIC: [u8; 8] = *b"WSQLHNS1";
+const FORMAT_VERSION: u32 = 1;
+
+impl HnswIndex {
+    /// Serializes the graph into a self-describing, checksummed byte string.
+    ///
+    /// Layout (little endian): magic, version, header (dimension, metric, m, m0,
+    /// ef parameters, entry, level, count), per-node levels, adjacency lists,
+    /// vectors, then an FNV-1a checksum over everything before it.
+    #[must_use]
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+        out.extend_from_slice(&MAGIC);
+        push_u32(&mut out, FORMAT_VERSION);
+        push_u32(&mut out, self.dimension as u32);
+        push_u32(&mut out, self.metric.code());
+        push_u32(&mut out, self.m as u32);
+        push_u32(&mut out, self.m0 as u32);
+        push_u32(&mut out, self.ef_construction as u32);
+        push_u32(&mut out, self.ef_search as u32);
+        push_u32(&mut out, self.entry);
+        push_u32(&mut out, self.max_level as u32);
+        push_u32(&mut out, self.vectors.len() as u32);
+        for level in &self.levels {
+            push_u32(&mut out, *level as u32);
+        }
+        for layers in &self.links {
+            push_u32(&mut out, layers.len() as u32);
+            for links in layers {
+                push_u32(&mut out, links.len() as u32);
+                for id in links {
+                    push_u32(&mut out, *id);
+                }
+            }
+        }
+        for vector in &self.vectors {
+            for value in vector {
+                out.extend_from_slice(&value.to_le_bytes());
+            }
+        }
+        let checksum = fnv1a(&out);
+        out.extend_from_slice(&checksum.to_le_bytes());
+        out
+    }
+
+    /// Restores an index produced by [`HnswIndex::to_bytes`].
+    ///
+    /// Every header field, adjacency id and vector value is validated, and the
+    /// trailing checksum must match; a corrupt or truncated buffer is rejected
+    /// instead of producing a graph that silently returns wrong neighbours.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, HnswError> {
+        if bytes.len() < 8 {
+            return Err(HnswError::Corrupt("index is shorter than its checksum"));
+        }
+        let (payload, checksum) = bytes.split_at(bytes.len() - 8);
+        let expected = u64::from_le_bytes(checksum.try_into().expect("checksum is eight bytes"));
+        if fnv1a(payload) != expected {
+            return Err(HnswError::Corrupt("checksum mismatch"));
+        }
+
+        let mut cursor = Cursor::new(payload);
+        if cursor.take(8)? != MAGIC {
+            return Err(HnswError::Corrupt("bad magic"));
+        }
+        if cursor.u32()? != FORMAT_VERSION {
+            return Err(HnswError::Corrupt("unsupported format version"));
+        }
+        let dimension = cursor.u32()? as usize;
+        let Some(metric) = Metric::from_code(cursor.u32()?) else {
+            return Err(HnswError::Corrupt("unknown metric"));
+        };
+        let m = cursor.u32()? as usize;
+        let m0 = cursor.u32()? as usize;
+        let ef_construction = cursor.u32()? as usize;
+        let ef_search = cursor.u32()? as usize;
+        let entry = cursor.u32()?;
+        let max_level = cursor.u32()? as usize;
+        let count = cursor.u32()? as usize;
+
+        if count == 0 || dimension == 0 {
+            return Err(HnswError::Corrupt("index is empty"));
+        }
+        if max_level > MAX_LEVEL {
+            return Err(HnswError::Corrupt("maximum level is out of range"));
+        }
+        if m < 2 || m0 < m {
+            return Err(HnswError::Corrupt("link capacities are inconsistent"));
+        }
+        if entry as usize >= count {
+            return Err(HnswError::Corrupt("entry point is out of range"));
+        }
+        if count > payload.len() / 8 || dimension > payload.len() / 4 {
+            return Err(HnswError::Corrupt("plausible header exceeds the buffer"));
+        }
+
+        let mut levels = Vec::with_capacity(count);
+        for _ in 0..count {
+            let level = cursor.u32()? as usize;
+            if level > max_level {
+                return Err(HnswError::Corrupt("node level exceeds the index maximum"));
+            }
+            levels.push(level);
+        }
+        if levels[entry as usize] != max_level {
+            return Err(HnswError::Corrupt("entry point is not on the top layer"));
+        }
+
+        let mut links = Vec::with_capacity(count);
+        for &level in &levels {
+            let layers = cursor.u32()? as usize;
+            if layers != level + 1 {
+                return Err(HnswError::Corrupt("layer count does not match the node level"));
+            }
+            let mut per_layer = Vec::with_capacity(layers);
+            for layer in 0..layers {
+                let capacity = if layer == 0 { m0 } else { m };
+                let degree = cursor.u32()? as usize;
+                if degree > capacity {
+                    return Err(HnswError::Corrupt("neighbour count exceeds the layer capacity"));
+                }
+                let mut neighbours = Vec::with_capacity(degree);
+                for _ in 0..degree {
+                    let id = cursor.u32()?;
+                    if id as usize >= count {
+                        return Err(HnswError::Corrupt("neighbour id is out of range"));
+                    }
+                    neighbours.push(id);
+                }
+                per_layer.push(neighbours);
+            }
+            links.push(per_layer);
+        }
+
+        let mut vectors = Vec::with_capacity(count);
+        for _ in 0..count {
+            let mut vector = Vec::with_capacity(dimension);
+            for _ in 0..dimension {
+                let value = cursor.f32()?;
+                if !value.is_finite() {
+                    return Err(HnswError::Corrupt("vector value is not finite"));
+                }
+                vector.push(value);
+            }
+            vectors.push(vector);
+        }
+        if cursor.remaining() != 0 {
+            return Err(HnswError::Corrupt("trailing bytes after the vector block"));
+        }
+
+        Ok(Self {
+            dimension,
+            metric,
+            vectors,
+            levels,
+            links,
+            entry,
+            max_level,
+            m,
+            m0,
+            ef_construction,
+            ef_search,
+            rng: Rng::new(0),
+            level_multiplier: 1.0 / (m as f64).ln(),
+        })
+    }
+}
+
+fn push_u32(out: &mut Vec<u8>, value: u32) {
+    out.extend_from_slice(&value.to_le_bytes());
+}
+
+fn fnv1a(bytes: &[u8]) -> u64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for &byte in bytes {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    hash
+}
+
+struct Cursor<'a> {
+    bytes: &'a [u8],
+    position: usize,
+}
+
+impl<'a> Cursor<'a> {
+    fn new(bytes: &'a [u8]) -> Self {
+        Self { bytes, position: 0 }
+    }
+
+    fn remaining(&self) -> usize {
+        self.bytes.len() - self.position
+    }
+
+    fn take(&mut self, count: usize) -> Result<&'a [u8], HnswError> {
+        if self.remaining() < count {
+            return Err(HnswError::Corrupt("unexpected end of index"));
+        }
+        let start = self.position;
+        self.position += count;
+        Ok(&self.bytes[start..self.position])
+    }
+
+    fn u32(&mut self) -> Result<u32, HnswError> {
+        Ok(u32::from_le_bytes(self.take(4)?.try_into().expect("four bytes")))
+    }
+
+    fn f32(&mut self) -> Result<f32, HnswError> {
+        Ok(f32::from_le_bytes(self.take(4)?.try_into().expect("four bytes")))
+    }
 }

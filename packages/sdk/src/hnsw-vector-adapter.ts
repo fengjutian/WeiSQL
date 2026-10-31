@@ -10,7 +10,7 @@ import type {
 import { assertBusinessId, materializeVectors, readBusinessIds, throwIfAborted } from "./wasm-vector-support.js";
 
 /** Must match `ABI_VERSION` in `crates/vector-hnsw-wasm/src/lib.rs`. */
-const ABI_VERSION = 1;
+const ABI_VERSION = 2;
 const DEFAULT_BLOCK_SIZE = 1024;
 const DEFAULT_OVERSAMPLE = 4;
 const DEFAULT_SEED = 0x5eed_5eed;

@@ -30,10 +30,14 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   Reciprocal Rank Fusion, reporting per-source ranks and raw values.
 - RAG retrieval: `db.rag.search()` assembling budgeted evidence with provenance;
   the SDK never calls a model.
+- `.wsql` single-file container: `createContainer()`, `parseContainer()` and
+  `ContainerReader` (a standard `ResourceReader`).
 
 ### `@weisql/cli` 0.1.0
 
-- `weisql validate <dir>` with `--mode` / `--json` and exit codes 0/1/2.
+- `weisql validate <dir|file.wsql>` with `--mode` / `--json` and exit codes 0/1/2.
+- `weisql pack <dir> --output <file>` produces a `.wsql` container; validating a
+  container checks both the container digests and the Manifest resources.
 
 ### `@weisql/duckdb-adapter` 0.1.0
 
@@ -51,8 +55,7 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 ### Tooling (not published)
 
 - GitHub Actions CI: build, typecheck, tests and release checks on Ubuntu and
-  Windows, plus fixture reproducibility and derived-index validation.
-
+  Windows, plus fixture reproducibility, derived indexes and container packing.
 - Browser probe, playground example, cross-environment parity check.
 - Benchmark harness with exact and ANN (`--ann`) modes.
 - ANN index builder and release checks.

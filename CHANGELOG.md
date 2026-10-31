@@ -81,7 +81,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   the engine stops early, while classification still runs on the original
   statement.
 - `db.sqlStream()` streams chunks via `prepared.stream()`, with the same
-  read-only guard and row budget as `sql()`.
+  read-only guard and row budget as `sql()`. Cancellation races each chunk read
+  against the signal, so aborting rejects without waiting for the pending read.
 - `tableLoading: "memory" | "lazy"` with the security/memory trade-off documented.
 - Two-level declared-byte budget: `maxTableBytes` (default 256 MiB) per table and
   `maxTotalTableBytes` (default 512 MiB) per package, checked before the DuckDB

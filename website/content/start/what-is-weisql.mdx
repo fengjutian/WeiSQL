@@ -1,0 +1,199 @@
+---
+title: WeiSQL AI 是什么
+description: WeiSQL 的定位、适用与不适用场景，以及它与“把数据库放到 CDN 上”的根本区别。
+sidebar_position: 10
+hide_title: true
+---
+
+import {
+  PageHero,
+  CardGrid,
+  DocCard,
+  FlowSteps,
+  Callout,
+} from "@site/src/components/docs/DocsUI";
+
+<PageHero
+  kicker="定位"
+  title="只读数据运行时，不是数据库服务"
+  lead="把 Parquet、向量与全文索引打包成可版本化的静态资产。浏览器和 Node.js 按需读取，没有服务端、没有连接、没有写入路径。"
+  chips={["零服务端", "只读", "静态托管", "Adapter 注入"]}
+/>
+
+## 三个“没有”
+
+<CardGrid columns={3}>
+  <DocCard title="没有服务端进程" index="01">
+    部署产物就是一组静态文件，可以用任何静态托管或 CDN 分发。
+  </DocCard>
+  <DocCard title="没有连接与会话" index="02">
+    `open()` 读的是字节，不是远程数据库；没有连接字符串与凭证。
+  </DocCard>
+  <DocCard title="没有写入路径" index="03">
+    Runtime 只读，底层引擎的写能力被显式关掉；更新等于发布新快照。
+  </DocCard>
+</CardGrid>
+
+## 它解决什么问题
+
+常见的静态站点要加“搜索”，通常只有三种选择：第三方搜索服务、构建期生成索引、或者只做标题匹配。前两者要么引入外部依赖与费用，要么在数据量上来后把索引塞进首屏包。
+
+WeiSQL 的取舍是：把数据变成**可分块读取的静态资产**，让查询发生在客户端，但又不是“把整个数据集下载下来再过滤”。
+
+<CardGrid columns={2}>
+  <DocCard title="文档站" index="01">
+    同时提供关键词检索、语义检索与 RAG 证据片段，不依赖外部检索服务。
+  </DocCard>
+  <DocCard title="产品目录 / 知识库" index="02">
+    需要离线或内网可用，数据更新有明确发布节奏。
+  </DocCard>
+  <DocCard title="数据快照分发" index="03">
+    Manifest 冻结、摘要可校验、可签名；每次发布是一份不可变快照。
+  </DocCard>
+  <DocCard title="跨环境一致" index="04">
+    同一份数据在 Node.js 脚本与浏览器页面里得到一致的排序结果。
+  </DocCard>
+</CardGrid>
+
+## 适合与不适合
+
+<CardGrid columns={2}>
+  <DocCard title="适合" tag="推荐" index="✓">
+    <ul>
+      <li>文档站的向量 + BM25 + RRF 混合检索</li>
+      <li>带类别过滤的语义搜索</li>
+      <li>站内问答的证据组装（RAG）</li>
+      <li>离线演示、内网工具、Edge 部署</li>
+      <li>有明确发布节奏的数据快照</li>
+    </ul>
+  </DocCard>
+  <DocCard title="不适合" tag="明确不做" index="✕">
+    <ul>
+      <li>写入、事务与多用户并发</li>
+      <li>按用户权限裁剪数据的场景</li>
+      <li>秒级更新的数据</li>
+      <li>把 API Key、私有 prompt 或客户数据放进包</li>
+      <li>要求百万级向量固定低延迟</li>
+      <li>要求浏览器端完整 SQL 方言对等</li>
+    </ul>
+  </DocCard>
+</CardGrid>
+
+## 与“把数据库放 CDN 上”的区别
+
+这句话常被用来描述两类完全不同的东西：
+
+- **把数据库文件当静态资源下发**：例如把 SQLite 文件放到 CDN，浏览器下载后交给 WASM 引擎。省掉了服务端，但格式仍是引擎私有页结构。
+- **把数据库做成 HTTP 服务**：只是部署在 CDN 边缘，仍然需要凭证、连接和可用性承诺。
+
+WeiSQL 两者都不是。它的核心不是“把引擎搬进浏览器”，而是**把数据布局变成可校验的公开协议**，让引擎成为可替换的实现细节。
+
+| 维度 | CDN 上的数据库文件 | WeiSQL 数据包 |
+| --- | --- | --- |
+| 格式 | 引擎私有页格式 | 公开协议：Manifest + Parquet + Float32 + JSONL |
+| 读取方式 | 通常整文件下载 | 按 `ByteRange` 取需要的块 |
+| 结构校验 | 由引擎隐式完成 | L1–L4 分层校验，失败即拒绝 |
+| 写入 | 引擎具备写能力，靠部署约束限制 | 无写路径，Runtime 只读 |
+| 查询 | 绑定单一引擎 | SQL 引擎可注入；无引擎仍可精确向量、全文与 RAG |
+| 权限 | 依赖下载权限 | 包默认公开，敏感数据不得入包 |
+| 更新 | 替换文件 | 重建并发布新版本，缓存按版本隔离 |
+
+代价也很具体：需要构建步骤生成数据包，需要接受只读，需要为过滤查询注入 SQL Adapter，也需要自己承担首载体积。
+
+## 能力一览
+
+只给结论，状态与实测条件见[能力矩阵](/docs/reference/capabilities)。
+
+<CardGrid columns={3}>
+  <DocCard title="精确向量检索" index="01" to="/docs/sdk/vector-search">
+    Cosine / L2 / IP，分块读取，Top-K 严格。
+  </DocCard>
+  <DocCard title="过滤先于 Top-K" index="02" to="/docs/sdk/vector-search">
+    `exact-filter-first` 先求允许行，再比较。
+  </DocCard>
+  <DocCard title="全文与 RRF" index="03" to="/docs/sdk/text-and-hybrid">
+    BM25 关键词检索，按名次融合向量结果。
+  </DocCard>
+  <DocCard title="RAG 证据组装" index="04" to="/docs/sdk/rag">
+    字符预算内返回来源与名次，不调用模型。
+  </DocCard>
+  <DocCard title="只读 SQL" index="05" to="/docs/sdk/sql">
+    DuckDB 与 DuckDB-Wasm 通过 Adapter 注入。
+  </DocCard>
+  <DocCard title="单文件与签名" index="06" to="/docs/sdk/containers">
+    `.wsql` 单对象发布；Ed25519 证明发布者身份。
+  </DocCard>
+</CardGrid>
+
+## 30 秒工作原理
+
+<FlowSteps
+  columns={2}
+  steps={[
+    {
+      title: "构建",
+      desc: "把 Parquet、向量、ID Map 与索引写成一个目录，计算字节数与 SHA-256，生成 Manifest。",
+      code: "buildPackage()",
+    },
+    {
+      title: "发布",
+      desc: "把目录或一个 .wsql 上传到静态托管，相对路径保持不变。",
+      code: "CDN / Netlify",
+    },
+    {
+      title: "打开",
+      desc: "open() 先做 L1/L2 校验，按需做 L3；Reader 与 Adapter 在此注入。",
+      code: "open()",
+    },
+    {
+      title: "查询",
+      desc: "按 ByteRange 读取所需块，SDK 解码、计算、排序；SQL 与 ANN 交给 Adapter。",
+      code: "vector / text / rag / sql",
+    },
+  ]}
+/>
+
+## 一段最小代码
+
+```ts
+import { open, HttpResourceReader } from "@weisql/sdk";
+
+const db = await open({
+  manifestUrl: "/datasets/demo/manifest.json",
+  resourceReader: new HttpResourceReader({ baseUrl: "/datasets/demo/" }),
+  verifyChecksums: "all",
+});
+
+const hits = await db.vector.search("document_embeddings", queryVector, {
+  topK: 5,
+  filter: { category: "genetics" },
+});
+
+console.log(hits.map(hit => hit.id));
+console.log(db.capabilities());
+await db.close();
+```
+
+这段代码没有后端、没有连接字符串、没有凭证。`filter` 需要注入 SQL Adapter；未注入时返回 `SQL_UNSUPPORTED`，不会静默忽略过滤条件。
+
+<Callout tone="amber" title="现状：工程原型，不是已发布产品">
+  五个包版本均为 0.1.0，尚未发布到 npm；Manifest V1 基础结构已冻结。真实数据集
+  Recall@K、真实 CDN 与多机基准仍未完成；性能数字都带条件，不能外推。
+</Callout>
+
+## 接下来读什么
+
+<CardGrid columns={2}>
+  <DocCard title="先跑起来" to="/docs/start/quickstart">
+    5 分钟内验证数据包并跑通一次向量检索。
+  </DocCard>
+  <DocCard title="端到端教程" to="/docs/start/tutorial">
+    从 CSV 到构建、校验、检索、全文索引与部署。
+  </DocCard>
+  <DocCard title="核心概念" to="/docs/start/concepts">
+    数据包、Manifest、L1–L4 与 Runtime 的分工。
+  </DocCard>
+  <DocCard title="已知限制" to="/docs/reference/limitations">
+    哪些能力还不能依赖，为什么，怎么绕开。
+  </DocCard>
+</CardGrid>

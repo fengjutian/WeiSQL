@@ -293,6 +293,10 @@ a.card:hover {
   list-style: none;
 }
 
+.flow[data-columns="2"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .flowStep {
   position: relative;
   padding: 16px;
@@ -399,7 +403,8 @@ a.card:hover {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .flow {
+  .flow,
+  .flow[data-columns="2"] {
     grid-template-columns: minmax(0, 1fr);
   }
 }

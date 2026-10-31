@@ -99,6 +99,7 @@ const adapter = createDuckDbAdapter({ tableLoading: "lazy" });
 ## 5. 取消与生命周期
 
 - 取消是**原生**的：`AbortSignal` 触发 `connection.interrupt()`，执行中的查询以 `QUERY_CANCELLED` 结束（测试中约 50–100 ms 内返回），连接在中断后仍可继续使用。
+- 流式路径同样立即返回：`sqlStream()` 把每次 chunk 读取与 abort 信号 `Promise.race`，不等待挂起的 `next()` 结算；被放弃的结果在 `finally` 中关闭。
 - `close()` 幂等；关闭后 `query()` 返回 `DATABASE_CLOSED`。
 - 重复 `open()` 返回 `INVALID_ARGUMENT`，不产生第二个实例。
 

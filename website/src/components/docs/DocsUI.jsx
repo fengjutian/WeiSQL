@@ -78,9 +78,9 @@ export function LayerStack({ layers }) {
   );
 }
 
-export function FlowSteps({ steps }) {
+export function FlowSteps({ steps, columns = 3 }) {
   return (
-    <ol className={styles.flow}>
+    <ol className={styles.flow} data-columns={columns}>
       {steps.map((step, index) => (
         <li className={styles.flowStep} key={step.title}>
           <span className={styles.flowNumber}>{index + 1}</span>

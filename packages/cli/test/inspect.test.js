@@ -29,7 +29,7 @@ test("inspect summarizes the fixture", async () => {
   assert.deepEqual(summary.tables.map(table => table.name), ["documents"]);
   assert.deepEqual(summary.vectors.map(vector => `${vector.name}:${vector.count}x${vector.dimension}`), ["document_embeddings:3x2"]);
   assert.equal(summary.signature.present, false);
-  assert.equal(summary.resources.declaredFiles, 4);
+  assert.equal(summary.resources.declaredFiles, 6);
   assert.deepEqual(summary.resources.undeclared, []);
 });
 
@@ -47,7 +47,7 @@ test("inspect reports undeclared files and pack can skip them", async (t) => {
 
   const container = await inspectPackage(packed.output);
   assert.equal(container.kind, "container");
-  assert.equal(container.container?.files, 5);
+  assert.equal(container.container?.files, 7);
   assert.deepEqual(container.resources.undeclared, []);
 });
 

@@ -25,16 +25,16 @@ async function packedFixture(t) {
 
 test("packs the fixture and validates the container", async (t) => {
   const { output, result } = await packedFixture(t);
-  assert.equal(result.files.length, 5);
+  assert.equal(result.files.length, 7);
   assert.ok(result.containerBytes > 0);
 
   const validation = await validateContainer({ file: output });
   assert.equal(validation.ok, true);
   assert.deepEqual(validation.issues, []);
-  assert.equal(validation.container?.files, 5);
+  assert.equal(validation.container?.files, 7);
   assert.equal(validation.container?.mismatches, 0);
-  assert.equal(validation.integrity?.checkedResources, 4);
-  assert.equal(validation.integrity?.hashesVerified, 4);
+  assert.equal(validation.integrity?.checkedResources, 6);
+  assert.equal(validation.integrity?.hashesVerified, 6);
 });
 
 test("detects a tampered container", async (t) => {
@@ -55,7 +55,7 @@ test("manifest mode validates the container without hashing entries", async (t) 
   assert.equal(validation.ok, true);
   assert.equal(validation.container?.mismatches, 0);
   assert.equal(validation.integrity?.hashesVerified, 0);
-  assert.equal(validation.integrity?.sizeVerified, 4);
+  assert.equal(validation.integrity?.sizeVerified, 6);
 });
 
 test("L4 checks Parquet content inside a container", async (t) => {
@@ -81,13 +81,13 @@ test("unpacks a container into a directory that validates", async (t) => {
   const { output } = await packedFixture(t);
   const directory = path.join(path.dirname(output), "unpacked");
   const unpacked = await unpackContainer({ file: output, directory });
-  assert.equal(unpacked.files.length, 5);
-  assert.equal(unpacked.digestsVerified, 5);
+  assert.equal(unpacked.files.length, 7);
+  assert.equal(unpacked.digestsVerified, 7);
   assert.ok(unpacked.bytes > 0);
 
   const validation = await validatePackage({ directory });
   assert.equal(validation.ok, true);
-  assert.equal(validation.integrity?.checkedResources, 4);
+  assert.equal(validation.integrity?.checkedResources, 6);
 
   const original = await readFile(path.join(FIXTURE, "manifest.json"));
   const extracted = await readFile(path.join(directory, "manifest.json"));
@@ -119,12 +119,12 @@ test("packs a compressed container that still validates", async (t) => {
 
   const validation = await validateContainer({ file: output });
   assert.equal(validation.ok, true);
-  assert.equal(validation.integrity?.checkedResources, 4);
-  assert.equal(validation.integrity?.hashesVerified, 4);
+  assert.equal(validation.integrity?.checkedResources, 6);
+  assert.equal(validation.integrity?.hashesVerified, 6);
 
   const unpacked = await unpackContainer({ file: output, directory: path.join(directory, "out") });
-  assert.equal(unpacked.files.length, 5);
-  assert.equal(unpacked.digestsVerified, 5);
+  assert.equal(unpacked.files.length, 7);
+  assert.equal(unpacked.digestsVerified, 7);
 });
 
 test("CLI pack --compress writes a streaming-readable container", async (t) => {
@@ -148,14 +148,14 @@ test("CLI pack and validate round-trip a container", async (t) => {
 
   const packed = await run(process.execPath, [BIN, "pack", FIXTURE, "--output", output, "--json"]);
   const summary = JSON.parse(packed.stdout);
-  assert.equal(summary.files.length, 5);
+  assert.equal(summary.files.length, 7);
   assert.equal(summary.output, output);
 
   const validated = await run(process.execPath, [BIN, "validate", output, "--json"]);
   const report = JSON.parse(validated.stdout);
   assert.equal(report.ok, true);
   assert.equal(report.kind, "container");
-  assert.equal(report.container.files, 5);
+  assert.equal(report.container.files, 7);
   assert.equal(report.datasetId, "demo-documents");
 });
 

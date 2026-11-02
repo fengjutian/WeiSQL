@@ -277,7 +277,7 @@ test("the committed example fixture matches its own Manifest", async () => {
   const manifest = JSON.parse(await readFile(path.join(FIXTURE, "manifest.json"), "utf8"));
   const reader = new NodeFileResourceReader({ rootDirectory: FIXTURE });
   const report = await verifyManifestResources({ manifest, reader, options: { mode: "all" } });
-  assert.equal(report.hashesVerified, 4);
+  assert.equal(report.hashesVerified, 6);
   const hits = await open({ manifest, resourceReader: reader, verifyChecksums: "all" }).then(async db => {
     const result = await db.vector.search("document_embeddings", [1, 0], { topK: 2 });
     await db.close();

@@ -27,16 +27,16 @@ test("accepts the example package and verifies every hash", async () => {
   assert.equal(result.ok, true);
   assert.deepEqual(result.issues, []);
   assert.equal(result.manifest?.datasetId, "demo-documents");
-  assert.equal(result.integrity?.checkedResources, 4);
-  assert.equal(result.integrity?.sizeVerified, 4);
-  assert.equal(result.integrity?.hashesVerified, 4);
+  assert.equal(result.integrity?.checkedResources, 6);
+  assert.equal(result.integrity?.sizeVerified, 6);
+  assert.equal(result.integrity?.hashesVerified, 6);
 });
 
 test("manifest mode verifies sizes without claiming hashes", async () => {
   const result = await validatePackage({ directory: FIXTURE, mode: "manifest" });
   assert.equal(result.ok, true);
   assert.equal(result.integrity?.hashesVerified, 0);
-  assert.equal(result.integrity?.sizeVerified, 4);
+  assert.equal(result.integrity?.sizeVerified, 6);
 });
 
 test("none mode only runs L1/L2", async () => {

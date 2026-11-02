@@ -62,6 +62,23 @@
         },
         "count": 3,
         "uniqueIds": true
+      },
+      "idIndex": {
+        "data": {
+          "path": "vectors/document_embeddings.id-index.jsonl",
+          "bytes": 75,
+          "sha256": "86173b10cd54f81a12300a23703596837486d287d8dde071d1457b1703243d44",
+          "format": "jsonl"
+        },
+        "offsets": {
+          "path": "vectors/document_embeddings.id-index.offsets",
+          "bytes": 24,
+          "sha256": "1b4e15f2817371022e098726f0d1f925c14d0749993ee97432cdbdddf5e712ef",
+          "format": "uint64-le"
+        },
+        "count": 3,
+        "idType": "string",
+        "uniqueIds": true
       }
     }
   ],

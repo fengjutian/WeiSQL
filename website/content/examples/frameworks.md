@@ -1,12 +1,12 @@
 ---
 title: 前端框架集成
-description: 在 React、Vue、Svelte、Next.js 与 Vite 中打开 WeiSQL 数据包：实例放在哪、何时关闭、查询如何取消、错误如何呈现，以及 SSR 与子路径部署的可复制示例。
+description: 在 React、Vue、Svelte、Solid、Remix、Astro 与 Next.js 中打开 WeiSQL 数据包：实例放在哪、何时关闭、查询如何取消、错误如何呈现，以及 SSR 与子路径部署的可复制示例。
 sidebar_position: 39
 hero:
   kicker: "示例 · 框架"
   title: "接进现有前端"
   lead: "Runtime 是浏览器端库：在框架的挂载/卸载生命周期里打开与关闭，不要放到模块顶层。"
-  chips: ["React", "Vue", "Svelte", "Next.js", "Vite"]
+  chips: ["React", "Vue", "Svelte", "Solid", "Remix", "Astro"]
 hide_title: true
 ---
 
@@ -35,9 +35,12 @@ public/datasets/demo/
 | 框架 | 源目录 | 构建后 URL |
 | --- | --- | --- |
 | Vite（React / Vue / Svelte SPA） | `public/datasets/demo/` | `/datasets/demo/` |
+| Remix | `public/datasets/demo/` | `/datasets/demo/` |
 | Next.js | `public/datasets/demo/` | `/datasets/demo/` |
 | Nuxt | `public/datasets/demo/` | `/datasets/demo/` |
+| SolidStart | `public/datasets/demo/` | `/datasets/demo/` |
 | SvelteKit | `static/datasets/demo/` | `/datasets/demo/` |
+| Astro | `public/datasets/demo/` | `/datasets/demo/` |
 | 远端 CDN | 部署在任意静态托管 | `https://cdn.example.com/weisql/demo/` |
 
 三条容易踩的路径规则：
@@ -316,7 +319,7 @@ export function useTextSearch(
 
 两点注意：
 
-- 如果你写「整个应用只允许打开一次」的断言，要么在测试里关掉 StrictMode，要么用第 7 节的引用计数单例。
+- 如果你写「整个应用只允许打开一次」的断言，要么在测试里关掉 StrictMode，要么用第 10 节的引用计数单例。
 - 把实例放在模块级变量时，HMR 换模块会留下孤儿实例（旧模块的清理函数拿不到新变量）。模块级单例适合生产，不适合当作开发期的缓存。
 
 ## 3. Next.js App Router
@@ -699,7 +702,336 @@ export const ssr = false;
 
 此时不要再把 `prerender` 设为 `true`：预渲染只能拿到一个空壳，搜索引擎与首屏都看不到内容。需要 SEO 的页面应该保留 SSR，把数据包读取放在浏览器端进行。
 
-## 7. 共享实例：引用计数单例
+## 7. Remix
+
+Remix 的路由组件默认在服务端渲染，`loader` / `action` 也在服务端执行；能在浏览器跑的钩子只有 `useEffect`。所以接入方式与 React 完全一致，区别只在**不要把 `open()` 放进 loader**。
+
+### 7.1 数据包与 `BASE_URL`
+
+Remix v2 跑在 Vite 上，`public/` 原样发布。数据包 URL 用 `import.meta.env.BASE_URL` 拼接，它来自 `vite.config.ts` 的 `base`；子路径部署时让路由的 basename 与这个前缀一致，两边才不会一边能开、一边 404。
+
+```ts
+const baseUrl = `${import.meta.env.BASE_URL}datasets/demo/`;
+```
+
+### 7.2 路由组件
+
+```tsx
+// app/routes/search.tsx
+import { useEffect, useState } from "react";
+import {
+  open,
+  HttpResourceReader,
+  type WeiSQLDatabase,
+} from "@weisql/sdk";
+
+const baseUrl = `${import.meta.env.BASE_URL}datasets/demo/`;
+
+export default function SearchRoute() {
+  const [db, setDb] = useState<WeiSQLDatabase | null>(null);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let instance: WeiSQLDatabase | null = null;
+    let disposed = false;
+
+    open({
+      manifestUrl: `${baseUrl}manifest.json`,
+      resourceReader: new HttpResourceReader({ baseUrl }),
+      signal: controller.signal,
+    })
+      .then((value) => {
+        instance = value;
+        if (disposed) {
+          void value.close();
+          return;
+        }
+        setDb(value);
+      })
+      .catch((reason: unknown) => {
+        if (!disposed) setError(reason as Error);
+      });
+
+    return () => {
+      disposed = true;
+      controller.abort();
+      if (instance) void instance.close();
+    };
+  }, []);
+
+  async function search(text: string) {
+    if (db === null) return;
+    const hits = await db.text.search("documents_text", text, { topK: 5 });
+    console.log(hits.map((hit) => hit.id));
+  }
+
+  if (error) return <p>数据包加载失败：{error.message}</p>;
+  if (db === null) return <p>正在加载索引…</p>;
+
+  return <button onClick={() => void search("dna")}>搜索</button>;
+}
+```
+
+`baseUrl` 在模块顶层求值时只读 `import.meta.env`，不碰浏览器 API，SSR 下也安全——这和「模块顶层 `await open()`」是两回事。
+
+### 7.3 共享：把 Provider 挂到 `root.tsx`
+
+多个路由都要用时，把 2.2 节的 Provider 放在 `root.tsx` 的 `<Outlet />` 外面，整个应用只打开一次：
+
+```tsx
+// app/root.tsx
+import {
+  Links,
+  Meta,
+  Outlet,
+  Scripts,
+  ScrollRestoration,
+} from "@remix-run/react";
+import { WeiSQLProvider } from "./use-weisql";
+
+export default function App() {
+  return (
+    <html lang="zh-CN">
+      <head>
+        <Meta />
+        <Links />
+      </head>
+      <body>
+        <WeiSQLProvider baseUrl={`${import.meta.env.BASE_URL}datasets/demo/`}>
+          <Outlet />
+        </WeiSQLProvider>
+        <ScrollRestoration />
+        <Scripts />
+      </body>
+    </html>
+  );
+}
+```
+
+React Router v7（Remix 的继任版本）把包名从 `@remix-run/react` 换成了 `react-router`，组件与生命周期不变。
+
+### 7.4 为什么不能放进 loader
+
+- `loader` 在服务端执行，返回值必须可序列化，`WeiSQLDatabase` 不符合；
+- 服务端打开的实例没有卸载点，请求结束也不会自动 `close()`；
+- 需要 SSR 首屏信息时，在 `loader` 里只读**可序列化的元信息**（数据集 ID、文档数、标题），Runtime 留给 `useEffect`。
+
+Remix 的 SPA Mode（`ssr: false`）可以整体关掉服务端渲染，但并非必需：`useEffect` 方案在 SSR 下本来就安全，首屏只是先渲染「加载中」。
+
+## 8. SolidStart
+
+Solid 的组件函数只执行一次，没有依赖数组的概念；`onMount` 只在浏览器运行，`onCleanup` 负责释放。`createSignal` 不对对象做深层代理，可以直接保存 Runtime 实例。
+
+### 8.1 组件
+
+```tsx
+// src/routes/search.tsx
+import { Show, createSignal, onCleanup, onMount } from "solid-js";
+import {
+  open,
+  HttpResourceReader,
+  type TextHit,
+  type WeiSQLDatabase,
+} from "@weisql/sdk";
+
+const baseUrl = `${import.meta.env.BASE_URL}datasets/demo/`;
+
+export default function SearchPanel() {
+  const [db, setDb] = createSignal<WeiSQLDatabase | null>(null);
+  const [error, setError] = createSignal<Error | null>(null);
+  const [hits, setHits] = createSignal<readonly TextHit[]>([]);
+
+  onMount(() => {
+    const controller = new AbortController();
+    let disposed = false;
+
+    open({
+      manifestUrl: `${baseUrl}manifest.json`,
+      resourceReader: new HttpResourceReader({ baseUrl }),
+      cache: { maxCacheBytes: 32 * 1024 * 1024 },
+      signal: controller.signal,
+    })
+      .then((value) => {
+        if (disposed) {
+          void value.close();
+          return;
+        }
+        setDb(value);
+      })
+      .catch((reason: unknown) => {
+        if (!disposed) setError(reason as Error);
+      });
+
+    onCleanup(() => {
+      disposed = true;
+      controller.abort();
+      void db()?.close();
+    });
+  });
+
+  async function search(text: string) {
+    const current = db();
+    if (current === null) return;
+    setHits(await current.text.search("documents_text", text, { topK: 5 }));
+  }
+
+  return (
+    <div>
+      <Show when={error()}>
+        {(reason) => <p>数据包加载失败：{reason().message}</p>}
+      </Show>
+      <Show when={db()} fallback={<p>正在加载索引…</p>}>
+        <button onClick={() => void search("dna")}>搜索</button>
+        <p>命中 {hits().length} 条</p>
+      </Show>
+    </div>
+  );
+}
+```
+
+在 `onMount` 内部注册的 `onCleanup` 属于当前组件，组件销毁时执行，等价于 React 的 effect 清理函数。注意 Solid 的 `Show` 子节点访问的是 signal 的 getter（`db()`、`hits()`），不要写成 `db` 本身。
+
+### 8.2 输入驱动的查询
+
+Solid 里「effect + cleanup」的等价物是 `createEffect` + `onCleanup`，天然处理「新输入取消旧查询」：
+
+```tsx
+import { createEffect, createSignal, onCleanup } from "solid-js";
+
+const [query, setQuery] = createSignal("");
+
+createEffect(() => {
+  const current = db();
+  const text = query().trim();
+  if (current === null || text === "") {
+    setHits([]);
+    return;
+  }
+
+  const controller = new AbortController();
+  onCleanup(() => controller.abort());
+
+  void current.text
+    .search("documents_text", text, { topK: 5, signal: controller.signal })
+    .then((next) => {
+      if (!controller.signal.aborted) setHits(next);
+    })
+    .catch(() => undefined);
+});
+```
+
+每次 `query()` 变化，上一次 effect 的 `onCleanup` 先执行（`abort()`），再发起新查询；不需要手写依赖数组，Solid 会自动追踪 `query()` 的读取。
+
+### 8.3 SSR
+
+SolidStart 默认开启 SSR，`onMount` 不会在服务端执行，首屏渲染的是 fallback，水合后才打开数据包。两种需要额外处理的情况：
+
+- **纯客户端应用**：在 `app.config.ts` 里全局关闭 SSR；
+- **只有局部依赖浏览器**：把组件包进 SolidStart 的 `<ClientOnly>`，或只用 `isServer` 做条件渲染，不要在模块顶层用它绕过 `open()`。
+
+## 9. Astro
+
+Astro 默认输出零 JS 的静态页面：`.astro` 组件在服务端（构建时或按需渲染）执行，`<script>` 交给 Vite 打包后只在浏览器运行。读取数据包只有两条路——**页面脚本**或**客户端 island**。
+
+### 9.1 直接写 `<script>`
+
+```astro
+---
+// src/pages/search.astro
+---
+
+<div>
+  <p id="status">正在加载索引…</p>
+  <ul id="hits"></ul>
+</div>
+
+<script>
+  import { open, HttpResourceReader } from "@weisql/sdk";
+
+  const baseUrl = `${import.meta.env.BASE_URL}datasets/demo/`;
+
+  async function main() {
+    const status = document.getElementById("status");
+    const list = document.getElementById("hits");
+    if (!status || !list) return;
+
+    try {
+      const db = await open({
+        manifestUrl: `${baseUrl}manifest.json`,
+        resourceReader: new HttpResourceReader({ baseUrl }),
+        cache: { maxCacheBytes: 32 * 1024 * 1024 },
+      });
+
+      status.textContent = "索引已就绪";
+
+      const hits = await db.text.search("documents_text", "dna", { topK: 5 });
+      for (const hit of hits) {
+        const item = document.createElement("li");
+        item.textContent = String(hit.id);
+        list.append(item);
+      }
+    } catch {
+      status.textContent = "数据包加载失败，请稍后重试";
+    }
+  }
+
+  void main();
+</script>
+```
+
+两条限制：
+
+- **不要加 `is:inline` 或 `define:vars`**。它们会让脚本退回内联执行、不经过 Vite 打包，`import "@weisql/sdk"` 会直接失败。
+- 脚本里的 `import.meta.env.BASE_URL` 由 Vite 替换；改了 `base`，它跟着变。
+
+### 9.2 用框架 island
+
+已经写了 React / Vue / Solid / Svelte 组件时，直接把它们挂成 island：
+
+```astro
+---
+import SearchPanel from "../components/SearchPanel";
+---
+
+<SearchPanel client:only="react" />
+```
+
+| 指令 | 行为 | 适合 |
+| --- | --- | --- |
+| `client:only="react"` | 完全跳过服务端渲染，只在浏览器挂载 | 组件在模块顶层就访问 `window`，或依赖浏览器存储 |
+| `client:load` | 先 SSR 出骨架，水合后才执行 effect | 大多数情况；本页的 hook 在服务端渲染的就是「加载中」 |
+| `client:visible` | 进入视口才加载 | 数据包读取可以推迟，例如首屏以下的检索面板 |
+| `client:idle` | 主线程空闲后加载 | 非关键的辅助查询 |
+
+`client:only` 需要先安装对应集成（`@astrojs/react`、`@astrojs/vue`、`@astrojs/solid-js`、`@astrojs/svelte`）。
+
+### 9.3 生命周期
+
+Astro 是多页应用：整页跳转时浏览器丢弃旧文档，连接与内存一起释放，不需要手动 `close()`。只有启用 View Transitions 时旧页面会被保留一小段时间，需要在离开前收尾——在 9.1 的脚本里把 `db` 提升为外层变量，再加一个监听：
+
+```js
+document.addEventListener("astro:before-swap", () => {
+  void db?.close();
+});
+```
+
+### 9.4 构建
+
+```js
+// astro.config.mjs
+import { defineConfig } from "astro/config";
+import react from "@astrojs/react";
+
+export default defineConfig({
+  base: "/app/",
+  integrations: [react()],
+});
+```
+
+`public/` 原样复制到 `dist/`，数据包不参与打包；`base` 同时影响页面路由与 `BASE_URL`，所以 9.1 的 `baseUrl` 不需要再手写前缀。
+
+## 10. 共享实例：引用计数单例
 
 当同一份数据包被多个路由、多个挂载点（例如可切换的标签页）反复使用时，Provider 的层级可能不够用。这时可以用一个引用计数的模块级单例：第一个使用者触发 `open()`，最后一个离开时才 `close()`。
 
@@ -750,7 +1082,7 @@ export function releaseDatabase(): void {
 - **模块级变量在 SSR 下会跨请求共享**。单例必须在浏览器里懒创建（第一次 `acquire` 发生在 effect / `onMount` 中），不要在模块顶层立即执行。
 - **失败后要允许重试**。上面的 `catch` 把 `shared` 置空，下一次 `acquire` 会重新打开；否则页面会卡在同一个错误上。
 
-## 8. 错误处理：把错误码翻译成用户能行动的提示
+## 11. 错误处理：把错误码翻译成用户能行动的提示
 
 不要按 `error.message` 分支，也不要直接把 SDK 的错误原文丢给用户。`WeiSQLError` 的 `code` 是稳定契约：
 
@@ -845,7 +1177,7 @@ export function useDatabaseWithRetry(baseUrl: string) {
 }
 ```
 
-## 9. 加载策略与性能
+## 12. 加载策略与性能
 
 `open()` 默认只拉 Manifest 并做 L1/L2 校验，**不预读数据资源**；真正的 I/O 发生在第一次查询。这决定了首屏优化点在哪里。
 
@@ -875,7 +1207,7 @@ export function useDatabaseWithRetry(baseUrl: string) {
 - **全文检索有固定读取成本**。`text.search()` 每次查询都要整体读取文档长度文件（100 万文档约 4 MB），首查不要放在输入框的每次 `onChange` 上，至少加 200–300 ms 防抖。
 - **精确向量检索按文件扫描**。分块读取只降低峰值内存，不减少总下载量；首屏体验取决于包大小，而不是缓存命中率。
 
-## 10. 测试与本地验证
+## 13. 测试与本地验证
 
 先在命令行确认托管行为，再怀疑框架：
 
@@ -904,7 +1236,7 @@ await expect(
 
 端到端的 Range、CORS 与缓存行为，只能在真实浏览器里验收（Playwright 或手动），这与[部署到 CDN](/docs/tooling/deploy-cdn)的验收方式一致。
 
-## 11. 常见问题
+## 14. 常见问题
 
 <details>
 <summary>为什么不能把 open() 放在模块顶层？</summary>
@@ -976,7 +1308,7 @@ Vite 用 `server.proxy`，Next.js 用 `rewrites`，把 `/datasets` 代理到静�
 
 </details>
 
-## 12. 排查清单
+## 15. 排查清单
 
 | 现象 | 先查 | 处理 |
 | --- | --- | --- |

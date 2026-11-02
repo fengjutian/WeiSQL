@@ -59,7 +59,7 @@ html {
 }
 
 .navbar__logo img {
-  border-radius: 7px;
+  display: block;
 }
 
 .theme-doc-markdown header h1 {
@@ -303,8 +303,9 @@ html {
 }
 
 .navbar__logo {
-  height: 28px;
-  width: 28px;
+  height: 30px;
+  width: 30px;
+  margin-right: 0.55rem;
 }
 
 .navbar__title {

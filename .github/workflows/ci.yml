@@ -233,9 +233,10 @@ jobs:
       - name: Install framework example dependencies
         run: |
           npm ci --prefix examples/frameworks/vite-react
+          npm ci --prefix examples/frameworks/vite-vue
           npm ci --prefix examples/frameworks/sveltekit
 
-      - name: Framework lifecycle smoke (Vite + React, SvelteKit)
+      - name: Framework lifecycle smoke (Vite + React, Vue 3, SvelteKit)
         run: npm run test:frameworks
 
       - name: SDK browser probe (Range, L3, exact search, cache)

@@ -1263,7 +1263,7 @@ await expect(
 ).rejects.toMatchObject({ code: "RESOURCE_NOT_FOUND" });
 ```
 
-仓库里有一份与 2.1 节逐行对应的可运行示例：`examples/frameworks/` 下包含 Vite + React 与 SvelteKit 两套。`npm run test:frameworks` 会构建它们并用 Chromium 断言状态为 `READY`、命中 3 条，以及 `.f32` 至少被一次 `206` 分段读取。改完生命周期代码先跑这个，比手点页面快，也能挡住「能编译、打包后跑不起来」的回归。
+仓库里提供了三套可运行示例（`examples/frameworks/`：Vite + React、Vue 3、SvelteKit），分别对应 2.1、5 与 6 节的写法。`npm run test:frameworks` 会构建它们并用 Chromium 断言状态为 `READY`、命中 3 条，以及 `.f32` 至少被一次 `206` 分段读取。改完生命周期代码先跑这个，比手点页面快，也能挡住「能编译、打包后跑不起来」的回归。
 
 端到端的 Range、CORS 与缓存行为，只能在真实浏览器里验收（Playwright 或手动），这与[部署到 CDN](/docs/tooling/deploy-cdn)的验收方式一致。
 

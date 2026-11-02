@@ -1,0 +1,23 @@
+{
+  "name": "@weisql/example-vite-vue",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Runnable Vue 3 + Vite integration for the frameworks docs page.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@weisql/sdk": "file:../../../packages/sdk",
+    "vue": "^3.5.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.0",
+    "vite": "^7.3.7"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

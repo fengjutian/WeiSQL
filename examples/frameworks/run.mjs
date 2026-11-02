@@ -26,6 +26,11 @@ const APPS = [
     output: "dist",
   },
   {
+    name: "vite-vue",
+    directory: path.join(HERE, "vite-vue"),
+    output: "dist",
+  },
+  {
     name: "sveltekit",
     directory: path.join(HERE, "sveltekit"),
     output: "build",

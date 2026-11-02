@@ -13,6 +13,9 @@ examples/frameworks/
 ├── vite-react/          # Vite + React 示例（文档 2.x）
 │   ├── src/useWeiSQL.ts # 文档 2.1 节的 hook，逐行对应
 │   └── src/App.tsx      # 打开数据包、跑一次向量检索并发布 window.__SMOKE_RESULT
+├── vite-vue/            # Vue 3 + Vite 示例（文档 5.x）
+│   ├── src/useWeiSQL.ts # shallowRef + onMounted + onUnmounted
+│   └── src/App.vue      # watch(db) 触发查询，发布 window.__SMOKE_RESULT
 └── sveltekit/           # SvelteKit 示例（文档 6.x）
     └── src/routes/+page.svelte  # onMount + $state.raw，与文档 6.1 对应
 ```
@@ -46,4 +49,4 @@ npm run test:frameworks       # 构建 app + Chromium 冒烟
 4. 在 `sync-fixture.mjs` 的 `TARGETS` 里加静态目录（如果该框架不是 `public/` 布局）；
 5. 在 CI 的 browser job 里加安装 + `npm run test:frameworks` 已覆盖。
 
-当前覆盖：Vite + React、SvelteKit。两者共用同一套冒烟脚本与 Range 静态服务器；新增框架只要实现 `window.__SMOKE_RESULT` 契约。
+当前覆盖：Vite + React、Vue 3 + Vite、SvelteKit。三者共用同一套冒烟脚本与 Range 静态服务器；新增框架只要实现 `window.__SMOKE_RESULT` 契约。

@@ -15,6 +15,7 @@ const SOURCE = path.join(REPO_ROOT, "examples", "fixture");
 /** Every app that serves the package from its own static directory. */
 const TARGETS = [
   path.join(HERE, "vite-react", "public", "datasets", "demo"),
+  path.join(HERE, "vite-vue", "public", "datasets", "demo"),
   path.join(HERE, "sveltekit", "static", "datasets", "demo"),
 ];
 

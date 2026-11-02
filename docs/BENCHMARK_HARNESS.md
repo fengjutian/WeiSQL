@@ -317,6 +317,8 @@ npm run bench:hnsw-dataset -- --file embeddings.f32 --rows N --dim 768 --metric 
 `--file` 读取原始小端 float32 row-major 数据（与 `.f32` dump、SDK 向量块同布局），
 因此同一命令可以直接跑真实 embedding；不带 `--file` 时按 `--distribution` 生成确定性数据
 （`clustered` 默认，`random` 为均匀随机方向，用来观察更难的数据几何）。
+`--min-recall <n>` 在结果低于阈值时以非零码退出，CI 的 `test:hnsw-dataset` 用它配合
+`packages/sdk/wasm` 里已打包的 HNSW 产物做小规模烟测，不需要 Rust 工具链。
 
 实测（2026-10-31，单机，`m=16 ef_construction=200 ef_search=64`）：
 

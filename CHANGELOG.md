@@ -318,6 +318,8 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   clustered builds in 42 s at Recall@10 = 0.997. `docs/HNSW_EVALUATION.md` is the
   runbook for real embeddings: data layout, commands, what each field means, a
   results template, and the limits that make synthetic numbers non-transferable.
+  `--min-recall` turns it into a gate, and `npm run test:hnsw-dataset` runs a
+  500×8 smoke against the packaged artifact in the CI `verify` job.
 - `createWasmVectorAdapter()`: a `VectorAdapter` over that artifact. It caches
   one materialised `Float32Array` per collection, compacts `allowedRows` before
   the scan so filtered results stay exact, and maps rows back to business IDs

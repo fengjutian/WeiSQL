@@ -5,7 +5,7 @@
 //        [--distribution clustered|random] [--metric cosine|l2|ip]
 //        [--queries 50] [--top-k 10]
 //        [--m 16] [--ef-construction 200] [--ef-search 64]
-//        [--wasm path/to/weisql_vector_hnsw_wasm.wasm]
+//        [--wasm path/to/weisql_vector_hnsw_wasm.wasm] [--min-recall 0.95]
 //
 // Without `--file` it generates deterministic clustered vectors, so the same
 // command works as a smoke benchmark. With `--file` it reads raw little-endian
@@ -39,6 +39,7 @@ function parse(arguments_) {
     efConstruction: 200,
     efSearch: 64,
     wasm: DEFAULT_WASM,
+    minRecall: undefined,
   };
   for (let index = 0; index < arguments_.length; index++) {
     const flag = arguments_[index];
@@ -55,11 +56,15 @@ function parse(arguments_) {
     else if (flag === "--ef-construction") options.efConstruction = Number(take());
     else if (flag === "--ef-search") options.efSearch = Number(take());
     else if (flag === "--wasm") options.wasm = path.resolve(take());
+    else if (flag === "--min-recall") options.minRecall = Number(take());
     else throw new Error(`unknown option ${flag}`);
   }
   if (!(options.metric in METRIC_CODES)) throw new Error(`--metric must be one of ${Object.keys(METRIC_CODES).join(", ")}`);
   if (options.distribution !== "clustered" && options.distribution !== "random") {
     throw new Error("--distribution must be 'clustered' or 'random'");
+  }
+  if (options.minRecall !== undefined && (!Number.isFinite(options.minRecall) || options.minRecall < 0 || options.minRecall > 1)) {
+    throw new Error("--min-recall must be between 0 and 1");
   }
   for (const [name, value] of [["rows", options.rows], ["dim", options.dimension], ["queries", options.queries], ["top-k", options.topK]]) {
     if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`--${name} must be a positive safe integer`);
@@ -225,3 +230,7 @@ console.log(`hnsw_p50_ms=${percentile(hnswTimes, 0.5).toFixed(4)}`);
 console.log(`hnsw_p95_ms=${percentile(hnswTimes, 0.95).toFixed(4)}`);
 console.log(`exact_js_p50_ms=${percentile(exactTimes, 0.5).toFixed(4)}`);
 console.log(`recall_at_k=${recall.toFixed(4)}`);
+if (options.minRecall !== undefined && recall < options.minRecall) {
+  console.error(`recall ${recall.toFixed(4)} is below --min-recall ${options.minRecall}`);
+  process.exit(1);
+}

@@ -38,6 +38,7 @@
     "test:hnsw-wasm": "node tools/bench/hnsw-wasm.mjs",
     "test:hnsw-adapter": "node tools/bench/hnsw-adapter.mjs",
     "bench:hnsw-dataset": "node tools/bench/hnsw-dataset.mjs",
+    "test:hnsw-dataset": "node tools/bench/hnsw-dataset.mjs --rows 500 --dim 8 --queries 5 --min-recall 0.9 --wasm packages/sdk/wasm/weisql_vector_hnsw_wasm.wasm",
     "build:ann-index": "node tools/build-ann-index.mjs",
     "build:hnsw-index": "node tools/build-hnsw-index.mjs",
     "test:hnsw-package": "node tools/bench/hnsw-package.mjs",

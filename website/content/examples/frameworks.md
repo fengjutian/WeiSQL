@@ -12,7 +12,7 @@ hide_title: true
 
 本页不只给一段 `open()` 的代码，而是把 WeiSQL 接进真实前端时要处理的四件事讲清楚：**实例由谁持有、什么时候关闭、查询怎么取消、失败怎么给用户看**。生命周期与错误处理是跨框架共通的，先讲一遍，后面的框架示例只保留差异部分。
 
-读完后你应该能判断：实例该放在组件、Provider 还是模块级单例里；路由切换与 React StrictMode 双挂载时怎样不泄漏 Reader；首屏该在什么时机打开数据包；以及托管不返回 `206` 时应该改哪一层。
+读完后你应该能判断：实例该放在组件、Provider 还是模块级单例里；路由切换与 React StrictMode 双挂载时怎样不泄漏 Reader；首屏该在什么时机打开数据包；以及托管不返回 `206` 时应该改哪一层。只想知道「我的框架用哪个钩子」，可以直接看 [1.1 节的速查表](#11-对应到各框架)。
 
 前提只有两条：数据包已经构建并通过校验（见[构建与发布](/docs/examples/build)），托管支持 Range 且 CORS 暴露了 `Content-Range`（见[部署到 CDN](/docs/tooling/deploy-cdn)）。框架侧除 `@weisql/sdk` 外没有额外运行时依赖。
 
@@ -42,6 +42,8 @@ public/datasets/demo/
 | SvelteKit | `static/datasets/demo/` | `/datasets/demo/` |
 | Astro | `public/datasets/demo/` | `/datasets/demo/` |
 | 远端 CDN | 部署在任意静态托管 | `https://cdn.example.com/weisql/demo/` |
+
+这张表只针对目录形态；改成 `.wsql` 单文件发布时不需要静态目录，见 [12.1 托管形态怎么选](#121-托管形态怎么选)。
 
 三条容易踩的路径规则：
 
@@ -75,7 +77,7 @@ await db.close();
 
 ## 1. 生命周期：所有框架同一个骨架
 
-无论 React、Vue 还是 Svelte，正确的接法都是同一套四步：
+无论 React、Vue、Svelte、Solid 还是 Astro，正确的接法都是同一套四步：
 
 | 阶段 | 做什么 | 为什么 |
 | --- | --- | --- |
@@ -127,6 +129,21 @@ function cleanup(): void {
 - **卸载后仍然 `setState`**：React 18 不会警告，但会覆盖已经重建的 UI，表现为「切回页面时闪一下旧结果」。
 
 `close()` 是幂等的，并发调用共享同一个关闭 Promise，所以清理函数里直接调用即可，不需要自己加 `closed` 标志去防重。
+
+### 1.1 对应到各框架
+
+同一套骨架落到八种框架上，只是钩子名字不同。如果你只想确认「我的框架该用哪个钩子」，看这张表就够，具体代码在对应小节：
+
+| 框架 | 打开 | 释放 | 共享实例 | 主要陷阱 |
+| --- | --- | --- | --- | --- |
+| React（Vite / CRA） | `useEffect` | effect 清理函数 | Context Provider（2.2） | StrictMode 下 effect 执行两次 |
+| Next.js App Router | 客户端组件里的 `useEffect` | effect 清理函数 | Provider 挂 `app/layout.tsx` | 不在 Server Component / loader 里打开 |
+| Remix | `useEffect` | effect 清理函数 | Provider 挂 `app/root.tsx` | `loader` 在服务端执行，不能 `open()` |
+| Vue 3 | `onMounted` | `onUnmounted` | `provide` / `inject`（5.1） | 用 `shallowRef`，不要 `reactive()` |
+| Nuxt | `onMounted` | `onUnmounted` | `provide` / `inject` | 需要时 `<ClientOnly>` 或路由级 `ssr: false` |
+| Svelte / SvelteKit | `onMount` | `onMount` 返回的函数 | `setContext` / `getContext` | Svelte 5 用 `$state.raw` |
+| Solid / SolidStart | `onMount` | `onCleanup` | Context Provider | `createResource` 会在服务端执行 |
+| Astro | `<script>` 或 island 的 `client:*` | 页面卸载；View Transitions 下监听 `astro:before-swap` | 模块级单例，或 island 内部自持 | `is:inline` / `define:vars` 会让脚本跳过打包 |
 
 ## 2. React Hook
 
@@ -1206,6 +1223,18 @@ export function useDatabaseWithRetry(baseUrl: string) {
 - **先读 `capabilities()` 再渲染控件**。没有 `textSearch` 就不要显示搜索框，没有 `sql` 就不要显示 SQL 编辑器，避免用户点了才知道不支持。
 - **全文检索有固定读取成本**。`text.search()` 每次查询都要整体读取文档长度文件（100 万文档约 4 MB），首查不要放在输入框的每次 `onChange` 上，至少加 200–300 ms 防抖。
 - **精确向量检索按文件扫描**。分块读取只降低峰值内存，不减少总下载量；首屏体验取决于包大小，而不是缓存命中率。
+
+### 12.1 托管形态怎么选
+
+框架只决定「在哪里调用 `open()`」，不决定数据以什么形态发布。三种形态在任意框架里都可用：
+
+| 形态 | 框架侧要做什么 | 适合 | 代价 |
+| --- | --- | --- | --- |
+| 目录（默认） | 包放 `public/`（SvelteKit 用 `static/`），`open({ manifestUrl, resourceReader: new HttpResourceReader(...) })` | 绝大多数页面；需要频繁更新单个资源 | 托管必须支持 Range 与 CORS，多文件容易漏传 |
+| `.wsql` 整包 | 先 `fetch` 整个文件，再 `new ContainerReader(bytes)`，把解析出的 Manifest 传给 `open()` | 包较小、离线或 PWA、Electron | 首屏必须下载整包，失去按需读取 |
+| `.wsql` 流式 | `StreamingContainerReader.open(createHttpContainerSource({ url }))`，从容器读出 `manifest.json` | 大容器，但想保留按需读取 | 托管仍要支持 Range；压缩条目内无法真正随机读 |
+
+判断方法很简单：首屏能接受下载整包就选整包，否则用目录或流式。三条路的代码都在[浏览器示例](/docs/examples/browser)里，容器格式的语义见[单文件容器](/docs/sdk/containers)。
 
 ## 13. 测试与本地验证
 

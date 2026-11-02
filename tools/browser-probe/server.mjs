@@ -44,6 +44,7 @@ export function createProbeServer(fixtureDirectory = DEFAULT_FIXTURE, containerP
     if (urlPath === "/opfs-lock" || urlPath === "/opfs-lock.html") return path.join(HERE, "opfs-lock.html");
     if (urlPath === "/wasm-materialize-bench" || urlPath === "/wasm-materialize-bench.html") return path.join(HERE, "wasm-materialize-bench.html");
     if (urlPath === "/wasm-vector" || urlPath === "/wasm-vector.html") return path.join(HERE, "wasm-vector.html");
+    if (urlPath.startsWith("/scenario/")) return path.join(HERE, urlPath.slice("/scenario/".length));
     // `wasmArtifactUrl()` resolves to /wasm/<file> from /sdk/index.js.
     if (urlPath.startsWith("/wasm/")) return path.join(REPO_ROOT, "packages", "sdk", "wasm", urlPath.slice("/wasm/".length));
     if (urlPath === "/playground" || urlPath === "/playground/") return path.join(PLAYGROUND, "index.html");

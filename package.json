@@ -16,6 +16,7 @@
     "probe:browser": "node tools/browser-probe/run.mjs",
     "probe:wasm": "node tools/browser-probe/run-wasm.mjs",
     "probe:wasm-vector": "node tools/browser-probe/run-wasm-vector.mjs",
+    "test:wasm-vector-scenario": "node tools/browser-probe/check-wasm-vector-scenario.mjs",
     "probe:opfs-lock": "node tools/browser-probe/run-opfs-lock.mjs",
     "probe:cdn": "node tools/cdn-probe.mjs",
     "vendor:wasm-extension": "node tools/fetch-duckdb-wasm-extension.mjs",

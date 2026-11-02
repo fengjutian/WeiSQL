@@ -164,6 +164,11 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   and compares the TypeScript exact adapter, the exact WASM artifact and the
   HNSW artifact on the example package — same rows/IDs, distances within `1e-9`,
   expected `diagnostics.backend`, no Node globals. Wired into the CI browser job.
+- `tools/browser-probe/wasm-vector-scenario.mjs` holds that comparison once; the
+  page imports it, and `npm run test:wasm-vector-scenario` runs the same code in
+  Node (SDK from disk, `.wasm` over the probe server's HTTP route). The CI
+  `verify` job runs the browser-free half, so a packaged artifact that is
+  missing, mis-typed or stale fails even when no browser is available.
 - `tools/cdn-probe.mjs` (`npm run probe:cdn`) checks CORS, `206`,
   `Content-Range`, `Content-Length`, `Accept-Ranges` and exposed headers on a
   deployed package; `docs/CDN_ACCEPTANCE.md` records the checklist.

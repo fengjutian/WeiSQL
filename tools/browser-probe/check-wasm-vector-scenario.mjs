@@ -3,13 +3,19 @@
  *
  *   node tools/browser-probe/check-wasm-vector-scenario.mjs
  *
- * The browser probe adds only the DOM shell on top of this scenario; running the
- * same code here exercises the real HTTP fetch of the packaged `.wasm` files,
- * `HttpResourceReader` range requests and all three adapters, and it can run on
- * every CI job that has a built SDK.
+ * The browser page imports the same scenario, so this check exercises the parts
+ * that do not need a DOM: fetching the packaged `.wasm` files over HTTP with the
+ * probe server's MIME types, `HttpResourceReader` range requests against the
+ * example package, and all three adapters. The browser job adds the real module
+ * loading and `wasmArtifactUrl()` resolution on top.
  */
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+import { WASM_ARTIFACTS } from "../../packages/sdk/dist/index.js";
 import { createProbeServer } from "./server.mjs";
 import { runWasmVectorScenario } from "./wasm-vector-scenario.mjs";
+
+const sdkBase = pathToFileURL(fileURLToPath(new URL("../../packages/sdk/dist", import.meta.url))).href;
 
 const probe = createProbeServer();
 const port = await probe.listen();
@@ -19,8 +25,9 @@ let result;
 let failure;
 try {
   result = await runWasmVectorScenario({
-    sdkBase: `${origin}/sdk`,
+    sdkBase,
     fixtureBase: `${origin}/fixture/`,
+    artifactUrl: name => new URL(`/wasm/${WASM_ARTIFACTS[name]}`, `${origin}/`),
     requireCleanGlobals: false,
   });
 } catch (error) {
@@ -31,7 +38,8 @@ await probe.close();
 
 if (failure !== undefined) {
   console.error(failure);
-  process.exit(1);
+  process.exitCode = 1;
+} else {
+  console.log(JSON.stringify(result, null, 2));
+  process.exitCode = result?.ok === true ? 0 : 1;
 }
-console.log(JSON.stringify(result, null, 2));
-process.exit(result?.ok === true ? 0 : 1);

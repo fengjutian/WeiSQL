@@ -45,6 +45,11 @@ jobs:
       - name: TypeScript ↔ Rust golden fixture
         run: npm run test:rust-golden
 
+      # Browser-free half of the bundled-WASM probe: real HTTP fetch of the two
+      # packaged artifacts, Range reads, and three adapters on the example package.
+      - name: Bundled WASM vector scenario
+        run: npm run test:wasm-vector-scenario
+
       # Same contract on both operating systems: the blockers here are the WASM
       # extension download and native DuckDB bindings, not the SQL text.
       - name: SQL adapter contract

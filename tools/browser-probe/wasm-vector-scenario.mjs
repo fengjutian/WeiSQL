@@ -11,10 +11,16 @@
  * absolute when called from Node) and `fixtureBase` at a package directory.
  */
 
-export async function runWasmVectorScenario({ sdkBase, fixtureBase, requireCleanGlobals = true }) {
+export async function runWasmVectorScenario({ sdkBase, fixtureBase, artifactUrl, requireCleanGlobals = true }) {
   const started = typeof performance === "undefined" ? 0 : performance.now();
-  const sdk = await import(`${sdkBase}/index.js`);
+  // Import leaf modules, not `index.js`: the package index also re-exports the
+  // Node file reader and builder, whose `node:` imports a browser cannot load.
+  const { createExactVectorAdapter } = await import(`${sdkBase}/vector-adapter.js`);
+  const { createWasmVectorAdapter } = await import(`${sdkBase}/wasm-vector-adapter.js`);
+  const { createHnswWasmVectorAdapter } = await import(`${sdkBase}/hnsw-vector-adapter.js`);
+  const { wasmArtifactUrl } = await import(`${sdkBase}/wasm-artifacts.js`);
   const { HttpResourceReader } = await import(`${sdkBase}/http-resource-reader.js`);
+  const resolveArtifact = artifactUrl ?? (name => wasmArtifactUrl(name));
 
   const manifest = JSON.parse(await (await fetch(new URL("manifest.json", fixtureBase))).text());
   const collection = manifest.vectorCollections[0];
@@ -22,7 +28,7 @@ export async function runWasmVectorScenario({ sdkBase, fixtureBase, requireClean
   const query = new Float32Array([1, 0]);
   const topK = Math.min(3, collection.count);
 
-  const exactResponse = await fetch(sdk.wasmArtifactUrl("exact"));
+  const exactResponse = await fetch(resolveArtifact("exact"));
   if (!exactResponse.ok) throw new Error(`exact wasm ${exactResponse.status}`);
   const contentType = exactResponse.headers.get("content-type") ?? "";
   if (!contentType.includes("application/wasm")) {
@@ -30,14 +36,14 @@ export async function runWasmVectorScenario({ sdkBase, fixtureBase, requireClean
   }
   const exactBytes = await exactResponse.arrayBuffer();
 
-  const hnswResponse = await fetch(sdk.wasmArtifactUrl("hnsw"));
+  const hnswResponse = await fetch(resolveArtifact("hnsw"));
   if (!hnswResponse.ok) throw new Error(`hnsw wasm ${hnswResponse.status}`);
   const hnswBytes = await hnswResponse.arrayBuffer();
 
   const reader = new HttpResourceReader({ baseUrl: fixtureBase });
-  const reference = sdk.createExactVectorAdapter();
-  const exactWasm = await sdk.createWasmVectorAdapter({ module: exactBytes });
-  const hnsw = await sdk.createHnswWasmVectorAdapter({ module: hnswBytes });
+  const reference = createExactVectorAdapter();
+  const exactWasm = await createWasmVectorAdapter({ module: exactBytes });
+  const hnsw = await createHnswWasmVectorAdapter({ module: hnswBytes });
 
   await reference.open({ manifest, reader });
   await exactWasm.open({ manifest, reader });

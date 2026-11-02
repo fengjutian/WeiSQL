@@ -66,3 +66,16 @@ It asserts identical rows and business IDs for all three, distances within
 Node globals leak. The CI `browser` job runs it after `npm run build`, so a
 packaged artifact that is missing, served with the wrong `Content-Type`, or
 behaviourally stale fails the build.
+
+The page is a thin shell over `wasm-vector-scenario.mjs`. The same scenario runs
+without a browser:
+
+```bash
+npm run test:wasm-vector-scenario
+```
+
+That check imports the built SDK from disk but fetches both `.wasm` files over
+the probe server's HTTP route, so it exercises the real `Content-Type`, the
+Range-based `HttpResourceReader` and all three adapters on every CI run — no
+Chromium required. The browser job only adds real module loading and
+`wasmArtifactUrl()` resolution on top.

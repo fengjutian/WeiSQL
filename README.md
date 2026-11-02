@@ -137,6 +137,7 @@ cargo run --release --manifest-path crates/vector-benchmark/Cargo.toml -- 10000 
 npm run test:rust-golden   # 校验提交的跨语言 fixture 仍等于 TypeScript 输出
 npm run build:wasm         # 构建 crates/vector-wasm（wasm32-unknown-unknown）
 npm run test:wasm-golden   # 用同一 fixture 校验 WASM 产物
+npm run test:wasm-vector-scenario  # 无浏览器：HTTP 取打包产物 + 三适配器对照
 ```
 
 Rust 示例参数依次为向量数量、维度、Top-K 和可选的测量轮数（默认 5 轮，另有 1 轮预热）；参数非法时以退出码 2 拒绝，而不是静默回落默认值。输出包含 `best_ms`/`median_ms`/`mean_ms`/`worst_ms`。该程序是确定性正确性与基准实验入口，不是生产 ANN 引擎。CI 的 `rust vector baseline and wasm` 作业会执行四个 crate 的 `fmt`/`clippy`/`test`、一次 release 基准烟测、HNSW 召回烟测，以及两套 WASM 构建与对照。

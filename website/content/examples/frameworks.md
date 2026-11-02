@@ -1283,7 +1283,7 @@ Vite 用 `server.proxy`，Next.js 用 `rewrites`，把 `/datasets` 代理到静�
 <details>
 <summary>子路径部署后页面正常、数据 404？</summary>
 
-页面路由与资源 URL 是两套配置：Vite 的 `base`、Next 的 `basePath`、Nuxt 的 `app.baseURL`、SvelteKit 的 `paths.base` 只影响页面与 `public/` 的默认前缀，`open()` 里的 `baseUrl` 仍然是你手写的字符串。两边必须一致，最好只保留一个常量。
+页面路由与资源 URL 是两套配置：Vite / Remix 的 `base`、Next 的 `basePath`、Nuxt 的 `app.baseURL`、SvelteKit 的 `paths.base`、Astro 的 `base` 只影响页面与 `public/` 的默认前缀，`open()` 里的 `baseUrl` 仍然是你手写的字符串。两边必须一致，最好只保留一个常量。
 
 </details>
 
@@ -1298,6 +1298,27 @@ Vite 用 `server.proxy`，Next.js 用 `rewrites`，把 `/datasets` 代理到静�
 <summary>打包体积为什么变大了？</summary>
 
 `@weisql/sdk` 本身不含引擎；如果你注入了 DuckDB-Wasm Adapter，WASM 与 worker 是额外资源，需要同源托管，首次加载还要拉取约 34 MB 的 WASM。只在真正需要 SQL 的路由里动态 `import()` 适配器。
+
+</details>
+
+<details>
+<summary>Remix 的 loader 里能不能打开数据包？</summary>
+
+不能。`loader` 在服务端执行，返回值必须可序列化，`WeiSQLDatabase` 不是；而且服务端实例没有卸载点，请求结束不会自动 `close()`。在 `loader` 里只返回数据集 ID、文档数这类元信息，Runtime 交给路由组件的 `useEffect`。
+
+</details>
+
+<details>
+<summary>Solid 的 `createResource` 能替代 `onMount` 吗？</summary>
+
+不建议。`createResource` 在 SSR 阶段也会执行，服务端拿到的实例同样无法序列化，而且它没有对应的清理钩子。用 `onMount` 打开、`onCleanup` 关闭；输入驱动的查询用 8.2 节的 `createEffect` + `onCleanup`。
+
+</details>
+
+<details>
+<summary>Astro 的 `<script>` 里 `import` 报错？</summary>
+
+脚本被加上了 `is:inline` 或 `define:vars`，这两者都会让 Astro 跳过 Vite 处理、直接内联输出，`import "@weisql/sdk"` 自然无法解析。去掉指令、改用普通 `<script>`，或者把逻辑放进 `client:only` 的框架 island。
 
 </details>
 
@@ -1319,6 +1340,8 @@ Vite 用 `server.proxy`，Next.js 用 `rewrites`，把 `/datasets` 代理到静�
 | 搜索结果错乱 | 是否并发发起多次查询 | 用 `AbortController` 取消上一次，只接受未取消的结果 |
 | 生产 200、开发 206 | 托管是否压缩或重写 | 关掉动态压缩，或改用 `.wsql` |
 | 帧率下降、对象被代理 | 是否用了 `reactive()` / `$state` | 改用 `shallowRef` / `$state.raw` |
+| Astro 页面没有交互 | 脚本是否被 `is:inline` / `define:vars` 内联，或 island 漏了 `client:*` | 改成普通 `<script>`，或给组件加 `client:only` |
+| Remix 路由切换后报 `DATABASE_CLOSED` | 查询是否在 effect 清理后才返回 | 卸载时 `abort()` + `close()`，忽略 `QUERY_CANCELLED` |
 | 打开很慢 | `verifyChecksums` 是否为 `all` | 降到 `"manifest"`，把小包校验挪到后台 |
 
 ## 相关页面

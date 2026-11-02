@@ -94,7 +94,7 @@ const config = {
         respectPrefersColorScheme: true,
       },
       navbar: {
-        title: "WeiSQL AI",
+        title: "WeiSQL",
         logo: {
           alt: "WeiSQL AI",
           src: "img/logo.svg",

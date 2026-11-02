@@ -69,7 +69,7 @@ test("L4 checks Parquet content inside a container", async (t) => {
   await unpackContainer({ file: output, directory });
   const manifestPath = path.join(directory, "manifest.json");
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  manifest.tables[0].columns[0].type = "int32";
+  manifest.tables[0].columns[1].type = "int32";
   await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + "\n", "utf8");
   const broken = await validateContainer({ file: (await packPackage({ directory })).output, l4: true });
   assert.equal(broken.ok, false);

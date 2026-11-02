@@ -99,7 +99,7 @@ test("reports structural Manifest issues with their path", async t => {
 test("CLI exits 0 and prints a summary for a valid package", async () => {
   const { stdout } = await run(process.execPath, [BIN, "validate", FIXTURE]);
   assert.match(stdout, /demo-documents/);
-  assert.match(stdout, /4 hashes verified/);
+  assert.match(stdout, /6 hashes verified/);
   assert.match(stdout, /OK/);
 });
 
@@ -129,7 +129,7 @@ test("L4 verifies Parquet content against the Manifest", async t => {
 
   const target = await copiedFixture(t);
   const manifest = JSON.parse(await readFile(path.join(target, "manifest.json"), "utf8"));
-  manifest.tables[0].columns[0].type = "int32";
+  manifest.tables[0].columns[1].type = "int32";
   await writeFile(path.join(target, "manifest.json"), JSON.stringify(manifest), "utf8");
 
   const broken = await validatePackage({ directory: target, l4: true });

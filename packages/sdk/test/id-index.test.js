@@ -5,7 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { NodeFileResourceReader, SortedIdIndexReader, buildPackage, declaredResources, open, validateIdIndexContent, validateManifest, verifyManifestResources } from "../dist/index.js";
+import { NodeFileResourceReader, SortedIdIndexReader, buildPackage, declaredResources, open, validateIdIndexContent, validateManifest, verifyManifestResources } from "../dist/index.node.js";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const SOURCE_PARQUET = path.join(REPO_ROOT, "examples", "source", "documents.parquet");

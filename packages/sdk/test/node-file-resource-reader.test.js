@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { NodeFileResourceReader } from "../dist/index.js";
+import { NodeFileResourceReader } from "../dist/index.node.js";
 
 async function fixture(t) {
   const workspace = await mkdtemp(path.join(tmpdir(), "weisql-reader-"));

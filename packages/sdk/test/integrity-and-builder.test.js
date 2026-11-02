@@ -1,4 +1,4 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { cp, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -18,7 +18,7 @@ import {
   validateIdMapContent,
   verifyManifestResources,
   verifyManifestSignature,
-} from "../dist/index.js";
+} from "../dist/index.node.js";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const SOURCE_PARQUET = path.join(REPO_ROOT, "examples", "source", "documents.parquet");

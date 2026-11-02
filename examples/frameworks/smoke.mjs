@@ -84,7 +84,8 @@ export async function smokeApp({ name, distDirectory, expectedIds = 3 }) {
   const ranges = server.log.filter((entry) => entry.status === 206);
   const vectorRanges = ranges.filter((entry) => entry.path.endsWith(".f32"));
   if (vectorRanges.length === 0) failures.push("no 206 response for the vector file");
-  const badStatuses = server.log.filter((entry) => entry.status >= 400);
+  // Only package requests matter; browsers probe /favicon.ico on their own.
+  const badStatuses = server.log.filter((entry) => entry.status >= 400 && entry.path.startsWith("/datasets/"));
   if (badStatuses.length > 0) failures.push(`http errors: ${JSON.stringify(badStatuses)}`);
 
   console.log(

@@ -139,3 +139,50 @@ test("rejects invalid HTTP response budgets during construction", () => {
     assert.throws(() => new HttpResourceReader({ baseUrl: "https://example.test/", maxRangeBytes: value }), { code: "INVALID_ARGUMENT" });
   }
 });
+
+const withLocation = async (href, run) => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, "location");
+  if (href === undefined) delete globalThis.location;
+  else Object.defineProperty(globalThis, "location", { value: { href }, configurable: true, writable: true });
+  try {
+    return await run();
+  } finally {
+    if (original === undefined) delete globalThis.location;
+    else Object.defineProperty(globalThis, "location", original);
+  }
+};
+
+test("resolves a same-origin baseUrl against location", async () => {
+  const request = await withLocation("https://app.test/search?q=1", async () => {
+    let seen;
+    const reader = new HttpResourceReader({
+      baseUrl: "/datasets/demo/",
+      fetch: async (input) => { seen = String(input); return new Response(bytes([1])); },
+    });
+    await reader.read("manifest.json");
+    return seen;
+  });
+
+  assert.equal(request, "https://app.test/datasets/demo/manifest.json");
+});
+
+test("resolves a relative baseUrl against a nested page path", async () => {
+  const request = await withLocation("https://app.test/app/search", async () => {
+    let seen;
+    const reader = new HttpResourceReader({
+      baseUrl: "datasets/demo",
+      fetch: async (input) => { seen = String(input); return new Response(bytes([1])); },
+    });
+    await reader.read("manifest.json");
+    return seen;
+  });
+
+  assert.equal(request, "https://app.test/app/datasets/demo/manifest.json");
+});
+
+test("rejects a relative baseUrl when no location exists", async () => {
+  await withLocation(undefined, async () => {
+    assert.throws(() => new HttpResourceReader({ baseUrl: "/datasets/demo/" }), { code: "INVALID_ARGUMENT" });
+  });
+});
+

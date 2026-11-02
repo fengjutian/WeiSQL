@@ -1263,6 +1263,8 @@ await expect(
 ).rejects.toMatchObject({ code: "RESOURCE_NOT_FOUND" });
 ```
 
+仓库里有一份与 2.1 节逐行对应的可运行示例：`examples/frameworks/` 下包含 Vite + React 与 SvelteKit 两套。`npm run test:frameworks` 会构建它们并用 Chromium 断言状态为 `READY`、命中 3 条，以及 `.f32` 至少被一次 `206` 分段读取。改完生命周期代码先跑这个，比手点页面快，也能挡住「能编译、打包后跑不起来」的回归。
+
 端到端的 Range、CORS 与缓存行为，只能在真实浏览器里验收（Playwright 或手动），这与[部署到 CDN](/docs/tooling/deploy-cdn)的验收方式一致。
 
 ## 14. 常见问题
@@ -1291,7 +1293,7 @@ await expect(
 <details>
 <summary>Next.js 需要 `dynamic(..., { ssr: false })` 吗？</summary>
 
-如果只在客户端组件里调用 `open()`，通常不需要。SDK 本身不依赖 Node 内置模块；真正依赖浏览器的是 `fetch` 与 Range 响应。若你的组件在模块顶层访问 `window`，再考虑动态导入。
+如果只在客户端组件里调用 `open()`，通常不需要。SDK 的浏览器入口不引用 `node:` 模块——`NodeFileResourceReader` 与 `buildPackage` 只出现在 `node` 条件的入口里，所以普通打包不会拉进 `node:fs`；真正依赖浏览器的是 `fetch` 与 Range 响应。若你的组件在模块顶层访问 `window`，再考虑动态导入。
 
 </details>
 

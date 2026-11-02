@@ -26,8 +26,16 @@ export class HttpResourceReader implements ResourceReader {
 
   constructor(options: HttpResourceReaderOptions) {
     let baseUrl: URL;
-    try { baseUrl = new URL(options.baseUrl.endsWith("/") ? options.baseUrl : `${options.baseUrl}/`); }
-    catch (cause) { throw new WeiSQLError({ code: "INVALID_ARGUMENT", message: "baseUrl must be a valid absolute URL", cause }); }
+    try {
+      const withSlash = options.baseUrl.endsWith("/") ? options.baseUrl : `${options.baseUrl}/`;
+      // Documents and app code pass same-origin paths such as "/datasets/demo/".
+      // Resolve those against the page URL; Node has no `location`, so a relative
+      // base URL stays an error there instead of silently resolving somewhere.
+      const pageHref = (globalThis as { location?: { href?: string } }).location?.href;
+      baseUrl = pageHref === undefined ? new URL(withSlash) : new URL(withSlash, pageHref);
+    } catch (cause) {
+      throw new WeiSQLError({ code: "INVALID_ARGUMENT", message: "baseUrl must be an absolute URL or a path resolvable against location", cause });
+    }
     if (baseUrl.protocol !== "http:" && baseUrl.protocol !== "https:") {
       throw new WeiSQLError("INVALID_ARGUMENT", "baseUrl must use HTTP or HTTPS");
     }

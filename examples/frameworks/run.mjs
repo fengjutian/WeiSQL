@@ -23,17 +23,19 @@ const APPS = [
   {
     name: "vite-react",
     directory: path.join(HERE, "vite-react"),
+    output: "dist",
+  },
+  {
+    name: "sveltekit",
+    directory: path.join(HERE, "sveltekit"),
+    output: "build",
   },
 ];
 
-const run = (command, args, cwd) => {
-  const result = spawnSync(command, args, {
-    cwd,
-    stdio: "inherit",
-    shell: process.platform === "win32",
-  });
+const run = (command, cwd) => {
+  const result = spawnSync(command, { cwd, stdio: "inherit", shell: true });
   if (result.status !== 0) {
-    throw new Error(`${command} ${args.join(" ")} failed in ${path.relative(REPO_ROOT, cwd)}`);
+    throw new Error(`"${command}" failed in ${path.relative(REPO_ROOT, cwd)}`);
   }
 };
 
@@ -42,7 +44,7 @@ if (!existsSync(SDK_DIST)) {
   process.exit(2);
 }
 
-run(process.execPath, [path.join(HERE, "sync-fixture.mjs")], REPO_ROOT);
+run(`"${process.execPath}" "${path.join(HERE, "sync-fixture.mjs")}"`, REPO_ROOT);
 
 for (const app of APPS) {
   const installed = existsSync(path.join(app.directory, "node_modules"));
@@ -51,9 +53,9 @@ for (const app of APPS) {
     process.exit(2);
   }
 
-  const distDirectory = path.join(app.directory, "dist");
+  const distDirectory = path.join(app.directory, app.output);
   console.log(`\n[${app.name}] building`);
-  run("npm", ["run", "build"], app.directory);
+  run("npm run build", app.directory);
 
   const built = await stat(distDirectory).then(() => true).catch(() => false);
   if (!built) throw new Error(`[${app.name}] dist/ was not produced`);

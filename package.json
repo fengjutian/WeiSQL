@@ -53,6 +53,8 @@
     "docs:dev": "npm --prefix website run dev",
     "docs:build": "npm --prefix website run build",
     "docs:serve": "npm --prefix website run serve",
+    "frameworks:install": "npm ci --prefix examples/frameworks/vite-react && npm ci --prefix examples/frameworks/sveltekit",
+    "test:frameworks": "node examples/frameworks/run.mjs",
     "desktop:dev": "npm run tauri:dev --workspace @weisql/desktop",
     "desktop:build": "npm run tauri:build --workspace @weisql/desktop",
     "desktop:web": "npm run dev --workspace @weisql/desktop",

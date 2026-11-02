@@ -55,3 +55,9 @@ coverage/
 
 # Local tool caches (DuckDB-Wasm extension)
 .cache/
+
+# Generated data packages copied into the runnable framework examples
+examples/frameworks/*/public/datasets/
+examples/frameworks/*/static/datasets/
+examples/frameworks/*/build/
+examples/frameworks/*/.svelte-kit/

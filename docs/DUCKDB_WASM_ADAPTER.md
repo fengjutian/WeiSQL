@@ -1,6 +1,6 @@
 # DuckDB-Wasm Adapter
 
-- 状态：Accepted and implemented（`@weisql/duckdb-wasm-adapter` 0.1.0，37 个测试 + 真实 Chromium 探针）
+- 状态：Accepted and implemented（`@weisql/duckdb-wasm-adapter` 0.2.0，37 个测试 + 真实 Chromium 探针）
 - 适用：浏览器端只读 SQL；Node.js 请用 `@weisql/duckdb-adapter`
 - 契约：[SQL Adapter 契约](SQL_ADAPTER_CONTRACT.md)
 

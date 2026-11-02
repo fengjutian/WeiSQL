@@ -1,6 +1,6 @@
 {
   "name": "@weisql/cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Command line tools for WeiSQL AI data packages",
   "keywords": [
     "weisql",
@@ -41,7 +41,7 @@
     "test": "npm run build && node --test test/*.test.js"
   },
   "dependencies": {
-    "@weisql/sdk": "^0.1.0"
+    "@weisql/sdk": "^0.2.0"
   },
   "engines": {
     "node": ">=20"
@@ -51,7 +51,7 @@
   },
   "license": "Apache-2.0",
   "peerDependencies": {
-    "@weisql/duckdb-adapter": "^0.1.0"
+    "@weisql/duckdb-adapter": "^0.2.0"
   },
   "peerDependenciesMeta": {
     "@weisql/duckdb-adapter": {

@@ -38,11 +38,11 @@
 ## 3. 包与依赖
 
 ```text
-@weisql/sdk 0.1.0                零运行时依赖
-├── @weisql/duckdb-adapter 0.1.0 @duckdb/node-api 2.0.0-r.1
-├── @weisql/duckdb-wasm-adapter 0.1.0 @duckdb/duckdb-wasm 1.32.0
-├── @weisql/usearch-adapter 0.1.0 usearch 2.26.5
-└── @weisql/cli 0.1.0
+@weisql/sdk 0.2.0                零运行时依赖
+├── @weisql/duckdb-adapter 0.2.0 @duckdb/node-api 2.0.0-r.1
+├── @weisql/duckdb-wasm-adapter 0.2.0 @duckdb/duckdb-wasm 1.32.0
+├── @weisql/usearch-adapter 0.2.0 usearch 2.26.5
+└── @weisql/cli 0.2.0
 ```
 
 依赖方向单向，下游对 SDK 使用 caret 范围，由 `release:check` 强制。

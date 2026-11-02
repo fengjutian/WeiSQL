@@ -1,6 +1,6 @@
 {
   "name": "@weisql/duckdb-wasm-adapter",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Read-only DuckDB-Wasm SqlAdapter for WeiSQL AI (browser)",
   "keywords": [
     "weisql",
@@ -39,7 +39,7 @@
   },
   "dependencies": {
     "@duckdb/duckdb-wasm": "^1.32.0",
-    "@weisql/sdk": "^0.1.0"
+    "@weisql/sdk": "^0.2.0"
   },
   "engines": {
     "node": ">=20"

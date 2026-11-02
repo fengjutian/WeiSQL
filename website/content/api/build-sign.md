@@ -34,7 +34,7 @@ function buildPackage(options: BuildPackageOptions): Promise<BuildReport>;
 | `jobId` | `string` | 随机 UUID | 用于诊断与暂存目录命名 |
 | `signal` | `AbortSignal` | 无 | 取消校验阶段；已取消抛 `QUERY_CANCELLED` |
 
-`metadata.builderVersion` 未提供时写入 `"weisql-builder/0.1.0"`；`metadata` 整体未提供时 Manifest 不写该字段。
+`metadata.builderVersion` 未提供时写入 `"weisql-builder/0.2.0"`；`metadata` 整体未提供时 Manifest 不写该字段。
 
 ### BuilderTableInput
 

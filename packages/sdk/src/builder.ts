@@ -469,7 +469,7 @@ function buildManifest(config: NormalizedConfig, written: WrittenDescriptors): W
       };
     }),
   };
-  if (config.metadata !== undefined) manifest.metadata = { ...config.metadata, builderVersion: config.metadata.builderVersion ?? "weisql-builder/0.1.0" };
+  if (config.metadata !== undefined) manifest.metadata = { ...config.metadata, builderVersion: config.metadata.builderVersion ?? "weisql-builder/0.2.0" };
   return manifest;
 }
 

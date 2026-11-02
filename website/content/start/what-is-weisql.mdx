@@ -203,7 +203,7 @@ await db.close();
 这段代码没有后端、没有连接字符串、没有凭证。`filter` 需要注入 SQL Adapter；未注入时返回 `SQL_UNSUPPORTED`，不会静默忽略过滤条件。
 
 <Callout tone="amber" title="现状：工程原型，不是已发布产品">
-  五个包版本均为 0.1.0，尚未发布到 npm；Manifest V1 基础结构已冻结。真实数据集
+  五个包版本均为 0.2.0，尚未发布到 npm；Manifest V1 基础结构已冻结。真实数据集
   Recall@K、真实 CDN 与多机基准仍未完成；性能数字都带条件，不能外推。
 </Callout>
 

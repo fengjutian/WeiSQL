@@ -1,6 +1,6 @@
 {
   "name": "@weisql/duckdb-adapter",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Read-only DuckDB SqlAdapter for WeiSQL AI (Node.js)",
   "keywords": [
     "weisql",
@@ -39,7 +39,7 @@
   },
   "dependencies": {
     "@duckdb/node-api": "^2.0.0-r.1",
-    "@weisql/sdk": "^0.1.0"
+    "@weisql/sdk": "^0.2.0"
   },
   "engines": {
     "node": ">=20"

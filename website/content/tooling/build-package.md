@@ -121,7 +121,7 @@ Builder 在写任何资源之前检查：表名/集合名不重复、每张表�
 - 向量写成 Float32 little-endian、行主序；
 - ID Map 写成 UTF-8 JSONL 加 UInt64 偏移；
 - 同时生成 `id → row` 反向索引，供过滤查询使用；
-- Manifest 记录真实字节数与 SHA-256；提供 `metadata` 时，`builderVersion` 默认为 `weisql-builder/0.1.0`。
+- Manifest 记录真实字节数与 SHA-256；提供 `metadata` 时，`builderVersion` 默认为 `weisql-builder/0.2.0`。
 
 `report.artifacts` 给出每个文件的 `path`、`bytes` 与 `sha256`；`report.integrity` 是自检的 L3 结果。
 

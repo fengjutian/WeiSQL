@@ -136,7 +136,7 @@ const config = {
       announcementBar: {
         id: "pre-release",
         content:
-          'WeiSQL AI 0.1.0 · 工程原型，尚未发布 npm。<a href="/docs/reference/limitations">查看当前限制</a>',
+          'WeiSQL 0.2.0 · 工程原型，尚未发布 npm。<a href="/docs/reference/limitations">查看当前限制</a>',
         backgroundColor: "#0f766e",
         textColor: "#ffffff",
         isCloseable: true,

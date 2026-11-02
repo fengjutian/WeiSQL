@@ -1,7 +1,7 @@
 {
   "name": "@weisql/desktop",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "WeiSQL Desktop — Tauri client for WeiSQL data packages",
   "type": "module",
   "scripts": {
@@ -19,8 +19,8 @@
     "@duckdb/duckdb-wasm": "^1.32.0",
     "@tauri-apps/api": "^2.12.0",
     "@tauri-apps/plugin-dialog": "^2.8.0",
-    "@weisql/duckdb-wasm-adapter": "0.1.0",
-    "@weisql/sdk": "0.1.0"
+    "@weisql/duckdb-wasm-adapter": "0.2.0",
+    "@weisql/sdk": "0.2.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

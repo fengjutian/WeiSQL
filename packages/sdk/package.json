@@ -1,6 +1,6 @@
 {
   "name": "@weisql/sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Read-only TypeScript SDK skeleton and manifest validator for WeiSQL AI",
   "keywords": [
     "weisql",

@@ -40,11 +40,11 @@ WeiSQL 的选型围绕一个目标：**让数据包在浏览器和 Node.js 之�
 ## 2. 包与依赖方向
 
 ```text
-@weisql/sdk 0.1.0                零运行时依赖
-├── @weisql/duckdb-adapter 0.1.0        @duckdb/node-api 2.0.0-r.1
-├── @weisql/duckdb-wasm-adapter 0.1.0   @duckdb/duckdb-wasm 1.32.0
-├── @weisql/usearch-adapter 0.1.0       usearch 2.26.5
-└── @weisql/cli 0.1.0                   复用 SDK 的校验逻辑
+@weisql/sdk 0.2.0                零运行时依赖
+├── @weisql/duckdb-adapter 0.2.0        @duckdb/node-api 2.0.0-r.1
+├── @weisql/duckdb-wasm-adapter 0.2.0   @duckdb/duckdb-wasm 1.32.0
+├── @weisql/usearch-adapter 0.2.0       usearch 2.26.5
+└── @weisql/cli 0.2.0                   复用 SDK 的校验逻辑
 ```
 
 依赖只能从上往下：Adapter 依赖 SDK，SDK 不反向依赖任何 Adapter。`npm run release:check` 会检查 workspace 依赖范围、`files` 清单、dist 产物与 README 是否齐备。

@@ -4,7 +4,7 @@
 
 站点：https://weisql.netlify.app
 仓库：https://github.com/fengjutian/WeiSQL
-当前状态：工程原型（0.1.0），尚未发布到 npm，未验证项见「限制与路线」。
+当前状态：工程原型（0.2.0），尚未发布到 npm，未验证项见「限制与路线」。
 
 ## 核心文档
 

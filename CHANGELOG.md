@@ -7,7 +7,7 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 
 ## [Unreleased]
 
-### `@weisql/sdk` 0.1.0
+### `@weisql/sdk` 0.2.0
 
 - Manifest V1 validation (L1/L2) with path, uniqueness and cross-field rules.
 - L3 resource integrity: `verifyChecksums` modes `none` / `manifest` / `all`,
@@ -64,7 +64,7 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   ABI version and required exports. `npm run embed:wasm` refreshes them and
   `release:check` rejects a package whose bytes disagree with the manifest.
 
-### `@weisql/cli` 0.1.0
+### `@weisql/cli` 0.2.0
 
 - `weisql validate <dir|file.wsql>` with `--mode` / `--json` and exit codes 0/1/2.
 - `weisql pack <dir> --output <file>` produces a `.wsql` container; validating a
@@ -80,7 +80,7 @@ Nothing has been published to a registry yet, so every entry below is unreleased
 - `weisql inspect` summarizes a package and lists undeclared files; `pack
   --only-declared` refuses to ship anything the Manifest does not declare.
 
-### `@weisql/duckdb-adapter` 0.1.0
+### `@weisql/duckdb-adapter` 0.2.0
 
 - Read-only DuckDB adapter: statement-type enforcement, parameter binding,
   L4 schema verification, native interruption.
@@ -96,7 +96,7 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   `maxTotalTableBytes` (default 512 MiB) per package, checked before the DuckDB
   instance is created.
 
-### `@weisql/duckdb-wasm-adapter` 0.1.0
+### `@weisql/duckdb-wasm-adapter` 0.2.0
 
 - Read-only DuckDB-Wasm `SqlAdapter` for browsers: worker-based `AsyncDuckDB`,
   tables materialized from `ResourceReader` bytes, L4 schema verification.
@@ -138,7 +138,7 @@ Nothing has been published to a registry yet, so every entry below is unreleased
   preempt CPU-bound work in the single-threaded worker (measured), so the engine
   may still finish the query.
 
-### `@weisql/usearch-adapter` 0.1.0
+### `@weisql/usearch-adapter` 0.2.0
 
 - HNSW `VectorAdapter` with measured metric mapping and honest `exact: false`.
 - Persisted index loading (`index.params`) and in-memory build fallback.

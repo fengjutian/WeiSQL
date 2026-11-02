@@ -1,6 +1,6 @@
 {
   "name": "@weisql/usearch-adapter",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "ANN VectorAdapter for WeiSQL AI backed by USearch (Node.js)",
   "keywords": [
     "weisql",
@@ -37,7 +37,7 @@
     "test": "npm run build && node --test test/*.test.js"
   },
   "dependencies": {
-    "@weisql/sdk": "^0.1.0",
+    "@weisql/sdk": "^0.2.0",
     "usearch": "^2.26.5"
   },
   "engines": {

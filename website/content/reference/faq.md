@@ -100,7 +100,7 @@ DuckDB-Wasm 的引擎与 Worker 需要首次下载，parquet 扩展还要单独�
 <details>
 <summary>为什么 npm 上装不到？</summary>
 
-五个包当前都是 `0.1.0`，**尚未发布到 npm**。仓库内可以通过 workspace 构建与引用；发布前包名与导入路径仍可能调整。
+五个包当前都是 `0.2.0`，**尚未发布到 npm**。仓库内可以通过 workspace 构建与引用；发布前包名与导入路径仍可能调整。
 
 </details>
 
